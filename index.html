@@ -44,7 +44,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
    <div class="tile">BODY WEIGHT<strong>—</strong><span>Latest weigh-in</span></div>
   </div>
  </section>
- <section class="card hidden" id="clientsView"><div class="eyebrow">COACH ADMINISTRATION</div><div class="heading">Client directory</div><p class="muted">Registered client accounts will appear here.</p><div class="grid"><div class="tile">CLIENTS<strong id="clientCount">—</strong><span>Registered accounts</span></div><div class="tile">ACTIVE<strong id="activeCount">—</strong><span>Active accounts</span></div></div><div id="clientList" class="muted" style="margin-top:14px">Loading clients…</div></section>\n <section class="card hidden" id="nutritionView"><div class="eyebrow">NUTRITION</div><div class="heading">Meal planner & food diary</div><p class="muted">Your meal plan, macro targets, saved foods and barcode scanner will be added here.</p></section>
+ <section class="card hidden" id="clientsView"><div class="eyebrow">COACH ADMINISTRATION</div><div class="heading">Client directory</div><p class="muted">Registered client accounts will appear here.</p><div class="grid"><div class="tile">CLIENTS<strong id="clientCount">—</strong><span>Registered accounts</span></div><div class="tile">ACTIVE<strong id="activeCount">—</strong><span>Active accounts</span></div></div><div class="section-title" style="margin-top:20px">Invite a new client</div><p class="muted">Create an invitation for a client. They register with this exact email address and choose their own password.</p><label for="inviteName">Client name</label><input id="inviteName" placeholder="Client full name"><label for="inviteEmail">Client email</label><input id="inviteEmail" type="email" placeholder="client@example.com"><button id="inviteBtn" style="width:100%;margin-top:14px">CREATE CLIENT INVITATION</button><div id="inviteStatus" class="status" role="status"></div><div class="section-title" style="margin-top:20px">Registered clients</div><div id="clientList" class="muted" style="margin-top:14px">Loading clients…</div><div class="section-title" style="margin-top:20px">Pending invitations</div><div id="inviteList" class="muted">Loading invitations…</div></section>\n <section class="card hidden" id="nutritionView"><div class="eyebrow">NUTRITION</div><div class="heading">Meal planner & food diary</div><p class="muted">Your meal plan, macro targets, saved foods and barcode scanner will be added here.</p></section>
  <section class="card hidden" id="trainingView"><div class="eyebrow">TRAINING</div><div class="heading">Your training plan</div><p class="muted">Your workouts, exercise demonstrations, sets, reps and training history will be added here.</p></section>
  <section class="card hidden" id="progressView"><div class="eyebrow">PROGRESS</div><div class="heading">Your progress</div><p class="muted">Weight averages, measurements and progress photos will be added here.</p></section>
  <section class="card hidden" id="checkinsView"><div class="eyebrow">COACHING</div><div class="heading">Weekly check-ins</div><p class="muted">Your weekly check-in forms and coach feedback will be added here.</p></section>
@@ -113,7 +113,7 @@ async function loadClients(){
   $("clientCount").textContent=String(clients.length);
   $("activeCount").textContent=String(clients.filter(c=>c.accountStatus==="active").length);
   list.replaceChildren();
-  if(!clients.length){list.textContent="No client accounts yet. New client registrations will appear here.";return;}
+  if(!clients.length){list.textContent="No client accounts yet.";return;}
   clients.forEach(c=>{
    const card=document.createElement("div");card.className="tile";card.style.margin="9px 0";card.style.minHeight="0";
    const name=document.createElement("strong");name.style.fontSize="17px";name.style.color="#f5f7f1";name.textContent=c.displayName||"Unnamed client";
@@ -121,8 +121,37 @@ async function loadClients(){
    const state=document.createElement("div");state.className="pill";state.textContent=c.accountStatus||"Status unknown";
    card.append(name,email,state);list.append(card);
   });
+  await loadInvitations();
  }catch(e){list.textContent="Unable to load clients. Check Firestore permissions and try refreshing.";}
 }
+async function loadInvitations(){
+ const list=$("inviteList");list.textContent="Loading invitations…";
+ try{
+  const result=await getDocs(collection(db,"invitations"));
+  const pending=result.docs.map(d=>d.data()).filter(x=>x.status==="pending");
+  list.replaceChildren();
+  if(!pending.length){list.textContent="No pending invitations.";return;}
+  pending.forEach(inv=>{
+   const card=document.createElement("div");card.className="tile";card.style.margin="9px 0";card.style.minHeight="0";
+   const name=document.createElement("strong");name.style.fontSize="16px";name.style.color="#f5f7f1";name.textContent=inv.displayName||"New client";
+   const email=document.createElement("span");email.textContent=inv.email;
+   const status=document.createElement("div");status.className="pill";status.textContent="Invitation pending";
+   card.append(name,email,status);list.append(card);
+  });
+ }catch(e){list.textContent="Unable to load invitations.";}
+}
+$("inviteBtn").addEventListener("click",async()=>{
+ const name=$("inviteName").value.trim(),email=$("inviteEmail").value.trim().toLowerCase();
+ if(!name||!email){$("inviteStatus").textContent="Enter the client's name and email address.";return;}
+ $("inviteBtn").disabled=true;$("inviteStatus").textContent="Creating invitation…";
+ try{
+  await setDoc(doc(db,"invitations",email),{email,displayName:name,status:"pending",createdAt:serverTimestamp(),createdBy:currentUser.uid});
+  $("inviteStatus").textContent="Invitation created. Send the client your B.COACHED website address and ask them to register using "+email+".";
+  $("inviteName").value="";$("inviteEmail").value="";
+  await loadInvitations();
+ }catch(e){$("inviteStatus").textContent="Could not create invitation. Check your coach permissions and published Firestore rules.";}
+ finally{$("inviteBtn").disabled=false;}
+});
 document.querySelectorAll("#nav button").forEach(btn=>btn.addEventListener("click",()=>{
  document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b===btn));
  ["overview","clients","nutrition","training","progress","checkins"].forEach(v=>$(v+"View").classList.toggle("hidden",v!==btn.dataset.view));
