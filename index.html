@@ -1,157 +1,113 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#090b08">
-<title>B.COACHED | Food Scanner</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#090b08"><title>B.COACHED | Coaching Platform</title>
 <style>
-:root{--lime:#c6ff00;--silver:#c4c9ce;--bg:#090b08;--panel:#171b14;--panel2:#20251c;--line:#343b2c;--muted:#9ca394;--white:#f5f7f1;--danger:#ff7777;--good:#b8f36b}
+:root{--lime:#c6ff00;--bg:#090b08;--panel:#171b14;--panel2:#20251c;--line:#343b2c;--muted:#a5ad9b;--white:#f5f7f1;--red:#ff7777}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -15%,#26320d 0,transparent 48%),var(--bg);color:var(--white);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;min-height:100vh}
-main{width:min(100%,620px);margin:auto;padding:22px 16px 44px}.brand{text-align:center;padding:12px 0 22px}.mark{width:68px;height:68px;border:1px solid #829e22;border-radius:18px;margin:0 auto 12px;display:grid;place-items:center;box-shadow:0 0 28px #c6ff0020;color:var(--lime);font-weight:950;font-size:37px;letter-spacing:-3px}.brandname{font-size:21px;font-weight:900;letter-spacing:2px}.brandname b{color:var(--lime)}.tag{color:var(--silver);font-size:10px;letter-spacing:4px;margin-top:6px}.rule{height:3px;width:64px;background:var(--lime);border-radius:9px;margin:14px auto 0}
-.card{background:linear-gradient(145deg,#1b2017,#12150f);border:1px solid var(--line);border-radius:18px;padding:18px;margin:0 0 15px;box-shadow:0 10px 28px #0005}.eyebrow{color:var(--lime);font-size:11px;font-weight:800;letter-spacing:1.8px;text-transform:uppercase}.heading{font-size:19px;font-weight:850;margin:7px 0 15px}.muted{color:var(--muted);font-size:13px;line-height:1.5}
-button,input,select{font:inherit}button{width:100%;border:0;border-radius:12px;padding:15px 16px;font-weight:850;font-size:14px;letter-spacing:.4px;background:var(--lime);color:#11160a;cursor:pointer;margin-top:10px}button.secondary{background:#30372a;color:var(--white);border:1px solid #4b563b}button:disabled{opacity:.45;cursor:not-allowed}
-label{display:block;color:var(--silver);font-size:12px;font-weight:750;margin:13px 0 7px}input,select{width:100%;padding:14px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font-size:16px;outline:none}input:focus,select:focus{border-color:var(--lime);box-shadow:0 0 0 2px #c6ff0022}
-#video{width:100%;display:none;background:#000;border-radius:13px;max-height:340px;object-fit:cover;margin-top:12px}#cameraHint{padding:18px;border:1px dashed #586344;border-radius:12px;text-align:center;color:var(--muted);font-size:13px}
-.status{min-height:22px;margin-top:12px;font-size:13px;line-height:1.5;color:var(--muted)}.status.good{color:var(--good)}.status.bad{color:var(--danger)}
-#foodResult{display:none}.foodtitle{font-size:20px;font-weight:850;margin:8px 0 12px}.macros{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}.macro{background:#0a0d08;border:1px solid #30382a;border-radius:11px;padding:12px}.macro strong{display:block;color:var(--lime);font-size:20px}.macro span{font-size:11px;color:var(--muted)}
-.pill{display:inline-block;border:1px solid #586344;border-radius:99px;padding:6px 10px;color:var(--silver);font-size:11px;margin-top:12px}.footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin:25px 0 0}
-@media(min-width:520px){main{padding-top:32px}.card{padding:22px}}
+main{width:min(100%,1050px);margin:auto;padding:22px 16px 50px}.brand{text-align:center;padding:16px 0 24px}.mark{width:62px;height:62px;border:1px solid #829e22;border-radius:17px;margin:0 auto 10px;display:grid;place-items:center;color:var(--lime);font-weight:950;font-size:34px}.brandname{font-size:22px;font-weight:900;letter-spacing:2px}.brandname b{color:var(--lime)}.tag{color:#c4c9ce;font-size:10px;letter-spacing:4px;margin-top:6px}
+.card{background:linear-gradient(145deg,#1b2017,#12150f);border:1px solid var(--line);border-radius:18px;padding:20px;margin-bottom:15px;box-shadow:0 10px 28px #0005}.eyebrow{color:var(--lime);font-size:11px;font-weight:800;letter-spacing:1.8px;text-transform:uppercase}.heading{font-size:20px;font-weight:850;margin:7px 0 15px}.muted{color:var(--muted);font-size:13px;line-height:1.55}
+button,input{font:inherit}button{border:0;border-radius:12px;padding:14px 16px;font-weight:850;font-size:13px;background:var(--lime);color:#11160a;cursor:pointer}button.secondary{background:#30372a;color:var(--white);border:1px solid #4b563b}button:disabled{opacity:.5;cursor:not-allowed}
+label{display:block;color:#c4c9ce;font-size:12px;font-weight:750;margin:13px 0 7px}input{width:100%;padding:14px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font-size:16px;outline:none}input:focus{border-color:var(--lime);box-shadow:0 0 0 2px #c6ff0022}
+.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}.actions button{flex:1;min-width:130px}.status{min-height:20px;margin-top:12px;font-size:13px;line-height:1.5;color:var(--muted)}.status.good{color:#b8f36b}.status.bad{color:var(--red)}
+.hidden{display:none!important}.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}.top .brandname{font-size:18px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.tile{background:#0c1009;border:1px solid #30382a;border-radius:14px;padding:16px;min-height:112px}.tile strong{display:block;font-size:24px;color:var(--lime);margin:10px 0 4px}.tile span{font-size:12px;color:var(--muted)}.section-title{font-size:16px;font-weight:850;margin:4px 0 12px}.pill{display:inline-block;border:1px solid #586344;border-radius:99px;padding:6px 10px;color:#d7decf;font-size:11px}
+nav{display:flex;gap:8px;overflow:auto;padding:3px 0 14px}nav button{white-space:nowrap;padding:10px 13px;background:#252c1e;color:#eaf0e1;border:1px solid #424d32}nav button.active{background:var(--lime);color:#11160a}
+footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-top:28px}
+@media(min-width:650px){main{padding-top:30px}.grid{grid-template-columns:repeat(4,minmax(0,1fr))}.card{padding:24px}}
 </style>
 </head>
-<body>
-<main>
-<header class="brand">
- <div class="mark">B.</div>
- <div class="brandname"><b>B.</b>COACHED</div>
- <div class="tag">FOOD SCANNER</div><div class="rule"></div>
-</header>
+<body><main>
+<header class="brand"><div class="mark">B.</div><div class="brandname"><b>B.</b>COACHED</div><div class="tag">ONLINE COACHING PLATFORM</div></header>
 
-<section class="card">
- <div class="eyebrow">01 / Scan</div>
- <div class="heading">Scan a food barcode</div>
- <div id="cameraHint">Camera is ready when you are. Allow camera access when your browser asks.</div>
- <video id="video" playsinline muted></video>
- <button id="startBtn">START CAMERA SCANNER</button>
- <button id="stopBtn" class="secondary" hidden>STOP CAMERA</button>
- <div class="muted" style="margin-top:10px">Hold the barcode steady inside the camera view. Good lighting helps.</div>
- <label for="barcode">Or enter barcode manually</label>
- <input id="barcode" inputmode="numeric" autocomplete="off" placeholder="Enter barcode number">
- <button id="lookupBtn" class="secondary">LOOK UP BARCODE</button>
- <div id="scanStatus" class="status" role="status" aria-live="polite"></div>
+<section id="authCard" class="card">
+ <div class="eyebrow">YOUR COACHING, ONE PLATFORM</div><div class="heading" id="authHeading">Welcome to B.COACHED</div>
+ <p class="muted" id="authIntro">Sign in to access your personal coaching dashboard, nutrition, training and progress.</p>
+ <div id="nameWrap" class="hidden"><label for="fullName">Your name</label><input id="fullName" autocomplete="name" placeholder="Full name"></div>
+ <label for="email">Email address</label><input id="email" type="email" autocomplete="email" placeholder="you@example.com">
+ <label for="password">Password</label><input id="password" type="password" autocomplete="current-password" placeholder="At least 6 characters">
+ <div class="actions"><button id="primaryBtn">LOG IN</button><button id="switchBtn" class="secondary">CREATE ACCOUNT</button></div>
+ <button id="resetBtn" class="secondary" style="width:100%;margin-top:10px">FORGOT PASSWORD?</button>
+ <div id="authStatus" class="status" role="status" aria-live="polite"></div>
 </section>
 
-<section class="card" id="foodResult">
- <div class="eyebrow">02 / Food result</div>
- <div class="foodtitle" id="foodName"></div>
- <div class="muted" id="foodBrand"></div>
- <div class="macros" style="margin-top:14px">
-  <div class="macro"><strong id="kcal">—</strong><span>CALORIES / 100G</span></div>
-  <div class="macro"><strong id="protein">—</strong><span>PROTEIN / 100G</span></div>
-  <div class="macro"><strong id="carbs">—</strong><span>CARBS / 100G</span></div>
-  <div class="macro"><strong id="fat">—</strong><span>FAT / 100G</span></div>
- </div>
- <div class="pill" id="source">Open Food Facts</div>
+<section id="app" class="hidden">
+ <div class="top"><div><div class="brandname"><b>B.</b>COACHED</div><div class="muted" id="welcome">Your dashboard</div></div><button id="logoutBtn" class="secondary">LOG OUT</button></div>
+ <nav id="nav"><button class="active" data-view="overview">Overview</button><button data-view="nutrition">Nutrition</button><button data-view="training">Training</button><button data-view="progress">Progress</button><button data-view="checkins">Check-ins</button></nav>
+ <section class="card" id="overviewView">
+  <div class="eyebrow" id="roleLabel">CLIENT DASHBOARD</div><div class="heading">Your daily overview</div>
+  <p class="muted">Welcome to your B.COACHED space. Your personal targets and coaching plan will appear here as we build each section.</p>
+  <div class="grid">
+   <div class="tile">DAILY STEPS<strong>—</strong><span>Target to be set by coach</span></div>
+   <div class="tile">WATER<strong>—</strong><span>Daily hydration</span></div>
+   <div class="tile">SLEEP<strong>—</strong><span>Last night's sleep</span></div>
+   <div class="tile">BODY WEIGHT<strong>—</strong><span>Latest weigh-in</span></div>
+  </div>
+ </section>
+ <section class="card hidden" id="nutritionView"><div class="eyebrow">NUTRITION</div><div class="heading">Meal planner & food diary</div><p class="muted">Your meal plan, macro targets, saved foods and barcode scanner will be added here.</p></section>
+ <section class="card hidden" id="trainingView"><div class="eyebrow">TRAINING</div><div class="heading">Your training plan</div><p class="muted">Your workouts, exercise demonstrations, sets, reps and training history will be added here.</p></section>
+ <section class="card hidden" id="progressView"><div class="eyebrow">PROGRESS</div><div class="heading">Your progress</div><p class="muted">Weight averages, measurements and progress photos will be added here.</p></section>
+ <section class="card hidden" id="checkinsView"><div class="eyebrow">COACHING</div><div class="heading">Weekly check-ins</div><p class="muted">Your weekly check-in forms and coach feedback will be added here.</p></section>
+ <div id="coachNote" class="card hidden"><div class="eyebrow">COACH TOOLS</div><div class="heading">Coach account detected</div><p class="muted">Your coach dashboard and client management tools will be built in the next stages.</p></div>
 </section>
-
-<section class="card">
- <div class="eyebrow">03 / Meal plan</div>
- <div class="heading">Add to your meal plan</div>
- <p class="muted">The scanner interface is being connected to your private B.COACHED Apps Script backend. Meal-plan saving will be enabled once that secure connection is configured.</p>
- <label for="client">Client ID</label>
- <input id="client" placeholder="Client ID" autocomplete="off">
- <label for="week">Week</label>
- <select id="week"><option value="1">Week 1</option><option value="2">Week 2</option><option value="3">Week 3</option><option value="4">Week 4</option><option value="5">Week 5</option><option value="6">Week 6</option><option value="7">Week 7</option><option value="8">Week 8</option><option value="9">Week 9</option><option value="10">Week 10</option><option value="11">Week 11</option><option value="12">Week 12</option></select>
- <label for="day">Day</label>
- <select id="day"><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option></select>
- <label for="meal">Meal</label>
- <select id="meal"><option>Breakfast</option><option>Lunch</option><option>Dinner</option><option>Snacks</option></select>
- <label for="grams">Amount (grams)</label>
- <input id="grams" type="number" min="1" step="1" placeholder="e.g. 150">
- <button id="addBtn" disabled>ADD TO MEAL PLAN — CONNECTION PENDING</button>
- <div class="status" id="mealStatus">Your existing Google Sheets data has not been changed.</div>
-</section>
-<div class="footer">B.COACHED · ONLINE COACHING</div>
+<footer>B.COACHED · ONLINE COACHING</footer>
 </main>
-
 <script type="module">
-import { BrowserMultiFormatReader } from "https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-const $ = id => document.getElementById(id);
-const reader = new BrowserMultiFormatReader();
-let controls = null;
-let currentProduct = null;
-const params = new URLSearchParams(location.search);
-$("client").value = params.get("client") || "";
-
-function say(message, kind="") {
-  $("scanStatus").textContent = message;
-  $("scanStatus").className = "status " + kind;
-}
-function cleanCode(value) { return String(value || "").replace(/\D/g,""); }
-function showProduct(p, source) {
-  currentProduct = p;
-  $("foodName").textContent = p.product_name || p.product_name_en || "Unnamed product";
-  $("foodBrand").textContent = p.brands || "";
-  const n = p.nutriments || {};
-  const kcal = Number(n["energy-kcal_100g"] || (Number(n.energy_100g || 0)/4.184) || 0);
-  $("kcal").textContent = Math.round(kcal) + " kcal";
-  $("protein").textContent = (Number(n.proteins_100g)||0).toFixed(1) + " g";
-  $("carbs").textContent = (Number(n.carbohydrates_100g)||0).toFixed(1) + " g";
-  $("fat").textContent = (Number(n.fat_100g)||0).toFixed(1) + " g";
-  $("source").textContent = source + " · Barcode " + $("barcode").value;
-  $("foodResult").style.display = "block";
-}
-async function lookup() {
-  const code = cleanCode($("barcode").value);
-  if (!code) { say("Enter or scan a barcode first.", "bad"); return; }
-  $("barcode").value = code;
-  say("Looking up product…");
-  $("lookupBtn").disabled = true;
-  try {
-    const response = await fetch("https://world.openfoodfacts.org/api/v2/product/" + encodeURIComponent(code) + ".json");
-    if (!response.ok) throw new Error("Product service is temporarily unavailable.");
-    const data = await response.json();
-    if (data.status !== 1 || !data.product) throw new Error("No product found for that barcode.");
-    showProduct(data.product, "Open Food Facts");
-    say("Product found. Nutrition is shown per 100 g.", "good");
-  } catch (e) {
-    say(e.message || "Could not look up this barcode.", "bad");
-  } finally { $("lookupBtn").disabled = false; }
-}
-$("startBtn").addEventListener("click", async () => {
-  try {
-    $("startBtn").disabled = true;
-    say("Starting camera…");
-    $("cameraHint").hidden = true;
-    $("video").style.display = "block";
-    controls = await reader.decodeFromVideoDevice(undefined, $("video"), (result, error, ctl) => {
-      if (result) {
-        $("barcode").value = result.getText();
-        say("Barcode scanned: " + result.getText(), "good");
-        ctl.stop(); controls = null;
-        $("video").style.display = "none";
-        $("startBtn").hidden = false; $("startBtn").disabled = false; $("stopBtn").hidden = true;
-        lookup();
-      }
-    });
-    $("stopBtn").hidden = false;
-    say("Camera active. Point it at a barcode.");
-  } catch (e) {
-    $("video").style.display = "none"; $("cameraHint").hidden = false;
-    $("startBtn").disabled = false;
-    say("Camera could not start. Check browser camera permission and make sure this page is opened over HTTPS. " + (e.message || ""), "bad");
+const firebaseConfig = {
+ apiKey: "AIzaSyDYm9hfARUWgQO3bpIlMkJnbDzV7O1OOAo",
+ authDomain: "bcoached-889bc.firebaseapp.com",
+ projectId: "bcoached-889bc",
+ storageBucket: "bcoached-889bc.firebasestorage.app",
+ messagingSenderId: "597253859431",
+ appId: "1:597253859431:web:18a0fa2c616039d0524cc2"
+};
+const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app);
+const $=id=>document.getElementById(id);
+let mode="login", currentUser=null;
+function status(message,kind=""){ $("authStatus").textContent=message; $("authStatus").className="status "+kind; }
+function setMode(next){mode=next;const register=mode==="register";$("authHeading").textContent=register?"Create your B.COACHED account":"Welcome to B.COACHED";$("authIntro").textContent=register?"Create your personal account using your own email address and password.":"Sign in to access your personal coaching dashboard, nutrition, training and progress.";$("nameWrap").classList.toggle("hidden",!register);$("primaryBtn").textContent=register?"CREATE ACCOUNT":"LOG IN";$("switchBtn").textContent=register?"BACK TO LOGIN":"CREATE ACCOUNT";$("resetBtn").classList.toggle("hidden",register);status("");}
+$("switchBtn").onclick=()=>setMode(mode==="login"?"register":"login");
+$("primaryBtn").onclick=async()=>{
+ const email=$("email").value.trim(),password=$("password").value;
+ if(!email||!password){status("Enter your email address and password.","bad");return;}
+ if(mode==="register"&&!$("fullName").value.trim()){status("Please enter your name.","bad");return;}
+ $("primaryBtn").disabled=true;status(mode==="register"?"Creating your account…":"Logging in…");
+ try{
+  if(mode==="register"){
+   const cred=await createUserWithEmailAndPassword(auth,email,password);
+   await setDoc(doc(db,"users",cred.user.uid),{uid:cred.user.uid,email:email.toLowerCase(),displayName:$("fullName").value.trim(),role:"client",createdAt:serverTimestamp(),accountStatus:"active"});
+   await sendEmailVerification(cred.user);
+   status("Account created. Check your email and verify your address, then log in.","good");
+   await signOut(auth);setMode("login");
+  }else{
+   const cred=await signInWithEmailAndPassword(auth,email,password);
+   if(!cred.user.emailVerified){await sendEmailVerification(cred.user);await signOut(auth);throw new Error("Please verify your email first. We've sent you a new verification link.");}
   }
+ }catch(e){status(friendly(e),"bad");}
+ finally{$("primaryBtn").disabled=false;}
+};
+$("resetBtn").onclick=async()=>{const email=$("email").value.trim();if(!email){status("Enter your email address first.","bad");return;}try{await sendPasswordResetEmail(auth,email);status("Password reset email sent. Check your inbox.","good");}catch(e){status(friendly(e),"bad");}};
+$("logoutBtn").onclick=()=>signOut(auth);
+function friendly(e){const m=e?.message||"Something went wrong.";if(m.includes("auth/invalid-credential"))return"Email or password is incorrect.";if(m.includes("auth/email-already-in-use"))return"An account already exists with this email. Try logging in.";if(m.includes("auth/weak-password"))return"Choose a stronger password with at least 6 characters.";if(m.includes("auth/invalid-email"))return"Please enter a valid email address.";return m;}
+onAuthStateChanged(auth,async user=>{
+ currentUser=user;
+ if(!user){$("authCard").classList.remove("hidden");$("app").classList.add("hidden");return;}
+ try{
+  const snap=await getDoc(doc(db,"users",user.uid));
+  if(!snap.exists())throw new Error("Your account profile could not be found. Please contact your coach.");
+  const profile=snap.data();
+  $("authCard").classList.add("hidden");$("app").classList.remove("hidden");
+  $("welcome").textContent="Welcome, "+(profile.displayName||"there");
+  const coach=profile.role==="coach";$("roleLabel").textContent=coach?"COACH DASHBOARD":"CLIENT DASHBOARD";$("coachNote").classList.toggle("hidden",!coach);
+ }catch(e){status(friendly(e),"bad");await signOut(auth);}
 });
-$("stopBtn").addEventListener("click", () => {
-  if (controls) controls.stop();
-  controls = null; $("video").style.display = "none"; $("cameraHint").hidden = false;
-  $("startBtn").hidden = false; $("startBtn").disabled = false; $("stopBtn").hidden = true;
-  say("Camera stopped.");
-});
-$("lookupBtn").addEventListener("click", lookup);
-$("barcode").addEventListener("keydown", e => { if (e.key === "Enter") lookup(); });
-window.addEventListener("pagehide", () => { if (controls) controls.stop(); });
+document.querySelectorAll("#nav button").forEach(btn=>btn.addEventListener("click",()=>{
+ document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b===btn));
+ ["overview","nutrition","training","progress","checkins"].forEach(v=>$(v+"View").classList.toggle("hidden",v!==btn.dataset.view));
+}));
 </script>
-</body>
-</html>
+</body></html>
