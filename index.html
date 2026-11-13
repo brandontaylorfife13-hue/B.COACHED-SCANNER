@@ -33,7 +33,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 
 <section id="app" class="hidden">
  <div class="top"><div><div class="brandname"><b>B.</b>COACHED</div><div class="muted" id="welcome">Your dashboard</div></div><button id="logoutBtn" class="secondary">LOG OUT</button></div>
- <nav id="nav"><button class="active" data-view="overview">Overview</button><button data-view="nutrition">Nutrition</button><button data-view="training">Training</button><button data-view="progress">Progress</button><button data-view="checkins">Check-ins</button></nav>
+ <nav id="nav"><button class="active" data-view="overview">Overview</button><button id="clientsNav" class="hidden" data-view="clients">Clients</button><button data-view="nutrition">Nutrition</button><button data-view="training">Training</button><button data-view="progress">Progress</button><button data-view="checkins">Check-ins</button></nav>
  <section class="card" id="overviewView">
   <div class="eyebrow" id="roleLabel">CLIENT DASHBOARD</div><div class="heading">Your daily overview</div>
   <p class="muted">Welcome to your B.COACHED space. Your personal targets and coaching plan will appear here as we build each section.</p>
@@ -44,7 +44,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
    <div class="tile">BODY WEIGHT<strong>—</strong><span>Latest weigh-in</span></div>
   </div>
  </section>
- <section class="card hidden" id="nutritionView"><div class="eyebrow">NUTRITION</div><div class="heading">Meal planner & food diary</div><p class="muted">Your meal plan, macro targets, saved foods and barcode scanner will be added here.</p></section>
+ <section class="card hidden" id="clientsView"><div class="eyebrow">COACH ADMINISTRATION</div><div class="heading">Client directory</div><p class="muted">Registered client accounts will appear here.</p><div class="grid"><div class="tile">CLIENTS<strong id="clientCount">—</strong><span>Registered accounts</span></div><div class="tile">ACTIVE<strong id="activeCount">—</strong><span>Active accounts</span></div></div><div id="clientList" class="muted" style="margin-top:14px">Loading clients…</div></section>\n <section class="card hidden" id="nutritionView"><div class="eyebrow">NUTRITION</div><div class="heading">Meal planner & food diary</div><p class="muted">Your meal plan, macro targets, saved foods and barcode scanner will be added here.</p></section>
  <section class="card hidden" id="trainingView"><div class="eyebrow">TRAINING</div><div class="heading">Your training plan</div><p class="muted">Your workouts, exercise demonstrations, sets, reps and training history will be added here.</p></section>
  <section class="card hidden" id="progressView"><div class="eyebrow">PROGRESS</div><div class="heading">Your progress</div><p class="muted">Weight averages, measurements and progress photos will be added here.</p></section>
  <section class="card hidden" id="checkinsView"><div class="eyebrow">COACHING</div><div class="heading">Weekly check-ins</div><p class="muted">Your weekly check-in forms and coach feedback will be added here.</p></section>
@@ -55,7 +55,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, serverTimestamp, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 const firebaseConfig = {
  apiKey: "AIzaSyDYm9hfARUWgQO3bpIlMkJnbDzV7O1OOAo",
@@ -102,12 +102,31 @@ onAuthStateChanged(auth,async user=>{
   const profile=snap.data();
   $("authCard").classList.add("hidden");$("app").classList.remove("hidden");
   $("welcome").textContent="Welcome, "+(profile.displayName||"there");
-  const coach=profile.role==="coach";$("roleLabel").textContent=coach?"COACH DASHBOARD":"CLIENT DASHBOARD";$("coachNote").classList.toggle("hidden",!coach);
+  const coach=profile.role==="coach";$("roleLabel").textContent=coach?"COACH DASHBOARD":"CLIENT DASHBOARD";$("clientsNav").classList.toggle("hidden",!coach);if(coach)loadClients();
  }catch(e){status(friendly(e),"bad");await signOut(auth);}
 });
+async function loadClients(){
+ const list=$("clientList");list.textContent="Loading clients…";
+ try{
+  const result=await getDocs(query(collection(db,"users"),where("role","==","client")));
+  const clients=result.docs.map(d=>d.data()).sort((a,b)=>(a.displayName||"").localeCompare(b.displayName||""));
+  $("clientCount").textContent=String(clients.length);
+  $("activeCount").textContent=String(clients.filter(c=>c.accountStatus==="active").length);
+  list.replaceChildren();
+  if(!clients.length){list.textContent="No client accounts yet. New client registrations will appear here.";return;}
+  clients.forEach(c=>{
+   const card=document.createElement("div");card.className="tile";card.style.margin="9px 0";card.style.minHeight="0";
+   const name=document.createElement("strong");name.style.fontSize="17px";name.style.color="#f5f7f1";name.textContent=c.displayName||"Unnamed client";
+   const email=document.createElement("span");email.textContent=c.email||"No email address";
+   const state=document.createElement("div");state.className="pill";state.textContent=c.accountStatus||"Status unknown";
+   card.append(name,email,state);list.append(card);
+  });
+ }catch(e){list.textContent="Unable to load clients. Check Firestore permissions and try refreshing.";}
+}
 document.querySelectorAll("#nav button").forEach(btn=>btn.addEventListener("click",()=>{
  document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b===btn));
- ["overview","nutrition","training","progress","checkins"].forEach(v=>$(v+"View").classList.toggle("hidden",v!==btn.dataset.view));
+ ["overview","clients","nutrition","training","progress","checkins"].forEach(v=>$(v+"View").classList.toggle("hidden",v!==btn.dataset.view));
+ if(btn.dataset.view==="clients")loadClients();
 }));
 </script>
 </body></html>
