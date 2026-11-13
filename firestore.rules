@@ -9,10 +9,22 @@ service cloud.firestore {
     }
     function isOwner(userId) { return signedIn() && request.auth.uid == userId; }
 
+    match /invitations/{email} {
+      allow create, update, delete: if isCoach();
+      allow read: if isCoach()
+        || (signedIn() && request.auth.token.email_verified == true
+            && request.auth.token.email == resource.data.email);
+    }
+
     match /users/{userId} {
       allow create: if isOwner(userId)
+        && request.auth.token.email_verified == true
         && request.resource.data.uid == userId
-        && request.resource.data.role == "client";
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.role == "client"
+        && exists(/databases/$(database)/documents/invitations/$(request.auth.token.email))
+        && get(/databases/$(database)/documents/invitations/$(request.auth.token.email)).data.status == "pending"
+        && get(/databases/$(database)/documents/invitations/$(request.auth.token.email)).data.email == request.auth.token.email;
       allow read: if isOwner(userId) || isCoach();
       allow update: if isOwner(userId)
         && request.resource.data.role == resource.data.role
