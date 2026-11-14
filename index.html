@@ -23,6 +23,22 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 .training-set-row{display:grid;grid-template-columns:48px 1fr 1fr;gap:8px;align-items:center;margin:8px 0}.training-set-row input{min-width:0;padding:10px;font-size:14px}
 .training-history-row{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:12px;background:#10140d;border:1px solid var(--line);border-radius:11px;margin:8px 0}
 .training-chart{width:100%;height:auto;display:block}@media(max-width:480px){.training-set-row{grid-template-columns:38px 1fr 1fr}.training-set-row input{padding:9px 6px}}.scan-video{width:100%;max-height:320px;background:#000;border-radius:12px;object-fit:cover}.meal-actions{display:flex;gap:8px;flex-wrap:wrap}.meal-actions button{flex:1;min-width:120px}@media(max-width:560px){.food-row{grid-template-columns:repeat(2,minmax(0,1fr))}.food-row input:first-child{grid-column:span 2}}
+
+/* Compact client workout logger */
+.training-exercise{padding:9px 11px;margin:7px 0;border-radius:10px}
+.training-exercise>strong{font-size:14px;display:block}
+.training-exercise .muted{font-size:11px;margin-top:2px}
+.training-set-row{grid-template-columns:42px 1fr 1fr;gap:6px;margin:5px 0}
+.training-set-row .muted{font-size:11px}
+.training-set-row input{padding:7px 8px;font-size:13px;border-radius:8px}
+.client-meal-food-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #343b2c;font-size:13px}
+.client-food-remove{padding:5px 9px;font-size:11px;min-width:65px}
+.client-add-food{margin-top:9px;padding:8px 10px;background:#10140d;border:1px solid var(--line);border-radius:9px}
+.client-add-food summary{cursor:pointer;color:var(--lime);font-size:13px;font-weight:700}
+.client-add-food-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:10px}
+.client-add-food-fields input{min-width:0;padding:8px;font-size:12px}
+.client-add-food-fields input:first-child{grid-column:span 2}
+.client-add-food-fields button{grid-column:span 2}
 </style>
 </head>
 <body><main>
@@ -649,7 +665,10 @@ async function loadClientMealPlan(){
   const type=highDays.includes(dayName)?"highDay":"lowDay";
   const plan=clientMealPlan[type]||[];
   const saved=await getDoc(doc(db,"users",currentUser.uid,"mealPlanSelections",date));
-  clientMealSelections=saved.exists()?(saved.data().selectionMap||{}):{};
+  const savedData=saved.exists()?saved.data():{};
+  clientMealSelections=savedData.selectionMap||{};
+  const customFoods=savedData.customFoods||{};
+  const editedFoods={};
   host.replaceChildren();
   if(!plan.length){host.textContent="Your coach has not added a meal plan for this "+(type==="highDay"?"high":"low")+" day yet.";return;}
   const label=document.createElement("div");label.className="pill";label.textContent=(type==="highDay"?"HIGH DAY":"LOW DAY")+" · "+dayName;host.append(label);
@@ -670,39 +689,56 @@ async function loadClientMealPlan(){
   const update=()=>{
    const map={};
    host.querySelectorAll("[data-client-meal]").forEach(x=>map[x.dataset.clientMeal]=Number(x.value));
-   const t=planTotals(plan,map);
-   total.innerHTML='<b>Planned daily total</b><div class="meal-summary">P '+fmtMeal(t.proteinG)+'g · C '+fmtMeal(t.carbsG)+'g · F '+fmtMeal(t.fatsG)+'g · '+Math.round(t.calories)+' kcal</div>';
+   let daily={calories:0,proteinG:0,carbsG:0,fatsG:0};
    host.querySelectorAll("[data-client-meal]").forEach(sel=>{
     const mi=Number(sel.dataset.clientMeal),meal=plan[mi],option=(meal.options||[])[Number(sel.value)]||{foods:[]};
+    const key=String(mi);
+    if(!editedFoods[key]||editedFoods[key].optionIndex!==Number(sel.value)){
+     editedFoods[key]={optionIndex:Number(sel.value),foods:(customFoods[key]?.optionIndex===Number(sel.value)?customFoods[key].foods:option.foods||[]).map(f=>({...f}))};
+    }
+    const foods=editedFoods[key].foods;
     const foodsHost=host.querySelector('[data-client-meal-foods="'+mi+'"]');
     foodsHost.replaceChildren();
-    const foods=Array.isArray(option.foods)?option.foods:[];
-    if(!foods.length){
-     const empty=document.createElement("div");empty.className="muted";empty.textContent="No food items or quantities have been added to this option yet.";foodsHost.append(empty);
-    }else{
-     const sub=document.createElement("div");sub.className="eyebrow";sub.textContent="FOOD & PORTION SIZES";foodsHost.append(sub);
-     foods.forEach(food=>{
-      const row=document.createElement("div");row.style.display="flex";row.style.justifyContent="space-between";row.style.gap="12px";row.style.padding="8px 0";row.style.borderBottom="1px solid #343b2c";
-      const name=document.createElement("span");name.textContent=food.name||"Food item";
-      const grams=document.createElement("strong");grams.style.whiteSpace="nowrap";grams.textContent=(Number(food.grams)||0)+" g";
-      row.append(name,grams);foodsHost.append(row);
-     });
-    }
-    const m=optionMacros(option),info=host.querySelector('[data-client-meal-macros="'+mi+'"]');
-    info.textContent="Option total: P "+fmtMeal(m.proteinG)+"g · C "+fmtMeal(m.carbsG)+"g · F "+fmtMeal(m.fatsG)+"g · "+Math.round(m.calories)+" kcal";
+    const sub=document.createElement("div");sub.className="eyebrow";sub.textContent="YOUR FOOD & PORTIONS · REMOVE OR ADD AS NEEDED";foodsHost.append(sub);
+    if(!foods.length){const empty=document.createElement("div");empty.className="muted";empty.textContent="No foods in this meal yet. Add your own below.";foodsHost.append(empty);}
+    foods.forEach((food,fi)=>{
+     const row=document.createElement("div");row.className="client-meal-food-row";
+     const desc=document.createElement("span");desc.textContent=(food.name||"Food item")+" · "+(Number(food.grams)||0)+" g";
+     const remove=document.createElement("button");remove.type="button";remove.className="secondary client-food-remove";remove.textContent="Remove";remove.onclick=()=>{foods.splice(fi,1);update();};
+     row.append(desc,remove);foodsHost.append(row);
+    });
+    const add=document.createElement("details");add.className="client-add-food";
+    const summary=document.createElement("summary");summary.textContent="＋ Add your own food";add.append(summary);
+    const fields=document.createElement("div");fields.className="client-add-food-fields";
+    const makeInput=(placeholder,type="number",step="0.1")=>{const x=document.createElement("input");x.placeholder=placeholder;x.type=type;if(type==="number"){x.min="0";x.step=step;}return x;};
+    const name=makeInput("Food name","text"),grams=makeInput("Portion g","number","1"),kcal=makeInput("kcal per 100g"),protein=makeInput("Protein /100g"),carbs=makeInput("Carbs /100g"),fats=makeInput("Fat /100g");
+    [name,grams,kcal,protein,carbs,fats].forEach(x=>fields.append(x));
+    const addBtn=document.createElement("button");addBtn.type="button";addBtn.textContent="ADD FOOD TO MEAL";addBtn.style.width="100%";addBtn.onclick=()=>{
+     if(!name.value.trim()||Number(grams.value)<=0){addBtn.textContent="Enter a food name and portion";return;}
+     foods.push({name:name.value.trim(),grams:Number(grams.value),calories100:Number(kcal.value)||0,protein100:Number(protein.value)||0,carbs100:Number(carbs.value)||0,fats100:Number(fats.value)||0});
+     update();
+    };
+    fields.append(addBtn);add.append(fields);foodsHost.append(add);
+    const m=optionMacros({foods}),info=host.querySelector('[data-client-meal-macros="'+mi+'"]');
+    info.textContent="Meal total: P "+fmtMeal(m.proteinG)+"g · C "+fmtMeal(m.carbsG)+"g · F "+fmtMeal(m.fatsG)+"g · "+Math.round(m.calories)+" kcal";
+    Object.keys(daily).forEach(k=>daily[k]+=m[k]);
    });
+   total.innerHTML='<b>Your adjusted daily total</b><div class="meal-summary">P '+fmtMeal(daily.proteinG)+'g · C '+fmtMeal(daily.carbsG)+'g · F '+fmtMeal(daily.fatsG)+'g · '+Math.round(daily.calories)+' kcal</div>';
   };
-  host.querySelectorAll("[data-client-meal]").forEach(x=>x.addEventListener("change",update));
+  host.querySelectorAll("[data-client-meal]").forEach(x=>x.addEventListener("change",()=>{update();}));
   update();
   save.addEventListener("click",async()=>{
    save.disabled=true;
    try{
     const map={};host.querySelectorAll("[data-client-meal]").forEach(x=>map[x.dataset.clientMeal]=Number(x.value));
+    const custom={};
     const selections=plan.map((meal,mi)=>{
-     const o=meal.options?.[map[mi]]||{foods:[]};
-     return {meal:meal.name||"Meal "+(mi+1),option:o.name||"Option",foods:(o.foods||[]).map(f=>({name:f.name||"",grams:Number(f.grams)||0})),...optionMacros(o)};
+     const foods=editedFoods[String(mi)]?.foods||[];
+     custom[String(mi)]={optionIndex:map[mi],foods:foods.map(f=>({...f}))};
+     const o={foods};
+     return {meal:meal.name||"Meal "+(mi+1),option:(meal.options?.[map[mi]]?.name)||"Option",foods:foods.map(f=>({name:f.name||"",grams:Number(f.grams)||0})),...optionMacros(o)};
     });
-    await setDoc(doc(db,"users",currentUser.uid,"mealPlanSelections",date),{date,dayType:type,selectionMap:map,choices:selections,updatedAt:serverTimestamp()});
+    await setDoc(doc(db,"users",currentUser.uid,"mealPlanSelections",date),{date,dayType:type,selectionMap:map,customFoods:custom,choices:selections,updatedAt:serverTimestamp()});
     clientMealSelections=map;save.textContent="CHOICES SAVED";
    }catch(e){save.textContent="SAVE FAILED: "+e.message;}
    finally{save.disabled=false;}
