@@ -502,7 +502,7 @@ document.addEventListener("input",e=>{
 document.addEventListener("change",e=>{
  const el=e.target;
  if(el.id==="foodName"||el.matches("[data-food-search]"))applyFoodLookup(el);
-});
+},true);
 $("foodGrams")?.addEventListener("input",()=>{
  const item=foodLookupCache.get($("foodName").value.trim().toLowerCase());if(!item)return;
  const scale=Math.max(1,Number($("foodGrams").value)||100)/100;
