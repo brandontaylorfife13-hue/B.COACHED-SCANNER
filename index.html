@@ -218,7 +218,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <button id="lookupBarcode" class="secondary" style="width:100%;margin-top:10px">LOOK UP BARCODE</button>
   <div id="barcodeStatus" class="status" role="status"></div>
   <div class="section-title" style="margin-top:20px">Add food</div>
-  <label for="foodName">Search food database</label><input id="foodName" list="foodSearchOptions" placeholder="Start typing chicken, oats, rice..."><datalist id="foodSearchOptions"></datalist><p class="muted">Search branded foods and ingredients. Select a result to fill its nutrition automatically.</p><label for="foodGrams">Portion size (g)</label><input id="foodGrams" type="number" min="1" step="1" value="100">
+  <label for="foodName">Search food database</label><input id="foodName" list="foodSearchOptions" placeholder="Start typing chicken, oats, rice..."><datalist id="foodSearchOptions"></datalist><p class="muted">Search up to 100 matching foods and branded products. Select a result to fill its nutrition automatically. Generic ingredient coverage will be expanded with the UK CoFID dataset.</p><label for="foodGrams">Portion size (g)</label><input id="foodGrams" type="number" min="1" step="1" value="100">
   <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">
    <div><label for="foodCalories">Calories (kcal)</label><input id="foodCalories" type="number" min="0" step="1" placeholder="0"></div>
    <div><label for="foodProtein">Protein (g)</label><input id="foodProtein" type="number" min="0" step="0.1" placeholder="0"></div>
@@ -460,7 +460,7 @@ async function searchFoodDatabase(term){
  const list=$("foodSearchOptions");if(!list)return;
  const q=term.trim();if(q.length<2)return;
  try{
-  const url="https://world.openfoodfacts.org/cgi/search.pl?search_terms="+encodeURIComponent(q)+"&search_simple=1&action=process&json=1&page_size=12&fields=product_name,product_name_en,brands,nutriments";
+  const url="https://world.openfoodfacts.org/cgi/search.pl?search_terms="+encodeURIComponent(q)+"&search_simple=1&action=process&json=1&page_size=100&sort_by=unique_scans_n&fields=product_name,product_name_en,brands,nutriments";
   const res=await fetch(url);if(!res.ok)throw new Error("Food search unavailable");
   const data=await res.json();list.replaceChildren();
   (data.products||[]).filter(p=>p.product_name||p.product_name_en).forEach(p=>{
@@ -473,6 +473,7 @@ async function searchFoodDatabase(term){
    const opt=document.createElement("option");opt.value=name+(item.brand?" — "+item.brand:"");list.append(opt);
    foodLookupCache.set(opt.value.toLowerCase(),item);
   });
+  if(!list.options.length){const opt=document.createElement("option");opt.value="No matching food found — try another search";list.append(opt);}
  }catch(e){console.warn("Food search:",e);}
 }
 function applyFoodLookup(input){
