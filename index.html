@@ -38,10 +38,24 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <div class="eyebrow" id="roleLabel">CLIENT DASHBOARD</div><div class="heading">Your daily overview</div>
   <p class="muted">Welcome to your B.COACHED space. Your personal targets and coaching plan will appear here as we build each section.</p>
   <div class="grid">
-   <div class="tile">DAILY STEPS<strong>—</strong><span>Target to be set by coach</span></div>
-   <div class="tile">WATER<strong>—</strong><span>Daily hydration</span></div>
-   <div class="tile">SLEEP<strong>—</strong><span>Last night's sleep</span></div>
-   <div class="tile">BODY WEIGHT<strong>—</strong><span>Latest weigh-in</span></div>
+   <div class="tile">DAILY STEPS<strong id="overviewSteps">—</strong><span>Today's total</span></div>
+   <div class="tile">WATER<strong id="overviewWater">—</strong><span>Litres today</span></div>
+   <div class="tile">SLEEP<strong id="overviewSleep">—</strong><span>Hours last night</span></div>
+   <div class="tile">BODY WEIGHT<strong id="overviewWeight">—</strong><span>Latest weigh-in</span></div>
+  </div>
+  <div id="dailyHabits" class="hidden" style="margin-top:24px">
+   <div class="section-title">Your daily check-in</div>
+   <p class="muted">Log your steps, water and sleep. Your entries are saved to your personal coaching profile.</p>
+   <label for="habitDate">Date</label><input id="habitDate" type="date">
+   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+    <div><label for="habitSteps">Steps</label><input id="habitSteps" type="number" min="0" step="1" placeholder="e.g. 8500"></div>
+    <div><label for="habitWater">Water (litres)</label><input id="habitWater" type="number" min="0" step="0.1" placeholder="e.g. 2.5"></div>
+    <div><label for="habitSleep">Sleep (hours)</label><input id="habitSleep" type="number" min="0" max="24" step="0.1" placeholder="e.g. 7.5"></div>
+   </div>
+   <button id="saveHabitsBtn" style="width:100%;margin-top:14px">SAVE DAILY CHECK-IN</button>
+   <div id="habitStatus" class="status" role="status"></div>
+   <div class="section-title" style="margin-top:22px">Recent daily logs</div>
+   <div id="habitHistory" class="muted">No daily logs yet.</div>
   </div>
  </section>
  <section class="card hidden" id="clientsView"><div class="eyebrow">COACH ADMINISTRATION</div><div class="heading">Client directory</div><p class="muted">Registered client accounts will appear here.</p><div class="grid"><div class="tile">CLIENTS<strong id="clientCount">—</strong><span>Registered accounts</span></div><div class="tile">ACTIVE<strong id="activeCount">—</strong><span>Active accounts</span></div></div><div class="section-title" style="margin-top:20px">Invite a new client</div><p class="muted">Create an invitation for a client. They register with this exact email address and choose their own password.</p><label for="inviteName">Client name</label><input id="inviteName" placeholder="Client full name"><label for="inviteEmail">Client email</label><input id="inviteEmail" type="email" placeholder="client@example.com"><button id="inviteBtn" style="width:100%;margin-top:14px">CREATE CLIENT INVITATION</button><div id="inviteStatus" class="status" role="status"></div><div class="section-title" style="margin-top:20px">Registered clients</div><div id="clientList" class="muted" style="margin-top:14px">Loading clients…</div><div class="section-title" style="margin-top:20px">Pending invitations</div><div id="inviteList" class="muted">Loading invitations…</div></section>\n <section class="card hidden" id="clientProfileView">
@@ -173,6 +187,8 @@ onAuthStateChanged(auth,async user=>{
   const coach=profile.role==="coach";
   $("roleLabel").textContent=coach?"COACH DASHBOARD":"CLIENT DASHBOARD";
   $("clientsNav").classList.toggle("hidden",!coach);
+  $("dailyHabits").classList.toggle("hidden",coach);
+  if(!coach){$("habitDate").value=localDateString();await loadDailyHabits();}
   if(coach)loadClients();
  }catch(e){
   status(friendly(e),"bad");
@@ -262,6 +278,64 @@ async function showClientProfile(client){
   await loadWeightHistory();
  }catch(e){$("clientDetailsStatus").textContent="Could not load saved details: "+e.message;}
 }
+async function loadDailyHabits(){
+ if(!currentUser)return;
+ const date=$("habitDate").value||localDateString();
+ $("habitStatus").textContent="Loading daily log…";
+ try{
+  const snap=await getDoc(doc(db,"users",currentUser.uid,"dailyLogs",date));
+  const d=snap.exists()?snap.data():{};
+  $("habitSteps").value=d.steps??"";
+  $("habitWater").value=d.waterLitres??"";
+  $("habitSleep").value=d.sleepHours??"";
+  $("overviewSteps").textContent=d.steps==null?"—":Number(d.steps).toLocaleString();
+  $("overviewWater").textContent=d.waterLitres==null?"—":Number(d.waterLitres).toFixed(1)+" L";
+  $("overviewSleep").textContent=d.sleepHours==null?"—":Number(d.sleepHours).toFixed(1)+" hrs";
+  $("habitStatus").textContent="";
+  await renderDailyHistory();
+ }catch(e){$("habitStatus").textContent="Could not load daily log: "+e.message;}
+}
+async function renderDailyHistory(){
+ const host=$("habitHistory");
+ try{
+  const result=await getDocs(collection(db,"users",currentUser.uid,"dailyLogs"));
+  const rows=result.docs.map(d=>d.data()).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,7);
+  host.replaceChildren();
+  if(!rows.length){host.textContent="No daily logs yet.";return;}
+  rows.forEach(d=>{
+   const row=document.createElement("div");row.className="tile";row.style.margin="8px 0";row.style.minHeight="0";
+   const date=document.createElement("strong");date.style.fontSize="14px";date.style.color="#f5f7f1";date.textContent=new Date(d.date+"T12:00:00").toLocaleDateString();
+   const values=document.createElement("span");values.textContent=(d.steps==null?"—":Number(d.steps).toLocaleString()+" steps")+" · "+(d.waterLitres==null?"—":Number(d.waterLitres).toFixed(1)+" L water")+" · "+(d.sleepHours==null?"—":Number(d.sleepHours).toFixed(1)+" hrs sleep");
+   row.append(date,values);host.append(row);
+  });
+ }catch(e){host.textContent="Unable to load recent logs.";}
+}
+$("habitDate").addEventListener("change",loadDailyHabits);
+$("saveHabitsBtn").addEventListener("click",async()=>{
+ if(!currentUser)return;
+ const date=$("habitDate").value;
+ const steps=$("habitSteps").value.trim(),water=$("habitWater").value.trim(),sleep=$("habitSleep").value.trim();
+ if(!date){$("habitStatus").textContent="Choose a date.";return;}
+ if(steps!==""&&(!Number.isInteger(Number(steps))||Number(steps)<0)){ $("habitStatus").textContent="Enter a valid whole number of steps.";return;}
+ if(water!==""&&(!Number.isFinite(Number(water))||Number(water)<0)){ $("habitStatus").textContent="Enter a valid water amount.";return;}
+ if(sleep!==""&&(!Number.isFinite(Number(sleep))||Number(sleep)<0||Number(sleep)>24)){ $("habitStatus").textContent="Sleep must be between 0 and 24 hours.";return;}
+ $("saveHabitsBtn").disabled=true;$("habitStatus").textContent="Saving daily check-in…";
+ try{
+  await setDoc(doc(db,"users",currentUser.uid,"dailyLogs",date),{
+   date,
+   steps:steps===""?null:Number(steps),
+   waterLitres:water===""?null:Number(water),
+   sleepHours:sleep===""?null:Number(sleep),
+   updatedAt:serverTimestamp()
+  },{merge:true});
+  $("habitStatus").textContent="Daily check-in saved.";
+  $("overviewSteps").textContent=steps===""?"—":Number(steps).toLocaleString();
+  $("overviewWater").textContent=water===""?"—":Number(water).toFixed(1)+" L";
+  $("overviewSleep").textContent=sleep===""?"—":Number(sleep).toFixed(1)+" hrs";
+  await renderDailyHistory();
+ }catch(e){$("habitStatus").textContent="Could not save daily check-in: "+e.message;}
+ finally{$("saveHabitsBtn").disabled=false;}
+});
 function localDateString(){
  const d=new Date();const offset=d.getTimezoneOffset();return new Date(d.getTime()-offset*60000).toISOString().slice(0,10);
 }
