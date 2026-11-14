@@ -122,6 +122,17 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
     <div><label for="lowFats">Fats (g)</label><input id="lowFats" type="number" min="0" step="1" placeholder="e.g. 65"></div>
    </div>
   </div>
+  <div class="section-title" style="margin-top:18px">Weekly high-day schedule</div>
+  <p class="muted">Select the days this client should follow their high-day targets. All unselected days will be treated as low days.</p>
+  <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+   <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" class="highDayCheckbox" value="Monday" style="width:auto"> Monday</label>
+   <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" class="highDayCheckbox" value="Tuesday" style="width:auto"> Tuesday</label>
+   <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" class="highDayCheckbox" value="Wednesday" style="width:auto"> Wednesday</label>
+   <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" class="highDayCheckbox" value="Thursday" style="width:auto"> Thursday</label>
+   <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" class="highDayCheckbox" value="Friday" style="width:auto"> Friday</label>
+   <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" class="highDayCheckbox" value="Saturday" style="width:auto"> Saturday</label>
+   <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" class="highDayCheckbox" value="Sunday" style="width:auto"> Sunday</label>
+  </div>
   <label for="nutritionCoachNotes">Nutrition notes for client</label>
   <textarea id="nutritionCoachNotes" rows="3" style="width:100%;padding:14px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit;resize:vertical" placeholder="Meal timing, preferences or guidance…"></textarea>
   <button id="saveNutritionTargets" style="width:100%;margin-top:14px">SAVE HIGH & LOW DAY TARGETS</button>
@@ -175,6 +186,10 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
     <div>CARBS<strong id="lowDisplayCarbs">—</strong><span>grams</span></div>
     <div>FATS<strong id="lowDisplayFats">—</strong><span>grams</span></div>
    </div>
+  </div>
+  <div class="tile" style="margin-top:14px">
+   <div class="eyebrow">YOUR WEEKLY TARGET SCHEDULE</div>
+   <p id="nutritionScheduleDisplay" class="muted">Your coach has not assigned your high and low days yet.</p>
   </div>
   <div id="nutritionNotesDisplay" class="muted" style="margin-top:16px"></div>
  </section>
@@ -379,6 +394,7 @@ async function loadNutritionTargets(coachEditing=false){
    fillMacroInputs("high",high);
    fillMacroInputs("low",low);
    $("nutritionCoachNotes").value=d.notes||"";
+   document.querySelectorAll(".highDayCheckbox").forEach(cb=>cb.checked=Array.isArray(d.highDays)&&d.highDays.includes(cb.value));
    $("nutritionTargetStatus").textContent="";
   }else{
    displayMacroSet("high",high);
@@ -394,6 +410,9 @@ async function loadNutritionTargets(coachEditing=false){
    const hasTargets=high.calories!=null||low.calories!=null;
    $("dashboardMacros").classList.toggle("hidden",!hasTargets);
    $("nutritionNotesDisplay").textContent=d.notes||"";
+   const highDays=Array.isArray(d.highDays)?d.highDays:[];
+   const week=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+   $("nutritionScheduleDisplay").textContent=highDays.length?("High days: "+week.filter(x=>highDays.includes(x)).join(", ")+" · Low days: "+week.filter(x=>!highDays.includes(x)).join(", ")):"Your coach has not assigned your high and low days yet.";
   }
  }catch(e){
   if(coachEditing)$("nutritionTargetStatus").textContent="Could not load nutrition targets: "+e.message;
