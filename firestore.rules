@@ -35,6 +35,13 @@ service cloud.firestore {
         allow read: if isOwner(userId) || isCoach();
         allow create, update, delete: if isOwner(userId) || isCoach();
       }
+
+      // Allow the same owner/coach access to deeper nested records,
+      // such as foodLogs/{date}/entries/{entryId}.
+      match /{nestedPath=**} {
+        allow read: if isOwner(userId) || isCoach();
+        allow create, update, delete: if isOwner(userId) || isCoach();
+      }
     }
   }
 }
