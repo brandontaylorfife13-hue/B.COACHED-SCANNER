@@ -318,7 +318,7 @@ async function loadClients(){
  const list=$("clientList");list.textContent="Loading clients…";
  try{
   const result=await getDocs(query(collection(db,"users"),where("role","==","client")));
-  const clients=result.docs.map(d=>d.data()).sort((a,b)=>(a.displayName||"").localeCompare(b.displayName||""));
+  const clients=result.docs.map(d=>({uid:d.id,...d.data()})).sort((a,b)=>(a.displayName||"").localeCompare(b.displayName||""));
   $("clientCount").textContent=String(clients.length);
   $("activeCount").textContent=String(clients.filter(c=>c.accountStatus==="active").length);
   list.replaceChildren();
