@@ -79,9 +79,8 @@ $("primaryBtn").onclick=async()=>{
  try{
   if(mode==="register"){
    const cred=await createUserWithEmailAndPassword(auth,email,password);
-   await setDoc(doc(db,"users",cred.user.uid),{uid:cred.user.uid,email:email.toLowerCase(),displayName:$("fullName").value.trim(),role:"client",createdAt:serverTimestamp(),accountStatus:"active"});
    await sendEmailVerification(cred.user);
-   status("Account created. Check your email and verify your address, then log in.","good");
+   status("Account created. Check your email and verify your address. Then log in using the same email and password.","good");
    await signOut(auth);setMode("login");
   }else{
    const cred=await signInWithEmailAndPassword(auth,email,password);
@@ -97,13 +96,39 @@ onAuthStateChanged(auth,async user=>{
  currentUser=user;
  if(!user){$("authCard").classList.remove("hidden");$("app").classList.add("hidden");return;}
  try{
-  const snap=await getDoc(doc(db,"users",user.uid));
-  if(!snap.exists())throw new Error("Your account profile could not be found. Please contact your coach.");
+  if(!user.emailVerified){
+   await signOut(auth);
+   status("Please verify your email using the link we sent, then log in again.","bad");
+   return;
+  }
+  let snap=await getDoc(doc(db,"users",user.uid));
+  if(!snap.exists()){
+   const email=(user.email||"").toLowerCase();
+   const invitation=await getDoc(doc(db,"invitations",email));
+   if(!invitation.exists()||invitation.data().status!=="pending"){
+    throw new Error("No pending invitation found for this email. Check the invited email address with your coach.");
+   }
+   await setDoc(doc(db,"users",user.uid),{
+    uid:user.uid,
+    email:email,
+    displayName:invitation.data().displayName||user.displayName||"Client",
+    role:"client",
+    createdAt:serverTimestamp(),
+    accountStatus:"active"
+   });
+   snap=await getDoc(doc(db,"users",user.uid));
+  }
   const profile=snap.data();
   $("authCard").classList.add("hidden");$("app").classList.remove("hidden");
   $("welcome").textContent="Welcome, "+(profile.displayName||"there");
-  const coach=profile.role==="coach";$("roleLabel").textContent=coach?"COACH DASHBOARD":"CLIENT DASHBOARD";$("clientsNav").classList.toggle("hidden",!coach);if(coach)loadClients();
- }catch(e){status(friendly(e),"bad");await signOut(auth);}
+  const coach=profile.role==="coach";
+  $("roleLabel").textContent=coach?"COACH DASHBOARD":"CLIENT DASHBOARD";
+  $("clientsNav").classList.toggle("hidden",!coach);
+  if(coach)loadClients();
+ }catch(e){
+  status(friendly(e),"bad");
+  await signOut(auth);
+ }
 });
 async function loadClients(){
  const list=$("clientList");list.textContent="Loading clients…";
