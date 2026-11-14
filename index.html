@@ -43,6 +43,20 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
    <div class="tile">SLEEP<strong id="overviewSleep">—</strong><span>Hours last night</span></div>
    <div class="tile">BODY WEIGHT<strong id="overviewWeight">—</strong><span>Latest weigh-in</span></div>
   </div>
+  <div id="clientWeightTracker" class="hidden" style="margin-top:26px">
+   <div class="section-title">Your weight tracker</div>
+   <p class="muted">Record your weigh-in here. Your coach can see your entries and follow your progress.</p>
+   <label for="clientWeightDate">Weigh-in date</label><input id="clientWeightDate" type="date">
+   <label for="clientWeightValue">Weight (kg)</label><input id="clientWeightValue" type="number" min="0.1" step="0.1" placeholder="e.g. 82.4">
+   <button id="saveClientWeight" style="width:100%;margin-top:14px">SAVE WEIGHT</button>
+   <div id="clientWeightStatus" class="status" role="status"></div>
+   <div class="grid" style="margin-top:12px">
+    <div class="tile">LATEST WEIGHT<strong id="clientLatestWeight">—</strong><span id="clientLatestWeightDate">No weigh-ins yet</span></div>
+    <div class="tile">7-ENTRY AVERAGE<strong id="clientAverageWeight">—</strong><span>Latest seven entries</span></div>
+   </div>
+   <div class="section-title" style="margin-top:20px">Your weigh-in history</div>
+   <div id="clientWeightHistory" class="muted">No weigh-ins yet.</div>
+  </div>
   <div id="dailyHabits" class="hidden" style="margin-top:24px">
    <div class="section-title">Your daily check-in</div>
    <p class="muted">Log your steps, water and sleep. Your entries are saved to your personal coaching profile.</p>
@@ -188,6 +202,8 @@ onAuthStateChanged(auth,async user=>{
   $("roleLabel").textContent=coach?"COACH DASHBOARD":"CLIENT DASHBOARD";
   $("clientsNav").classList.toggle("hidden",!coach);
   $("dailyHabits").classList.toggle("hidden",coach);
+  $("clientWeightTracker").classList.toggle("hidden",coach);
+  if(!coach){$("clientWeightDate").value=localDateString();await loadClientWeight();}
   if(!coach){$("habitDate").value=localDateString();await loadDailyHabits();}
   if(coach)loadClients();
  }catch(e){
@@ -278,6 +294,54 @@ async function showClientProfile(client){
   await loadWeightHistory();
  }catch(e){$("clientDetailsStatus").textContent="Could not load saved details: "+e.message;}
 }
+async function loadClientWeight(){
+ if(!currentUser)return;
+ $("clientWeightStatus").textContent="Loading weigh-ins…";
+ try{
+  const result=await getDocs(collection(db,"users",currentUser.uid,"weights"));
+  const entries=result.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.date.localeCompare(b.date));
+  renderClientWeight(entries);
+  $("clientWeightStatus").textContent="";
+ }catch(e){$("clientWeightStatus").textContent="Could not load weight history: "+e.message;}
+}
+function renderClientWeight(entries){
+ const latest=entries[entries.length-1];
+ $("clientLatestWeight").textContent=latest?Number(latest.weightKg).toFixed(1)+" kg":"—";
+ $("clientLatestWeightDate").textContent=latest?new Date(latest.date+"T12:00:00").toLocaleDateString():"No weigh-ins yet";
+ const recent=entries.slice(-7);
+ const average=recent.length?recent.reduce((sum,item)=>sum+Number(item.weightKg),0)/recent.length:null;
+ $("clientAverageWeight").textContent=average===null?"—":average.toFixed(2)+" kg";
+ $("overviewWeight").textContent=latest?Number(latest.weightKg).toFixed(1)+" kg":"—";
+ const host=$("clientWeightHistory");host.replaceChildren();
+ if(!entries.length){host.textContent="No weigh-ins recorded yet.";return;}
+ entries.slice().reverse().slice(0,14).forEach(entry=>{
+  const row=document.createElement("div");row.className="tile";row.style.margin="8px 0";row.style.minHeight="0";row.style.display="flex";row.style.justifyContent="space-between";row.style.alignItems="center";
+  const date=document.createElement("span");date.textContent=new Date(entry.date+"T12:00:00").toLocaleDateString();
+  const value=document.createElement("strong");value.style.fontSize="17px";value.textContent=Number(entry.weightKg).toFixed(1)+" kg";
+  row.append(date,value);host.append(row);
+ });
+}
+$("saveClientWeight").addEventListener("click",async()=>{
+ if(!currentUser)return;
+ const date=$("clientWeightDate").value;
+ const value=$("clientWeightValue").value.trim();
+ if(!date||!value||!Number.isFinite(Number(value))||Number(value)<=0){
+  $("clientWeightStatus").textContent="Enter a valid date and weight greater than zero.";return;
+ }
+ $("saveClientWeight").disabled=true;$("clientWeightStatus").textContent="Saving weigh-in…";
+ try{
+  await setDoc(doc(db,"users",currentUser.uid,"weights",date),{
+   date,weightKg:Number(value),createdAt:serverTimestamp(),recordedBy:currentUser.uid
+  });
+  await setDoc(doc(db,"users",currentUser.uid,"profile","details"),{
+   currentWeightKg:Number(value),updatedAt:serverTimestamp(),updatedBy:currentUser.uid
+  },{merge:true});
+  $("clientWeightValue").value="";
+  $("clientWeightStatus").textContent="Weight saved successfully.";
+  await loadClientWeight();
+ }catch(e){$("clientWeightStatus").textContent="Could not save weight: "+e.message;}
+ finally{$("saveClientWeight").disabled=false;}
+});
 async function loadDailyHabits(){
  if(!currentUser)return;
  const date=$("habitDate").value||localDateString();
