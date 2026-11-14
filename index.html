@@ -687,6 +687,7 @@ $("saveNutritionTargets").addEventListener("click",async()=>{
   await setDoc(doc(db,"users",selectedClient.uid,"nutrition","targets"),{
    highDay:readGroup(groups[0]),
    lowDay:readGroup(groups[1]),
+   highDays:Array.from(document.querySelectorAll(".highDayCheckbox:checked")).map(cb=>cb.value),
    notes:$("nutritionCoachNotes").value.trim(),
    updatedAt:serverTimestamp(),updatedBy:currentUser.uid
   },{merge:true});
