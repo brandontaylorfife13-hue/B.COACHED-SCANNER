@@ -298,6 +298,12 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 <div id="measurementStatus" class="status" role="status"></div>
 <div class="section-title" style="margin-top:24px">Measurement history</div>
 <div id="measurementHistory" class="muted">No measurements recorded yet.</div>
+<div class="section-title" style="margin-top:28px">Progress photos</div><p class="muted">Upload front, side and back photos to compare changes over time. Photos are private to your account.</p>
+<label for="progressPhotoDate">Photo date</label><input id="progressPhotoDate" type="date">
+<label for="progressPhotoType">Photo position</label><select id="progressPhotoType" class="training-select"><option value="Front">Front</option><option value="Side">Side</option><option value="Back">Back</option><option value="Other">Other</option></select>
+<label for="progressPhotoFile">Choose photo</label><input id="progressPhotoFile" type="file" accept="image/*">
+<button id="uploadProgressPhoto" style="width:100%;margin-top:14px">UPLOAD PROGRESS PHOTO</button><div id="progressPhotoStatus" class="status" role="status"></div>
+<div class="section-title" style="margin-top:22px">Your photo history</div><div id="progressPhotoHistory" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(145px,1fr))"></div>
 </section>
  <section class="card hidden" id="checkinsView"><div class="eyebrow">COACHING</div><div class="heading">Weekly check-ins</div><p class="muted">Your weekly check-in forms and coach feedback will be added here.</p></section>
  <div id="coachNote" class="card hidden"><div class="eyebrow">COACH TOOLS</div><div class="heading">Coach account detected</div><p class="muted">Your coach dashboard and client management tools will be built in the next stages.</p></div>
@@ -308,6 +314,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, serverTimestamp, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 import { BrowserMultiFormatReader } from "https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm";
 
 const firebaseConfig = {
@@ -318,7 +325,7 @@ const firebaseConfig = {
  messagingSenderId: "597253859431",
  appId: "1:597253859431:web:18a0fa2c616039d0524cc2"
 };
-const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app);
+const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app), storage=getStorage(app);
 const $=id=>document.getElementById(id);
 let mode="login", currentUser=null, currentRole=null;
 function status(message,kind=""){ $("authStatus").textContent=message; $("authStatus").className="status "+kind; }
@@ -1261,6 +1268,40 @@ function localDateString(){
  const d=new Date();const offset=d.getTimezoneOffset();return new Date(d.getTime()-offset*60000).toISOString().slice(0,10);
 }
 $("weightDate").value=localDateString();
+async function loadProgressPhotos(){
+ if(!currentUser||currentRole==="coach")return;
+ const host=$("progressPhotoHistory");host.replaceChildren();
+ try{
+  const result=await getDocs(collection(db,"users",currentUser.uid,"progressPhotos"));
+  const rows=result.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  if(!rows.length){host.textContent="No progress photos uploaded yet.";return;}
+  rows.forEach(photo=>{
+   const card=document.createElement("div");card.className="tile";card.style.minHeight="0";card.style.padding="9px";
+   const img=document.createElement("img");img.src=photo.downloadURL;img.alt=(photo.position||"Progress")+" photo";img.loading="lazy";img.style.width="100%";img.style.aspectRatio="3/4";img.style.objectFit="cover";img.style.borderRadius="9px";
+   const caption=document.createElement("div");caption.className="muted";caption.style.marginTop="7px";caption.textContent=(photo.position||"Photo")+" · "+new Date(photo.date+"T12:00:00").toLocaleDateString();
+   card.append(img,caption);host.append(card);
+  });
+ }catch(e){host.textContent="Could not load progress photos: "+e.message;}
+}
+$("uploadProgressPhoto").addEventListener("click",async()=>{
+ if(!currentUser||currentRole==="coach")return;
+ const file=$("progressPhotoFile").files[0],date=$("progressPhotoDate").value,position=$("progressPhotoType").value;
+ if(!file||!date){$("progressPhotoStatus").textContent="Choose a photo and date first.";return;}
+ if(!file.type.startsWith("image/")){$("progressPhotoStatus").textContent="Please choose an image file.";return;}
+ if(file.size>10*1024*1024){$("progressPhotoStatus").textContent="Please choose an image smaller than 10 MB.";return;}
+ $("uploadProgressPhoto").disabled=true;$("progressPhotoStatus").textContent="Uploading photo…";
+ try{
+  const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,"_");
+  const path="users/"+currentUser.uid+"/progressPhotos/"+date+"_"+position.toLowerCase()+"_"+Date.now()+"_"+safeName;
+  const target=storageRef(storage,path);
+  await uploadBytes(target,file,{contentType:file.type});
+  const downloadURL=await getDownloadURL(target);
+  await setDoc(doc(collection(db,"users",currentUser.uid,"progressPhotos")),{date,position,storagePath:path,downloadURL,fileName:file.name,size:file.size,uploadedAt:serverTimestamp()});
+  $("progressPhotoFile").value="";$("progressPhotoStatus").textContent="Progress photo uploaded.";
+  await loadProgressPhotos();
+ }catch(e){$("progressPhotoStatus").textContent="Could not upload photo: "+e.message;}
+ finally{$("uploadProgressPhoto").disabled=false;}
+});
 async function loadBodyMeasurements(){
  if(!currentUser||currentRole==="coach")return;
  const host=$("measurementHistory");host.textContent="Loading measurements…";
@@ -1400,7 +1441,7 @@ document.querySelectorAll("#nav button").forEach(btn=>btn.addEventListener("clic
  if(btn.dataset.view==="nutrition"&&currentUser)loadNutritionTargets(false);
  if(btn.dataset.view==="foodDiary"&&currentUser){$("foodDate").value=$("foodDate").value||localDateString();loadFoodDiary();}
  if(btn.dataset.view==="training"&&currentUser&&currentRole!=="coach")loadClientTrainingDashboard();
-  if(btn.dataset.view==="progress"&&currentUser&&currentRole!=="coach"){$("measurementDate").value=$("measurementDate").value||localDateString();loadBodyMeasurements();}
+  if(btn.dataset.view==="progress"&&currentUser&&currentRole!=="coach"){$("measurementDate").value=$("measurementDate").value||localDateString();$("progressPhotoDate").value=$("progressPhotoDate").value||localDateString();loadBodyMeasurements();loadProgressPhotos();}
 }));
 </script>
 </body></html>
