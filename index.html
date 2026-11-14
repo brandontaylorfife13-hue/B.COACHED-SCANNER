@@ -762,8 +762,11 @@ async function loadNutritionTargets(coachEditing=false){
    fillMacroInputs("high",high);
    fillMacroInputs("low",low);
    $("nutritionCoachNotes").value=d.notes||"";
-   document.querySelectorAll(".highDayCheckbox").forEach(cb=>cb.checked=Array.isArray(d.highDays)&&d.highDays.includes(cb.value));
-   $("nutritionTargetStatus").textContent="";
+   const storedHighDays=Array.isArray(d.highDays)?d.highDays:[];
+   document.querySelectorAll(".highDayCheckbox").forEach(cb=>{cb.checked=storedHighDays.includes(cb.value);});
+   $("nutritionTargetStatus").textContent=snap.exists()
+    ?"Loaded schedule for "+(selectedClient?.displayName||"client")+" · "+(storedHighDays.length?storedHighDays.join(", "):"No high days stored")+" · ID "+uid
+    :"No nutrition targets document found for this client · ID "+uid;
   }else{
    displayMacroSet("high",high);
    displayMacroSet("low",low);
@@ -815,7 +818,7 @@ $("saveNutritionTargets").addEventListener("click",async()=>{
   const verifyTargets=await getDoc(doc(db,"users",selectedClient.uid,"nutrition","targets"));
   const savedHighDays=verifyTargets.exists()&&Array.isArray(verifyTargets.data().highDays)?verifyTargets.data().highDays:[];
   document.querySelectorAll(".highDayCheckbox").forEach(cb=>cb.checked=savedHighDays.includes(cb.value));
-  $("nutritionTargetStatus").textContent="Saved and verified. High days: "+(savedHighDays.length?savedHighDays.join(", "):"none selected; all days are low days.");
+  $("nutritionTargetStatus").textContent="Saved and verified for "+(selectedClient?.displayName||"client")+" · High days: "+(savedHighDays.length?savedHighDays.join(", "):"none selected; all days are low days.")+" · ID "+selectedClient.uid;
  }catch(e){$("nutritionTargetStatus").textContent="Could not save nutrition targets: "+e.message;}
  finally{$("saveNutritionTargets").disabled=false;}
 });
