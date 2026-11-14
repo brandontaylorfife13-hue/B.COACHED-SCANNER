@@ -555,7 +555,7 @@ function refreshCoachPlanInputs(){
 }
 async function loadCoachMealPlan(){
  if(!selectedClient?.uid)return;
- try{const snap=await getDoc(doc(db,"users",selectedClient.uid,"nutrition","mealPlan"));const d=snap.exists()?snap.data():{};coachMealPlan={highDay:Array.isArray(d.highDay)?d.highDay:[],lowDay:Array.isArray(d.lowDay)?d.lowDay:[]};renderCoachMealPlan();refreshCoachPlanInputs();await loadCoachMealPlanReview();}
+ try{const snap=await getDoc(doc(db,"users",selectedClient.uid,"nutrition","mealPlan"));const d=snap.exists()?snap.data():{};coachMealPlan={highDay:Array.isArray(d.highDay)?d.highDay:[],lowDay:Array.isArray(d.lowDay)?d.lowDay:[]};coachPlanType="highDay";renderCoachMealPlan();refreshCoachPlanInputs();$("coachPlanHigh").classList.add("active");$("coachPlanLow").classList.remove("active");await loadCoachMealPlanReview();}
  catch(e){$("mealPlanCoachStatus").textContent="Could not load meal plan: "+e.message;}
 }
 async function saveCoachMealPlan(){
@@ -589,8 +589,19 @@ async function loadClientMealPlan(){
   save.addEventListener("click",async()=>{save.disabled=true;try{const map={};host.querySelectorAll("[data-client-meal]").forEach(x=>map[x.dataset.clientMeal]=Number(x.value));const selections=plan.map((meal,mi)=>{const o=meal.options[map[mi]];return {meal:meal.name||"Meal "+(mi+1),option:o?.name||"Option",...optionMacros(o||{foods:[]})};});await setDoc(doc(db,"users",currentUser.uid,"mealPlanSelections",date),{date,dayType:type,selectionMap:map,choices:selections,updatedAt:serverTimestamp()});clientMealSelections=map;save.textContent="CHOICES SAVED";}catch(e){save.textContent="SAVE FAILED: "+e.message;}finally{save.disabled=false;}});
  }catch(e){host.textContent="Could not load your meal plan: "+e.message;}
 }
-$("coachPlanHigh").addEventListener("click",()=>{coachPlanType="highDay";renderCoachMealPlan();refreshCoachPlanInputs();});
-$("coachPlanLow").addEventListener("click",()=>{coachPlanType="lowDay";renderCoachMealPlan();refreshCoachPlanInputs();});
+function openCoachPlanDay(type){
+ coachPlanType=type;
+ if(!Array.isArray(coachMealPlan[type])||coachMealPlan[type].length===0){
+  coachMealPlan[type]=[{name:"Meal 1",options:[{name:"Option A",foods:[{name:"",grams:100,calories100:0,protein100:0,carbs100:0,fats100:0}]}]}];
+ }
+ $("coachPlanHigh").classList.toggle("active",type==="highDay");
+ $("coachPlanLow").classList.toggle("active",type==="lowDay");
+ renderCoachMealPlan();
+ refreshCoachPlanInputs();
+ $("mealPlanCoachStatus").textContent=type==="highDay"?"High-day meal plan ready to edit.":"Low-day meal plan ready to edit.";
+}
+$("coachPlanHigh").addEventListener("click",()=>openCoachPlanDay("highDay"));
+$("coachPlanLow").addEventListener("click",()=>openCoachPlanDay("lowDay"));
 $("saveMealPlan").addEventListener("click",saveCoachMealPlan);
 $("coachPlanReviewDate").value=localDateString();$("coachPlanReviewDate").addEventListener("change",loadCoachMealPlanReview);
 
