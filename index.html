@@ -173,6 +173,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <button id="saveMealPlan" style="width:100%;margin-top:12px">SAVE TAILORED MEAL PLAN</button>
   <div id="mealPlanCoachStatus" class="status" role="status"></div>
   <div class="section-title" style="margin-top:28px">Training programme builder</div><p class="muted">Create the client's weekly split and prescribe exercises, target sets, rep ranges and muscle groups. Clients log their working weights and reps against this plan.</p>
+  <div class="tile" style="margin:12px 0"><div class="eyebrow">READY-MADE TEMPLATE</div><strong style="font-size:16px;color:#f5f7f1">Torso / Limb Split</strong><p class="muted">Load your four-session programme into this client's builder. This replaces the programme currently loaded in the editor; save it to assign it to the client.</p><button type="button" id="applyTorsoLimbTemplate" style="width:100%">LOAD TORSO / LIMB TEMPLATE</button><div id="trainingTemplateStatus" class="status"></div></div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
   <div><label for="coachWorkoutName">Workout name</label><input id="coachWorkoutName" placeholder="e.g. Push A"></div><div><label for="coachExerciseName">Exercise name</label><input id="coachExerciseName" placeholder="e.g. Incline dumbbell press"></div><div><label for="coachExerciseMuscle">Muscle group</label><input id="coachExerciseMuscle" placeholder="e.g. Chest"></div><div><label for="coachExerciseSets">Working sets</label><input id="coachExerciseSets" type="number" min="1" max="20" value="3"></div><div><label for="coachExerciseReps">Rep target</label><input id="coachExerciseReps" placeholder="e.g. 8–12"></div></div>
   <div class="actions"><button type="button" id="addCoachExercise">ADD EXERCISE TO WORKOUT</button><button type="button" class="secondary" id="addCoachWorkout">ADD WORKOUT DAY</button></div><div id="coachTrainingEditor" style="margin-top:14px"></div><button id="saveTrainingProgram" style="width:100%;margin-top:12px">SAVE TRAINING PROGRAMME</button><div id="coachTrainingStatus" class="status" role="status"></div>
@@ -1053,6 +1054,13 @@ const personalTorsoLimbProgram={
   ]}
  ]
 };
+function applyTorsoLimbTemplate(){
+ coachTrainingProgram=JSON.parse(JSON.stringify(personalTorsoLimbProgram));
+ renderCoachTrainingProgram();
+ $("coachTrainingStatus").textContent="Torso / Limb Split loaded into the editor. Review it, then save to assign it to this client.";
+ $("trainingTemplateStatus").textContent="Template loaded. The client's saved programme will not change until you press SAVE TRAINING PROGRAMME.";
+}
+$("applyTorsoLimbTemplate").addEventListener("click",applyTorsoLimbTemplate);
 async function ensurePersonalTrainingProgram(){
  if(!currentUser)return;
  const ref=doc(db,"users",currentUser.uid,"training","program");
