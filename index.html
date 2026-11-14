@@ -67,6 +67,23 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <label for="detailNotes">Coaching notes</label><textarea id="detailNotes" rows="4" style="width:100%;padding:14px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit;resize:vertical" placeholder="Training background, preferences, important coaching notes…"></textarea>
   <button id="saveClientDetails" style="width:100%;margin-top:14px">SAVE CLIENT DETAILS</button>
   <div id="clientDetailsStatus" class="status" role="status"></div>
+  <div class="section-title" style="margin-top:26px">Daily weight tracking</div>
+  <p class="muted">Record each weigh-in. Entries are kept as history, and the latest 7-entry average is calculated automatically.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+   <div><label for="weightDate">Weigh-in date</label><input id="weightDate" type="date"></div>
+   <div><label for="weightValue">Weight (kg)</label><input id="weightValue" type="number" min="0.1" step="0.1" placeholder="e.g. 82.4"></div>
+  </div>
+  <button id="addWeightBtn" style="width:100%;margin-top:14px">SAVE WEIGH-IN</button>
+  <div id="weightStatus" class="status" role="status"></div>
+  <div class="grid" style="margin-top:12px">
+   <div class="tile">LATEST WEIGHT<strong id="latestWeight">—</strong><span id="latestWeightDate">No weigh-ins yet</span></div>
+   <div class="tile">7-ENTRY AVERAGE<strong id="averageWeight">—</strong><span>Average of latest seven entries</span></div>
+   <div class="tile">WEEKLY CHANGE<strong id="weeklyChange">—</strong><span>Latest 7 vs previous 7 entries</span></div>
+  </div>
+  <div class="section-title" style="margin-top:22px">Weight trend</div>
+  <div id="weightChart" class="tile" style="min-height:180px;overflow:hidden"><span>Add weigh-ins to see the trend.</span></div>
+  <div class="section-title" style="margin-top:22px">Weigh-in history</div>
+  <div id="weightHistory" class="muted">No weigh-ins recorded.</div>
   <div class="section-title" style="margin-top:22px">Coaching overview</div>
   <p class="muted">This is the client's central profile. We'll connect their nutrition targets, training plan, daily tracking and weekly check-ins here next.</p>
   <div class="grid">
@@ -242,8 +259,76 @@ async function showClientProfile(client){
    $("detailNotes").value=d.coachingNotes||"";
   }
   $("clientDetailsStatus").textContent="";
+  await loadWeightHistory();
  }catch(e){$("clientDetailsStatus").textContent="Could not load saved details: "+e.message;}
 }
+function localDateString(){
+ const d=new Date();const offset=d.getTimezoneOffset();return new Date(d.getTime()-offset*60000).toISOString().slice(0,10);
+}
+$("weightDate").value=localDateString();
+async function loadWeightHistory(){
+ const history=$("weightHistory");
+ if(!selectedClient?.uid)return;
+ history.textContent="Loading weigh-ins…";
+ try{
+  const result=await getDocs(collection(db,"users",selectedClient.uid,"weights"));
+  const entries=result.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.date.localeCompare(b.date));
+  renderWeightHistory(entries);
+ }catch(e){
+  history.textContent="Unable to load weigh-ins: "+e.message;
+ }
+}
+function renderWeightHistory(entries){
+ const latest=entries[entries.length-1];
+ $("latestWeight").textContent=latest?Number(latest.weightKg).toFixed(1)+" kg":"—";
+ $("latestWeightDate").textContent=latest?new Date(latest.date+"T12:00:00").toLocaleDateString():"No weigh-ins yet";
+ const lastSeven=entries.slice(-7);
+ const avg=lastSeven.length?lastSeven.reduce((s,x)=>s+Number(x.weightKg),0)/lastSeven.length:null;
+ $("averageWeight").textContent=avg===null?"—":avg.toFixed(2)+" kg";
+ let change=null;
+ if(entries.length>=14){
+  const previous=entries.slice(-14,-7);
+  const previousAvg=previous.reduce((s,x)=>s+Number(x.weightKg),0)/previous.length;
+  change=avg-previousAvg;
+ }
+ $("weeklyChange").textContent=change===null?"Need 14 entries":(change>0?"+":"")+change.toFixed(2)+" kg";
+ $("weeklyChange").style.color=change===null?"var(--lime)":change>0?"#ffb36b":change<0?"#b8f36b":"var(--lime)";
+ history.replaceChildren();
+ if(!entries.length){history.textContent="No weigh-ins recorded yet."; $("weightChart").innerHTML='<span>Add weigh-ins to see the trend.</span>';return;}
+ entries.slice().reverse().slice(0,20).forEach(entry=>{
+  const row=document.createElement("div");row.className="tile";row.style.margin="8px 0";row.style.minHeight="0";row.style.display="flex";row.style.justifyContent="space-between";row.style.alignItems="center";
+  const date=document.createElement("span");date.textContent=new Date(entry.date+"T12:00:00").toLocaleDateString();
+  const value=document.createElement("strong");value.style.fontSize="17px";value.textContent=Number(entry.weightKg).toFixed(1)+" kg";
+  row.append(date,value);history.append(row);
+ });
+ const points=entries.slice(-30);
+ const vals=points.map(x=>Number(x.weightKg));
+ const min=Math.min(...vals),max=Math.max(...vals),range=Math.max(max-min,0.5);
+ const coords=vals.map((v,i)=>({x:24+i*(252/Math.max(vals.length-1,1)),y:130-((v-min)/range)*100}));
+ const poly=coords.map(p=>p.x+","+p.y).join(" ");
+ $("weightChart").innerHTML='<svg viewBox="0 0 300 160" role="img" aria-label="Weight trend chart" style="width:100%;height:auto"><line x1="20" y1="135" x2="280" y2="135" stroke="#566148" stroke-width="1"/><polyline points="'+poly+'" fill="none" stroke="#c6ff00" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>'+coords.map(p=>'<circle cx="'+p.x+'" cy="'+p.y+'" r="3.5" fill="#c6ff00"/>').join("")+'</svg><div class="muted">Showing latest '+points.length+' weigh-ins · '+min.toFixed(1)+'–'+max.toFixed(1)+' kg</div>';
+}
+$("addWeightBtn").addEventListener("click",async()=>{
+ if(!selectedClient?.uid){$("weightStatus").textContent="Select a client first.";return;}
+ const date=$("weightDate").value;
+ const value=$("weightValue").value.trim();
+ if(!date||!value||!Number.isFinite(Number(value))||Number(value)<=0){
+  $("weightStatus").textContent="Enter a valid date and weight greater than zero.";return;
+ }
+ $("addWeightBtn").disabled=true;$("weightStatus").textContent="Saving weigh-in…";
+ try{
+  await setDoc(doc(db,"users",selectedClient.uid,"weights",date),{
+   date,weightKg:Number(value),createdAt:serverTimestamp(),recordedBy:currentUser.uid
+  });
+  await setDoc(doc(db,"users",selectedClient.uid,"profile","details"),{
+   currentWeightKg:Number(value),updatedAt:serverTimestamp(),updatedBy:currentUser.uid
+  },{merge:true});
+  $("weightValue").value="";
+  $("weightStatus").textContent="Weigh-in saved. Your history and averages have been updated.";
+  await loadWeightHistory();
+ }catch(e){$("weightStatus").textContent="Could not save weigh-in: "+e.message;}
+ finally{$("addWeightBtn").disabled=false;}
+});
 $("saveClientDetails").addEventListener("click",async()=>{
  if(!selectedClient?.uid){$("clientDetailsStatus").textContent="No client selected.";return;}
  const numericFields=["detailHeight","detailStartWeight","detailCurrentWeight","detailGoalWeight"];
