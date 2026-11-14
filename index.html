@@ -43,14 +43,15 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
  <div class="top"><div><div class="brandname"><b>B.</b>COACHED</div><div class="muted" id="welcome">Your dashboard</div></div><button id="logoutBtn" class="secondary">LOG OUT</button></div>
  <nav id="nav"><button class="active" data-view="overview">Overview</button><button id="clientsNav" class="hidden" data-view="clients">Clients</button><button data-view="nutrition">Nutrition</button><button id="foodDiaryNav" data-view="foodDiary">Food diary</button><button data-view="training">Training</button><button data-view="progress">Progress</button><button data-view="checkins">Check-ins</button></nav>
  <section class="card" id="overviewView">
-  <div class="eyebrow" id="roleLabel">CLIENT DASHBOARD</div><div class="heading">Your daily overview</div>
+  <div class="eyebrow" id="roleLabel">CLIENT DASHBOARD</div><div class="heading" id="overviewHeading">Your daily overview</div>
   <p class="muted">Welcome to your B.COACHED space. Your personal targets and coaching plan will appear here as we build each section.</p>
-  <div class="grid">
+  <div class="grid" id="clientOverviewMetrics">
    <div class="tile">DAILY STEPS<strong id="overviewSteps">—</strong><span>Today's total</span></div>
    <div class="tile">WATER<strong id="overviewWater">—</strong><span>Litres today</span></div>
    <div class="tile">SLEEP<strong id="overviewSleep">—</strong><span>Hours last night</span></div>
    <div class="tile">BODY WEIGHT<strong id="overviewWeight">—</strong><span>Latest weigh-in</span></div>
   </div>
+  <div id="coachOverviewPanel" class="tile hidden" style="margin-top:18px"><strong>Coach workspace</strong><span>Use Clients to manage client accounts, build nutrition and training plans, and review their progress.</span></div>
   <div id="dashboardMacros" class="hidden" style="margin-top:20px">
    <div class="section-title">Your calorie & macro targets</div>
    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
@@ -338,6 +339,10 @@ onAuthStateChanged(auth,async user=>{
   $("welcome").textContent="Welcome, "+(profile.displayName||"there");
   currentRole=profile.role||"client";
   const coach=currentRole==="coach";
+  $("clientOverviewMetrics").classList.toggle("hidden",coach);
+  $("coachOverviewPanel").classList.toggle("hidden",!coach);
+  $("overviewHeading").textContent=coach?"Coach overview":"Your daily overview";
+  if(coach){$("overviewSteps").textContent="—";$("overviewWater").textContent="—";$("overviewSleep").textContent="—";$("overviewWeight").textContent="—";}
   $("clientsView").classList.add("hidden");$("clientProfileView").classList.add("hidden");$("overviewView").classList.remove("hidden");
   $("roleLabel").textContent=coach?"COACH DASHBOARD":"CLIENT DASHBOARD";
   $("clientsNav").classList.toggle("hidden",!coach);
