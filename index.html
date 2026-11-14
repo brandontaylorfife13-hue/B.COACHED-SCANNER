@@ -15,6 +15,8 @@ label{display:block;color:#c4c9ce;font-size:12px;font-weight:750;margin:13px 0 7
 nav{display:flex;gap:8px;overflow:auto;padding:3px 0 14px}nav button{white-space:nowrap;padding:10px 13px;background:#252c1e;color:#eaf0e1;border:1px solid #424d32}nav button.active{background:var(--lime);color:#11160a}
 footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-top:28px}
 @media(min-width:650px){main{padding-top:30px}.grid{grid-template-columns:repeat(4,minmax(0,1fr))}.card{padding:24px}}
+
+.meal-plan-block{border:1px solid var(--line);border-radius:14px;padding:14px;margin:12px 0;background:#10140d}.meal-plan-block h3{margin:4px 0 10px;font-size:15px}.meal-option{border:1px solid #46513a;border-radius:12px;padding:12px;margin:10px 0;background:#0c1009}.food-row{display:grid;grid-template-columns:1.5fr repeat(5,minmax(65px,1fr));gap:7px;margin:8px 0}.food-row input{min-width:0;padding:9px;font-size:13px}.meal-plan-block input,.meal-plan-block select{margin:4px 0}.meal-summary{color:var(--lime);font-size:12px;font-weight:800}.scan-video{width:100%;max-height:320px;background:#000;border-radius:12px;object-fit:cover}.meal-actions{display:flex;gap:8px;flex-wrap:wrap}.meal-actions button{flex:1;min-width:120px}@media(max-width:560px){.food-row{grid-template-columns:repeat(2,minmax(0,1fr))}.food-row input:first-child{grid-column:span 2}}
 </style>
 </head>
 <body><main>
@@ -137,6 +139,16 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <textarea id="nutritionCoachNotes" rows="3" style="width:100%;padding:14px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit;resize:vertical" placeholder="Meal timing, preferences or guidance…"></textarea>
   <button id="saveNutritionTargets" style="width:100%;margin-top:14px">SAVE HIGH & LOW DAY TARGETS</button>
   <div id="nutritionTargetStatus" class="status" role="status"></div>
+
+  <div class="section-title" style="margin-top:26px">Tailored meal plan builder</div>
+  <p class="muted">Build separate high- and low-day plans. Add as many meals, options and foods as needed. All food quantities are entered in grams and nutrition is calculated automatically.</p>
+  <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr))"><button type="button" class="secondary" id="coachPlanHigh">HIGH DAY PLAN</button><button type="button" class="secondary" id="coachPlanLow">LOW DAY PLAN</button></div>
+  <div id="coachMealPlanEditor"></div>
+  <button id="saveMealPlan" style="width:100%;margin-top:12px">SAVE TAILORED MEAL PLAN</button>
+  <div id="mealPlanCoachStatus" class="status" role="status"></div>
+  <div class="section-title" style="margin-top:24px">Client meal choices</div><p class="muted">Review the options selected by this client for a chosen date.</p>
+  <label for="coachPlanReviewDate">Review date</label><input id="coachPlanReviewDate" type="date">
+  <div id="coachMealPlanReview" class="muted">Select a date to review client choices.</div>
   <div class="section-title" style="margin-top:26px">Daily weight tracking</div>
   <p class="muted">Record each weigh-in. Entries are kept as history, and the latest 7-entry average is calculated automatically.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
@@ -197,8 +209,12 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <div class="eyebrow">NUTRITION TRACKING</div><div class="heading">Food diary</div>
   <p class="muted">Log meals and track your daily calories and macros. Search a barcode using the product database, or enter food values manually.</p>
   <label for="foodDate">Diary date</label><input id="foodDate" type="date">
+
+  <div class="section-title" style="margin-top:22px">Your tailored meal plan</div>
+  <p class="muted">Choose one approved option for each meal. Your planned macros and calories update automatically. Your coach can see your choices.</p>
+  <div id="clientMealPlan"></div>
   <div class="section-title" style="margin-top:20px">Find a packaged food</div>
-  <label for="foodBarcode">Barcode number</label><input id="foodBarcode" inputmode="numeric" placeholder="Scan or enter barcode">
+  <label for="foodBarcode">Barcode number (optional manual entry)</label><input id="foodBarcode" inputmode="numeric" placeholder="Scan with camera or enter barcode"> <button type="button" id="startBarcodeScan" class="secondary" style="width:100%;margin-top:8px">OPEN CAMERA BARCODE SCANNER</button><div id="barcodeScanner" class="hidden" style="margin-top:10px"><video id="barcodeVideo" class="scan-video" playsinline muted></video><button type="button" id="stopBarcodeScan" class="secondary" style="width:100%;margin-top:8px">STOP SCANNER</button></div>
   <button id="lookupBarcode" class="secondary" style="width:100%;margin-top:10px">LOOK UP BARCODE</button>
   <div id="barcodeStatus" class="status" role="status"></div>
   <div class="section-title" style="margin-top:20px">Add food</div>
@@ -236,6 +252,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, serverTimestamp, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { BrowserMultiFormatReader } from "https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm";
 
 const firebaseConfig = {
  apiKey: "AIzaSyDYm9hfARUWgQO3bpIlMkJnbDzV7O1OOAo",
@@ -400,6 +417,8 @@ async function showClientProfile(client){
   await loadWeightHistory();
   await loadNutritionTargets(true);
   await loadCoachDailyLogs();
+  $("coachPlanReviewDate").value=localDateString();
+  await loadCoachMealPlan();
  }catch(e){$("clientDetailsStatus").textContent="Could not load saved details: "+e.message;}
 }
 function fillMacroInputs(prefix,data){
@@ -414,6 +433,97 @@ function displayMacroSet(prefix,data){
  $(prefix+"DisplayCarbs").textContent=data.carbsG==null?"—":Number(data.carbsG);
  $(prefix+"DisplayFats").textContent=data.fatsG==null?"—":Number(data.fatsG);
 }
+
+
+// ---------------- Tailored meal planner ----------------
+let coachMealPlan={highDay:[],lowDay:[]},coachPlanType="highDay",clientMealPlan={highDay:[],lowDay:[]},clientMealSelections={};
+const escMeal=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const foodMacros=f=>{const g=Number(f.grams)||0,scale=g/100;return {calories:(Number(f.calories100)||0)*scale,proteinG:(Number(f.protein100)||0)*scale,carbsG:(Number(f.carbs100)||0)*scale,fatsG:(Number(f.fats100)||0)*scale};};
+const optionMacros=o=>(o.foods||[]).reduce((a,f)=>{const m=foodMacros(f);Object.keys(a).forEach(k=>a[k]+=m[k]);return a;},{calories:0,proteinG:0,carbsG:0,fatsG:0});
+const planTotals=(plan,choices={})=>plan.reduce((a,meal,mi)=>{const oi=Number(choices[mi]??0),o=(meal.options||[])[oi]||(meal.options||[])[0];if(o){const m=optionMacros(o);Object.keys(a).forEach(k=>a[k]+=m[k]);}return a;},{calories:0,proteinG:0,carbsG:0,fatsG:0});
+const fmtMeal=n=>Number(n||0).toFixed(1).replace(/\.0$/,"");
+function renderCoachMealPlan(){
+ const host=$("coachMealPlanEditor");if(!host)return;host.replaceChildren();
+ const plan=coachMealPlan[coachPlanType]||[];
+ const title=document.createElement("div");title.className="pill";title.textContent=coachPlanType==="highDay"?"HIGH DAY BUILDER":"LOW DAY BUILDER";host.append(title);
+ plan.forEach((meal,mi)=>{
+  const block=document.createElement("div");block.className="meal-plan-block";
+  block.innerHTML='<label>Meal name</label><input data-meal-name="'+mi+'" value="'+escMeal(meal.name)+'" placeholder="e.g. Breakfast"><div data-options="'+mi+'"></div><div class="meal-actions"><button type="button" class="secondary" data-add-option="'+mi+'">ADD OPTION</button><button type="button" class="secondary" data-remove-meal="'+mi+'">REMOVE MEAL</button></div>';
+  const options=block.querySelector('[data-options="'+mi+'"]');
+  (meal.options||[]).forEach((o,oi)=>{
+   const op=document.createElement("div");op.className="meal-option";
+   const m=optionMacros(o);
+   op.innerHTML='<label>Option name</label><input data-option-name="'+mi+':'+oi+'" value="'+escMeal(o.name)+'" placeholder="e.g. Chicken and rice"><div class="muted">Food details · values per 100g, with portion in grams</div><div data-foods="'+mi+':'+oi+'"></div><button type="button" class="secondary" data-add-food="'+mi+':'+oi+'">ADD FOOD</button><button type="button" class="secondary" data-remove-option="'+mi+':'+oi+'" style="margin-left:6px">REMOVE OPTION</button><div class="meal-summary">P '+fmtMeal(m.proteinG)+'g · C '+fmtMeal(m.carbsG)+'g · F '+fmtMeal(m.fatsG)+'g · '+Math.round(m.calories)+' kcal</div>';
+   const foods=op.querySelector('[data-foods="'+mi+':'+oi+'"]');
+   (o.foods||[]).forEach((f,fi)=>{
+    const row=document.createElement("div");row.className="food-row";
+    [["name","Food name"],["grams","Portion g"],["calories100","kcal/100g"],["protein100","P/100g"],["carbs100","C/100g"],["fats100","F/100g"]].forEach(([key,ph])=>{const input=document.createElement("input");input.placeholder=ph;input.value=f[key]??"";input.dataset.foodField=mi+":"+oi+":"+fi+":"+key;input.setAttribute("aria-label",ph);row.append(input);});
+    const remove=document.createElement("button");remove.type="button";remove.className="secondary";remove.textContent="Remove food";remove.dataset.removeFood=mi+":"+oi+":"+fi;row.append(remove);foods.append(row);
+   });options.append(op);
+  });host.append(block);
+ });
+ const add=document.createElement("button");add.type="button";add.textContent="ADD MEAL";add.style.width="100%";add.dataset.addMeal="1";host.append(add);
+ const t=planTotals(plan);const summary=document.createElement("div");summary.className="tile";summary.style.marginTop="12px";summary.innerHTML='<b>Current plan total (first option of each meal)</b><div class="meal-summary">P '+fmtMeal(t.proteinG)+'g · C '+fmtMeal(t.carbsG)+'g · F '+fmtMeal(t.fatsG)+'g · '+Math.round(t.calories)+' kcal</div>';host.append(summary);
+}
+function refreshCoachPlanInputs(){
+ const host=$("coachMealPlanEditor");if(!host)return;
+ const read=()=>{
+  host.querySelectorAll("[data-meal-name]").forEach(el=>{coachMealPlan[coachPlanType][Number(el.dataset.mealName)].name=el.value;});
+  host.querySelectorAll("[data-option-name]").forEach(el=>{const [m,o]=el.dataset.optionName.split(":").map(Number);coachMealPlan[coachPlanType][m].options[o].name=el.value;});
+  host.querySelectorAll("[data-food-field]").forEach(el=>{const [m,o,f,k]=el.dataset.foodField.split(":");const v=k==="name"?el.value:(el.value===""?0:Number(el.value));coachMealPlan[coachPlanType][Number(m)].options[Number(o)].foods[Number(f)][k]=v;});
+ };
+ host.onchange=()=>{read();renderCoachMealPlan();};host.oninput=()=>{read();};
+ host.onclick=e=>{
+  const b=e.target.closest("button");if(!b)return;read();
+  if(b.dataset.addMeal)coachMealPlan[coachPlanType].push({name:"Meal "+(coachMealPlan[coachPlanType].length+1),options:[{name:"Option A",foods:[]}]});
+  else if(b.dataset.addOption!==undefined){const m=Number(b.dataset.addOption);coachMealPlan[coachPlanType][m].options.push({name:"Option "+String.fromCharCode(65+coachMealPlan[coachPlanType][m].options.length),foods:[]});}
+  else if(b.dataset.removeMeal!==undefined)coachMealPlan[coachPlanType].splice(Number(b.dataset.removeMeal),1);
+  else if(b.dataset.addFood){const [m,o]=b.dataset.addFood.split(":").map(Number);coachMealPlan[coachPlanType][m].options[o].foods.push({name:"",grams:100,calories100:0,protein100:0,carbs100:0,fats100:0});}
+  else if(b.dataset.removeOption){const [m,o]=b.dataset.removeOption.split(":").map(Number);coachMealPlan[coachPlanType][m].options.splice(o,1);}
+  else if(b.dataset.removeFood){const [m,o,f]=b.dataset.removeFood.split(":").map(Number);coachMealPlan[coachPlanType][m].options[o].foods.splice(f,1);}
+  renderCoachMealPlan();refreshCoachPlanInputs();
+ };
+}
+async function loadCoachMealPlan(){
+ if(!selectedClient?.uid)return;
+ try{const snap=await getDoc(doc(db,"users",selectedClient.uid,"nutrition","mealPlan"));const d=snap.exists()?snap.data():{};coachMealPlan={highDay:Array.isArray(d.highDay)?d.highDay:[],lowDay:Array.isArray(d.lowDay)?d.lowDay:[]};renderCoachMealPlan();refreshCoachPlanInputs();await loadCoachMealPlanReview();}
+ catch(e){$("mealPlanCoachStatus").textContent="Could not load meal plan: "+e.message;}
+}
+async function saveCoachMealPlan(){
+ if(!selectedClient?.uid)return;
+ $("saveMealPlan").disabled=true;$("mealPlanCoachStatus").textContent="Saving meal plan…";
+ try{await setDoc(doc(db,"users",selectedClient.uid,"nutrition","mealPlan"),{highDay:coachMealPlan.highDay,lowDay:coachMealPlan.lowDay,updatedAt:serverTimestamp(),updatedBy:currentUser.uid});$("mealPlanCoachStatus").textContent="Tailored high- and low-day meal plans saved.";await loadClientMealPlan();}
+ catch(e){$("mealPlanCoachStatus").textContent="Could not save meal plan: "+e.message;}
+ finally{$("saveMealPlan").disabled=false;}
+}
+async function loadCoachMealPlanReview(){
+ if(!selectedClient?.uid)return;const date=$("coachPlanReviewDate").value||localDateString();const host=$("coachMealPlanReview");host.textContent="Loading client choices…";
+ try{const snap=await getDoc(doc(db,"users",selectedClient.uid,"mealPlanSelections",date));if(!snap.exists()){host.textContent="No meal choices saved for "+date+".";return;}const d=snap.data();host.replaceChildren();const h=document.createElement("div");h.className="pill";h.textContent=d.dayType==="highDay"?"HIGH DAY":"LOW DAY";host.append(h);(d.choices||[]).forEach(x=>{const p=document.createElement("div");p.className="tile";p.style.margin="8px 0";p.textContent=x.meal+": "+x.option+" · "+Math.round(x.calories)+" kcal · P "+fmtMeal(x.proteinG)+"g · C "+fmtMeal(x.carbsG)+"g · F "+fmtMeal(x.fatsG)+"g";host.append(p);});}
+ catch(e){host.textContent="Could not load client choices: "+e.message;}
+}
+async function loadClientMealPlan(){
+ if(!currentUser||currentRole==="coach")return;
+ const host=$("clientMealPlan");if(!host)return;
+ try{
+  const [planSnap,targetSnap]=await Promise.all([getDoc(doc(db,"users",currentUser.uid,"nutrition","mealPlan")),getDoc(doc(db,"users",currentUser.uid,"nutrition","targets"))]);
+  const d=planSnap.exists()?planSnap.data():{};clientMealPlan={highDay:Array.isArray(d.highDay)?d.highDay:[],lowDay:Array.isArray(d.lowDay)?d.lowDay:[]};
+  const targets=targetSnap.exists()?targetSnap.data():{},date=$("foodDate").value||localDateString(),dayName=new Date(date+"T12:00:00").toLocaleDateString("en-US",{weekday:"long"}),highDays=targets.highDays||[],type=highDays.includes(dayName)?"highDay":"lowDay",plan=clientMealPlan[type]||[];
+  const saved=await getDoc(doc(db,"users",currentUser.uid,"mealPlanSelections",date));clientMealSelections=saved.exists()?(saved.data().selectionMap||{}):{};
+  host.replaceChildren();if(!plan.length){host.textContent="Your coach has not added a meal plan for this "+(type==="highDay"?"high":"low")+" day yet.";return;}
+  const label=document.createElement("div");label.className="pill";label.textContent=(type==="highDay"?"HIGH DAY":"LOW DAY")+" · "+dayName;host.append(label);
+  const choices=[];
+  plan.forEach((meal,mi)=>{const block=document.createElement("div");block.className="meal-plan-block";const heading=document.createElement("h3");heading.textContent=meal.name||"Meal "+(mi+1);block.append(heading);const select=document.createElement("select");select.dataset.clientMeal=mi;select.style.width="100%";(meal.options||[]).forEach((o,oi)=>{const op=document.createElement("option");op.value=oi;op.textContent=o.name||"Option "+(oi+1);select.append(op);});select.value=String(Math.min(Number(clientMealSelections[mi]||0),Math.max(0,(meal.options||[]).length-1)));block.append(select);const info=document.createElement("div");info.className="muted";info.dataset.clientMealMacros=mi;block.append(info);const chosen=meal.options?.[Number(select.value)];if(chosen){const m=optionMacros(chosen);info.textContent="P "+fmtMeal(m.proteinG)+"g · C "+fmtMeal(m.carbsG)+"g · F "+fmtMeal(m.fatsG)+"g · "+Math.round(m.calories)+" kcal";}host.append(block);});
+  const total=document.createElement("div");total.className="tile";total.id="clientPlanTotals";host.append(total);
+  const save=document.createElement("button");save.id="saveClientMealChoices";save.textContent="SAVE MY MEAL CHOICES";save.style.width="100%";save.style.marginTop="12px";host.append(save);
+  const update=()=>{const map={};host.querySelectorAll("[data-client-meal]").forEach(x=>map[x.dataset.clientMeal]=Number(x.value));const t=planTotals(plan,map);total.innerHTML='<b>Planned daily total</b><div class="meal-summary">P '+fmtMeal(t.proteinG)+'g · C '+fmtMeal(t.carbsG)+'g · F '+fmtMeal(t.fatsG)+'g · '+Math.round(t.calories)+' kcal</div>';host.querySelectorAll("[data-client-meal]").forEach(sel=>{const meal=plan[Number(sel.dataset.clientMeal)],m=optionMacros(meal.options[Number(sel.value)]),info=host.querySelector('[data-client-meal-macros="'+sel.dataset.clientMeal+'"]');info.textContent="P "+fmtMeal(m.proteinG)+"g · C "+fmtMeal(m.carbsG)+"g · F "+fmtMeal(m.fatsG)+"g · "+Math.round(m.calories)+" kcal";});};
+  host.querySelectorAll("[data-client-meal]").forEach(x=>x.addEventListener("change",update));update();
+  save.addEventListener("click",async()=>{save.disabled=true;try{const map={};host.querySelectorAll("[data-client-meal]").forEach(x=>map[x.dataset.clientMeal]=Number(x.value));const selections=plan.map((meal,mi)=>{const o=meal.options[map[mi]];return {meal:meal.name||"Meal "+(mi+1),option:o?.name||"Option",...optionMacros(o||{foods:[]})};});await setDoc(doc(db,"users",currentUser.uid,"mealPlanSelections",date),{date,dayType:type,selectionMap:map,choices:selections,updatedAt:serverTimestamp()});clientMealSelections=map;save.textContent="CHOICES SAVED";}catch(e){save.textContent="SAVE FAILED: "+e.message;}finally{save.disabled=false;}});
+ }catch(e){host.textContent="Could not load your meal plan: "+e.message;}
+}
+$("coachPlanHigh").addEventListener("click",()=>{coachPlanType="highDay";renderCoachMealPlan();refreshCoachPlanInputs();});
+$("coachPlanLow").addEventListener("click",()=>{coachPlanType="lowDay";renderCoachMealPlan();refreshCoachPlanInputs();});
+$("saveMealPlan").addEventListener("click",saveCoachMealPlan);
+$("coachPlanReviewDate").value=localDateString();$("coachPlanReviewDate").addEventListener("change",loadCoachMealPlanReview);
 
 let foodEntries=[];
 let nutritionTargets=null;
@@ -461,8 +571,25 @@ async function loadFoodDiary(){
   const snap=await getDocs(collection(db,"users",currentUser.uid,"foodLogs",date,"entries"));
   foodEntries=snap.docs.map(d=>({id:d.id,...d.data()}));
   renderFoodDiary();
+  await loadClientMealPlan();
  }catch(e){$("foodDiaryEntries").textContent="Could not load food diary: "+e.message;}
 }
+
+// Camera barcode scanning (works in camera-enabled Safari/Chrome over HTTPS)
+let barcodeReader=null,barcodeControls=null;
+$("startBarcodeScan").addEventListener("click",async()=>{
+ try{
+  if(!navigator.mediaDevices?.getUserMedia)throw new Error("Camera access requires HTTPS and a supported browser.");
+  $("barcodeScanner").classList.remove("hidden");$("barcodeStatus").textContent="Starting camera…";
+  barcodeReader=barcodeReader||new BrowserMultiFormatReader();
+  barcodeControls=await barcodeReader.decodeFromVideoDevice(undefined,$("barcodeVideo"),(result,error,controls)=>{
+   if(result){const code=result.getText();$("foodBarcode").value=code;$("barcodeStatus").textContent="Barcode scanned. Looking up product…";controls?.stop();$("barcodeScanner").classList.add("hidden");$("lookupBarcode").click();}
+  });
+  $("barcodeStatus").textContent="Camera active. Hold the barcode steady inside the camera view.";
+ }catch(e){$("barcodeStatus").textContent="Could not start scanner: "+e.message+" You can still enter the barcode manually.";$("barcodeScanner").classList.add("hidden");}
+});
+$("stopBarcodeScan").addEventListener("click",()=>{if(barcodeControls){barcodeControls.stop();barcodeControls=null;}if(barcodeReader){barcodeReader.reset();} $("barcodeScanner").classList.add("hidden");$("barcodeStatus").textContent="Scanner stopped.";});
+
 $("lookupBarcode").addEventListener("click",async()=>{
  const code=$("foodBarcode").value.replace(/\D/g,"");
  $("foodBarcode").value=code;
