@@ -275,7 +275,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 <div class="eyebrow">B.COACHED PERFORMANCE</div><div class="heading">Your training dashboard</div><p class="muted">Your assigned programme, workout log and strength progression — all in one place.</p>
 <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">
 <div class="tile">SESSIONS<strong id="trainingSessionCount">0</strong><span>Workouts logged</span></div><div class="tile">TOTAL VOLUME<strong id="trainingTotalVolume">0</strong><span>kg lifted</span></div><div class="tile">THIS WEEK<strong id="trainingWeekCount">0</strong><span>Sessions completed</span></div></div>
-<div class="section-title" style="margin-top:22px">Your programme</div><div id="clientTrainingProgram" class="muted">Loading your training programme…</div>
+<div class="section-title" style="margin-top:22px">Your programme</div><p class="muted" id="trainingScheduleNote">Four-session torso/limb rotation · Rest day after each workout, then continue to the next session.</p><div id="clientTrainingProgram" class="muted">Loading your training programme…</div>
 <div class="section-title" style="margin-top:24px">Log today's workout</div><label for="trainingWorkoutDate">Workout date</label><input id="trainingWorkoutDate" type="date">
 <label for="trainingWorkoutSelect">Choose workout</label><select id="trainingWorkoutSelect" class="training-select"><option value="">Choose a workout</option></select><div id="clientWorkoutLogger"></div><div id="trainingLogStatus" class="status" role="status"></div>
 <div class="section-title" style="margin-top:26px">Strength progression</div><p class="muted">Choose an exercise to see your best logged set over time.</p><label for="trainingExerciseSelect">Exercise</label><select id="trainingExerciseSelect" class="training-select"><option value="">No exercise history yet</option></select><div class="tile" style="min-height:0"><div id="trainingProgressChart" class="muted">Log workouts to build your progression chart.</div></div>
@@ -369,7 +369,7 @@ onAuthStateChanged(auth,async user=>{
   // tabs are client-facing and remain available to client accounts.
   document.querySelectorAll("#nav button[data-view]").forEach(btn=>{
    const view=btn.dataset.view;
-   btn.classList.toggle("hidden",coach && !["overview","clients"].includes(view));
+   btn.classList.toggle("hidden",coach && !["overview","clients","training"].includes(view));
   });
   $("dashboardMacros").classList.toggle("hidden",coach);
   const overviewIntro=document.querySelector("#overviewView > p.muted");
@@ -381,7 +381,9 @@ onAuthStateChanged(auth,async user=>{
   $("clientWeightTracker").classList.toggle("hidden",coach);
   if(!coach){$("clientWeightDate").value=localDateString();await loadClientWeight();}
   if(!coach){$("habitDate").value=localDateString();await loadDailyHabits();}
-  if(!coach){$("trainingWorkoutDate").value=localDateString();await loadClientTrainingDashboard();}
+  $("trainingWorkoutDate").value=localDateString();
+  if(coach)await ensurePersonalTrainingProgram();
+  await loadClientTrainingDashboard();
   if(coach)loadClients();
  }catch(e){
   status(friendly(e),"bad");
@@ -1002,14 +1004,72 @@ $("saveTrainingProgram").addEventListener("click",async()=>{
  try{await setDoc(doc(db,"users",selectedClient.uid,"training","program"),{workouts:coachTrainingProgram.workouts,updatedAt:serverTimestamp(),updatedBy:currentUser.uid});const check=await getDoc(doc(db,"users",selectedClient.uid,"training","program"));if(!check.exists())throw new Error("Could not verify the saved programme.");coachTrainingProgram={workouts:check.data().workouts||[]};renderCoachTrainingProgram();$("coachTrainingStatus").textContent="Training programme saved and verified for "+(selectedClient.displayName||"this client")+".";
  }catch(e){$("coachTrainingStatus").textContent="Could not save training programme: "+e.message;}finally{$("saveTrainingProgram").disabled=false;}
 });
+const personalTorsoLimbProgram={
+ scheduleNote:"Four-session torso/limb rotation. Take one full rest day after each workout, then continue in order: Torso 1 → Limbs 1 → Torso 2 → Limbs 2 → repeat. This is a rolling rotation, not a fixed Monday-to-Sunday week.",
+ progressionNote:"Use your preferred 8–12 rep range. Follow your planned progression rule and increase the load when you reach your 12-rep target. Record weight and reps for every working set.",
+ workouts:[
+  {name:"Torso 1",exercises:[
+   {name:"Machine Cable Fly with Cuffs",muscleGroup:"Chest",sets:2,reps:"8–12"},
+   {name:"Flat Machine Press",muscleGroup:"Chest",sets:2,reps:"8–12"},
+   {name:"Frontal Plane Lat Pulldown",muscleGroup:"Lats · Width",sets:2,reps:"8–12"},
+   {name:"Single Arm Cable Row",muscleGroup:"Lats · Width",sets:2,reps:"8–12"},
+   {name:"Incline Dumbbell Press",muscleGroup:"Chest",sets:2,reps:"8–12"},
+   {name:"T-Bar Upper Back Row",muscleGroup:"Upper back",sets:1,reps:"8–12"},
+   {name:"Kelso Shrugs",muscleGroup:"Upper back",sets:2,reps:"8–12"},
+   {name:"High/Incline Shoulder Press",muscleGroup:"Shoulders",sets:1,reps:"8–12"},
+   {name:"Dumbbell Preacher Curl",muscleGroup:"Biceps",sets:2,reps:"8–12"}
+  ]},
+  {name:"Limbs 1",exercises:[
+   {name:"Seated Calf Raise",muscleGroup:"Calves",sets:2,reps:"8–12"},
+   {name:"Cable Curl",muscleGroup:"Biceps",sets:2,reps:"8–12"},
+   {name:"Hammer Curl",muscleGroup:"Biceps · Brachialis",sets:1,reps:"8–12"},
+   {name:"Triceps Pushdown",muscleGroup:"Triceps",sets:2,reps:"8–12"},
+   {name:"Overhead Triceps Extension",muscleGroup:"Triceps",sets:2,reps:"8–12"},
+   {name:"Leg Extension",muscleGroup:"Quadriceps",sets:2,reps:"8–12"},
+   {name:"Hack Squat",muscleGroup:"Quadriceps",sets:2,reps:"8–12"},
+   {name:"Pendulum Squat",muscleGroup:"Quadriceps",sets:2,reps:"8–12"},
+   {name:"Adduction",muscleGroup:"Adductors",sets:2,reps:"8–12"}
+  ]},
+  {name:"Torso 2",exercises:[
+   {name:"Pec Deck Fly + Reverse",muscleGroup:"Chest + rear delts",sets:2,reps:"8–12"},
+   {name:"Incline Smith Machine Press",muscleGroup:"Chest",sets:2,reps:"8–12"},
+   {name:"Underhand Pulldown",muscleGroup:"Lats · Width",sets:2,reps:"8–12"},
+   {name:"Bent Over Barbell Row",muscleGroup:"Upper back",sets:1,reps:"8–12"},
+   {name:"Upper Back Seated Row",muscleGroup:"Upper back",sets:1,reps:"8–12"},
+   {name:"Dumbbell Row",muscleGroup:"Back",sets:2,reps:"8–12"},
+   {name:"Plate Shoulder Press",muscleGroup:"Shoulders",sets:2,reps:"8–12"},
+   {name:"Unilateral Cable Lateral Raise",muscleGroup:"Side delts",sets:2,reps:"8–12"}
+  ]},
+  {name:"Limbs 2",exercises:[
+   {name:"Weighted Ab Crunch",muscleGroup:"Abs",sets:2,reps:"8–12"},
+   {name:"Machine Preacher Curl",muscleGroup:"Biceps",sets:1,reps:"8–12"},
+   {name:"Incline Curl",muscleGroup:"Biceps",sets:1,reps:"8–12"},
+   {name:"Cable Overhead Triceps Extension",muscleGroup:"Triceps",sets:1,reps:"8–12"},
+   {name:"Seated Hamstring Curl",muscleGroup:"Hamstrings",sets:2,reps:"8–12"},
+   {name:"Dumbbell Romanian Deadlift",muscleGroup:"Hamstrings · Glutes",sets:1,reps:"8–12"},
+   {name:"Unilateral Lying Hamstring Curl",muscleGroup:"Hamstrings",sets:2,reps:"8–12"},
+   {name:"Adduction",muscleGroup:"Adductors",sets:2,reps:"8–12"},
+   {name:"Abduction",muscleGroup:"Abductors",sets:2,reps:"8–12"}
+  ]}
+ ]
+};
+async function ensurePersonalTrainingProgram(){
+ if(!currentUser)return;
+ const ref=doc(db,"users",currentUser.uid,"training","program");
+ const snap=await getDoc(ref);
+ if(snap.exists()&&Array.isArray(snap.data().workouts)&&snap.data().workouts.length)return;
+ await setDoc(ref,{...personalTorsoLimbProgram,updatedAt:serverTimestamp(),updatedBy:currentUser.uid,programSource:"personal-torso-limb-template"});
+}
 async function loadClientTrainingDashboard(){
- if(!currentUser||currentRole==="coach")return;
+ if(!currentUser)return;
  try{
   const [ps,ls]=await Promise.all([getDoc(doc(db,"users",currentUser.uid,"training","program")),getDocs(collection(db,"users",currentUser.uid,"trainingSessions"))]);
   const d=ps.exists()?ps.data():{};clientTrainingProgram={workouts:Array.isArray(d.workouts)?d.workouts:[]};
+  if(d.scheduleNote)$("trainingScheduleNote").textContent=d.scheduleNote;
   const ph=$("clientTrainingProgram");ph.replaceChildren();
   if(!clientTrainingProgram.workouts.length)ph.textContent="Your coach has not assigned a training programme yet.";
   else clientTrainingProgram.workouts.forEach((w,i)=>{const c=document.createElement("div");c.className="tile";c.style.minHeight="0";c.style.margin="8px 0";const t=document.createElement("strong");t.style.fontSize="17px";t.textContent=w.name||"Workout "+(i+1);const detail=document.createElement("div");detail.className="muted";detail.textContent=(w.exercises||[]).map(e=>e.name+" · "+e.sets+" × "+e.reps).join(" | ")||"No exercises added yet.";c.append(t,detail);ph.append(c);});
+  if(d.progressionNote){const note=document.createElement("p");note.className="muted";note.textContent=d.progressionNote;ph.append(note);}
   const select=$("trainingWorkoutSelect");select.replaceChildren();const blank=document.createElement("option");blank.value="";blank.textContent="Choose a workout";select.append(blank);
   clientTrainingProgram.workouts.forEach((w,i)=>{const o=document.createElement("option");o.value=i;o.textContent=w.name||"Workout "+(i+1);select.append(o);});
   const logs=ls.docs.map(x=>({id:x.id,...x.data()})).sort((a,b)=>(a.date||"").localeCompare(b.date||""));
