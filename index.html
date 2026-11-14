@@ -323,6 +323,17 @@ onAuthStateChanged(auth,async user=>{
   $("clientsView").classList.add("hidden");$("clientProfileView").classList.add("hidden");$("overviewView").classList.remove("hidden");
   $("roleLabel").textContent=coach?"COACH DASHBOARD":"CLIENT DASHBOARD";
   $("clientsNav").classList.toggle("hidden",!coach);
+  // Coaches use Overview and Clients only; nutrition, food diary and tracking
+  // tabs are client-facing and remain available to client accounts.
+  document.querySelectorAll("#nav button[data-view]").forEach(btn=>{
+   const view=btn.dataset.view;
+   btn.classList.toggle("hidden",coach && !["overview","clients"].includes(view));
+  });
+  $("dashboardMacros").classList.toggle("hidden",coach);
+  const overviewIntro=document.querySelector("#overviewView > p.muted");
+  if(overviewIntro) overviewIntro.textContent=coach
+   ?"Manage your clients, build their nutrition plans and review their progress from the Clients area."
+   :"Welcome to your B.COACHED space. Your personal targets and coaching plan will appear here as we build each section.";
   await loadNutritionTargets(false);
   $("dailyHabits").classList.toggle("hidden",coach);
   $("clientWeightTracker").classList.toggle("hidden",coach);
