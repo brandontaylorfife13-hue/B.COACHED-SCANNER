@@ -394,7 +394,8 @@ onAuthStateChanged(auth,async user=>{
   // tabs are client-facing and remain available to client accounts.
   document.querySelectorAll("#nav button[data-view]").forEach(btn=>{
    const view=btn.dataset.view;
-   btn.classList.toggle("hidden",coach && !["overview","clients","training"].includes(view));
+   const hideForRole = view==="clients" ? !coach : (coach && !["overview","training"].includes(view));
+   btn.classList.toggle("hidden",hideForRole);
   });
   $("dashboardMacros").classList.toggle("hidden",coach);
   const overviewIntro=document.querySelector("#overviewView > p.muted");
