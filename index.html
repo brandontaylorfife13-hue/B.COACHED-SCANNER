@@ -200,7 +200,7 @@ const firebaseConfig = {
 };
 const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app);
 const $=id=>document.getElementById(id);
-let mode="login", currentUser=null;
+let mode="login", currentUser=null, currentRole=null;
 function status(message,kind=""){ $("authStatus").textContent=message; $("authStatus").className="status "+kind; }
 function setMode(next){mode=next;const register=mode==="register";$("authHeading").textContent=register?"Create your B.COACHED account":"Welcome to B.COACHED";$("authIntro").textContent=register?"Create your personal account using your own email address and password.":"Sign in to access your personal coaching dashboard, nutrition, training and progress.";$("nameWrap").classList.toggle("hidden",!register);$("primaryBtn").textContent=register?"CREATE ACCOUNT":"LOG IN";$("switchBtn").textContent=register?"BACK TO LOGIN":"CREATE ACCOUNT";$("resetBtn").classList.toggle("hidden",register);status("");}
 $("switchBtn").onclick=()=>setMode(mode==="login"?"register":"login");
@@ -227,7 +227,7 @@ $("logoutBtn").onclick=()=>signOut(auth);
 function friendly(e){const m=e?.message||"Something went wrong.";if(m.includes("auth/invalid-credential"))return"Email or password is incorrect.";if(m.includes("auth/email-already-in-use"))return"An account already exists with this email. Try logging in.";if(m.includes("auth/weak-password"))return"Choose a stronger password with at least 6 characters.";if(m.includes("auth/invalid-email"))return"Please enter a valid email address.";return m;}
 onAuthStateChanged(auth,async user=>{
  currentUser=user;
- if(!user){$("authCard").classList.remove("hidden");$("app").classList.add("hidden");return;}
+ if(!user){currentRole=null;selectedClient=null;$("authCard").classList.remove("hidden");$("app").classList.add("hidden");return;}
  try{
   if(!user.emailVerified){
    await signOut(auth);
@@ -254,7 +254,9 @@ onAuthStateChanged(auth,async user=>{
   const profile=snap.data();
   $("authCard").classList.add("hidden");$("app").classList.remove("hidden");
   $("welcome").textContent="Welcome, "+(profile.displayName||"there");
-  const coach=profile.role==="coach";
+  currentRole=profile.role||"client";
+  const coach=currentRole==="coach";
+  $("clientsView").classList.add("hidden");$("clientProfileView").classList.add("hidden");$("overviewView").classList.remove("hidden");
   $("roleLabel").textContent=coach?"COACH DASHBOARD":"CLIENT DASHBOARD";
   $("clientsNav").classList.toggle("hidden",!coach);
   await loadNutritionTargets(false);
