@@ -54,6 +54,19 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
    <div class="tile">ACCOUNT<strong id="profileRole" style="font-size:15px">Client</strong><span>Account type</span></div>
    <div class="tile">JOINED<strong id="profileJoined" style="font-size:15px">—</strong><span>Registration date</span></div>
   </div>
+  <div class="section-title" style="margin-top:22px">Client details</div>
+  <p class="muted">Add or update the client's key starting information. Changes are saved securely to their profile.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(210px,1fr))">
+   <div><label for="detailDob">Date of birth</label><input id="detailDob" type="date"></div>
+   <div><label for="detailHeight">Height (cm)</label><input id="detailHeight" type="number" min="0" step="0.1" placeholder="e.g. 176"></div>
+   <div><label for="detailStartWeight">Starting weight (kg)</label><input id="detailStartWeight" type="number" min="0" step="0.1" placeholder="e.g. 85.0"></div>
+   <div><label for="detailCurrentWeight">Current weight (kg)</label><input id="detailCurrentWeight" type="number" min="0" step="0.1" placeholder="e.g. 82.5"></div>
+   <div><label for="detailGoalWeight">Goal weight (kg)</label><input id="detailGoalWeight" type="number" min="0" step="0.1" placeholder="e.g. 80.0"></div>
+   <div><label for="detailGoal">Primary goal</label><input id="detailGoal" placeholder="e.g. Fat loss, muscle gain"></div>
+  </div>
+  <label for="detailNotes">Coaching notes</label><textarea id="detailNotes" rows="4" style="width:100%;padding:14px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit;resize:vertical" placeholder="Training background, preferences, important coaching notes…"></textarea>
+  <button id="saveClientDetails" style="width:100%;margin-top:14px">SAVE CLIENT DETAILS</button>
+  <div id="clientDetailsStatus" class="status" role="status"></div>
   <div class="section-title" style="margin-top:22px">Coaching overview</div>
   <p class="muted">This is the client's central profile. We'll connect their nutrition targets, training plan, daily tracking and weekly check-ins here next.</p>
   <div class="grid">
@@ -197,7 +210,9 @@ $("inviteBtn").addEventListener("click",async()=>{
  }catch(e){$("inviteStatus").textContent="Could not create invitation. Check your coach permissions and published Firestore rules.";}
  finally{$("inviteBtn").disabled=false;}
 });
-function showClientProfile(client){
+let selectedClient=null;
+async function showClientProfile(client){
+ selectedClient=client;
  $("clientsView").classList.add("hidden");
  $("overviewView").classList.add("hidden");
  $("nutritionView").classList.add("hidden");
@@ -211,7 +226,51 @@ function showClientProfile(client){
  $("profileStatus").textContent=client.accountStatus||"Status unknown";
  const joined=client.createdAt?.toDate?client.createdAt.toDate():null;
  $("profileJoined").textContent=joined?joined.toLocaleDateString():"Not available";
+ $("clientDetailsStatus").textContent="Loading saved details…";
+ ["detailDob","detailHeight","detailStartWeight","detailCurrentWeight","detailGoalWeight","detailGoal","detailNotes"].forEach(id=>$(id).value="");
+ try{
+  if(!client.uid) throw new Error("This client profile is missing its user ID.");
+  const detailSnap=await getDoc(doc(db,"users",client.uid,"profile","details"));
+  if(detailSnap.exists()){
+   const d=detailSnap.data();
+   $("detailDob").value=d.dateOfBirth||"";
+   $("detailHeight").value=d.heightCm??"";
+   $("detailStartWeight").value=d.startingWeightKg??"";
+   $("detailCurrentWeight").value=d.currentWeightKg??"";
+   $("detailGoalWeight").value=d.goalWeightKg??"";
+   $("detailGoal").value=d.primaryGoal||"";
+   $("detailNotes").value=d.coachingNotes||"";
+  }
+  $("clientDetailsStatus").textContent="";
+ }catch(e){$("clientDetailsStatus").textContent="Could not load saved details: "+e.message;}
 }
+$("saveClientDetails").addEventListener("click",async()=>{
+ if(!selectedClient?.uid){$("clientDetailsStatus").textContent="No client selected.";return;}
+ const numericFields=["detailHeight","detailStartWeight","detailCurrentWeight","detailGoalWeight"];
+ for(const id of numericFields){
+  const value=$(id).value.trim();
+  if(value!==""&&(!Number.isFinite(Number(value))||Number(value)<0)){
+   $("clientDetailsStatus").textContent="Please enter valid positive numbers for height and weights.";return;
+  }
+ }
+ $("saveClientDetails").disabled=true;
+ $("clientDetailsStatus").textContent="Saving…";
+ try{
+  await setDoc(doc(db,"users",selectedClient.uid,"profile","details"),{
+   dateOfBirth:$("detailDob").value||"",
+   heightCm:$("detailHeight").value===""?null:Number($("detailHeight").value),
+   startingWeightKg:$("detailStartWeight").value===""?null:Number($("detailStartWeight").value),
+   currentWeightKg:$("detailCurrentWeight").value===""?null:Number($("detailCurrentWeight").value),
+   goalWeightKg:$("detailGoalWeight").value===""?null:Number($("detailGoalWeight").value),
+   primaryGoal:$("detailGoal").value.trim(),
+   coachingNotes:$("detailNotes").value.trim(),
+   updatedAt:serverTimestamp(),
+   updatedBy:currentUser.uid
+  },{merge:true});
+  $("clientDetailsStatus").textContent="Client details saved successfully.";
+ }catch(e){$("clientDetailsStatus").textContent="Could not save details: "+e.message;}
+ finally{$("saveClientDetails").disabled=false;}
+});
 $("backToClients").addEventListener("click",()=>{
  $("clientProfileView").classList.add("hidden");
  $("clientsView").classList.remove("hidden");
