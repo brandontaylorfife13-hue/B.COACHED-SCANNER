@@ -39,6 +39,9 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 .client-add-food-fields input{min-width:0;padding:8px;font-size:12px}
 .client-add-food-fields input:first-child{grid-column:span 2}
 .client-add-food-fields button{grid-column:span 2}
+
+.client-meal-eaten{display:flex;align-items:center;gap:9px;margin-top:12px;padding:9px 11px;background:#171b14;border:1px solid var(--line);border-radius:9px;font-size:13px;cursor:pointer}
+.client-meal-eaten input{width:18px;height:18px;accent-color:var(--lime);margin:0}
 </style>
 </head>
 <body><main>
@@ -668,9 +671,11 @@ async function loadClientMealPlan(){
   const savedData=saved.exists()?saved.data():{};
   clientMealSelections=savedData.selectionMap||{};
   const customFoods=savedData.customFoods||{};
+  const eatenMeals=savedData.eatenMeals||{};
   const editedFoods={};
+  clientMealConsumed=[];
   host.replaceChildren();
-  if(!plan.length){host.textContent="Your coach has not added a meal plan for this "+(type==="highDay"?"high":"low")+" day yet.";return;}
+  if(!plan.length){host.textContent="Your coach has not added a meal plan for this "+(type==="highDay"?"high":"low")+" day yet.";renderFoodDiary();return;}
   const label=document.createElement("div");label.className="pill";label.textContent=(type==="highDay"?"HIGH DAY":"LOW DAY")+" · "+dayName;host.append(label);
   plan.forEach((meal,mi)=>{
    const block=document.createElement("div");block.className="meal-plan-block";
@@ -682,12 +687,15 @@ async function loadClientMealPlan(){
    block.append(select);
    const foodsHost=document.createElement("div");foodsHost.dataset.clientMealFoods=mi;foodsHost.style.marginTop="10px";block.append(foodsHost);
    const info=document.createElement("div");info.className="muted";info.dataset.clientMealMacros=mi;info.style.marginTop="10px";block.append(info);
+   const eatenLabel=document.createElement("label");eatenLabel.className="client-meal-eaten";
+   const eaten=document.createElement("input");eaten.type="checkbox";eaten.checked=!!eatenMeals[String(mi)];eaten.dataset.mealEaten=mi;
+   const eatenText=document.createElement("span");eatenText.textContent="I've eaten this meal";eatenLabel.append(eaten,eatenText);block.append(eatenLabel);
    host.append(block);
   });
   const total=document.createElement("div");total.className="tile";total.id="clientPlanTotals";host.append(total);
   const save=document.createElement("button");save.id="saveClientMealChoices";save.textContent="SAVE MY MEAL CHOICES";save.style.width="100%";save.style.marginTop="12px";host.append(save);
   const update=()=>{
-   const map={};
+   const map={},consumed=[];
    host.querySelectorAll("[data-client-meal]").forEach(x=>map[x.dataset.clientMeal]=Number(x.value));
    let daily={calories:0,proteinG:0,carbsG:0,fatsG:0};
    host.querySelectorAll("[data-client-meal]").forEach(sel=>{
@@ -719,26 +727,42 @@ async function loadClientMealPlan(){
      update();
     };
     fields.append(addBtn);add.append(fields);foodsHost.append(add);
-    const m=optionMacros({foods}),info=host.querySelector('[data-client-meal-macros="'+mi+'"]');
-    info.textContent="Meal total: P "+fmtMeal(m.proteinG)+"g · C "+fmtMeal(m.carbsG)+"g · F "+fmtMeal(m.fatsG)+"g · "+Math.round(m.calories)+" kcal";
-    Object.keys(daily).forEach(k=>daily[k]+=m[k]);
+    const macros=optionMacros({foods}),info=host.querySelector('[data-client-meal-macros="'+mi+'"]');
+    info.textContent="Meal total: P "+fmtMeal(macros.proteinG)+"g · C "+fmtMeal(macros.carbsG)+"g · F "+fmtMeal(macros.fatsG)+"g · "+Math.round(macros.calories)+" kcal";
+    Object.keys(daily).forEach(k=>daily[k]+=macros[k]);
+    const eatenNow=host.querySelector('[data-meal-eaten="'+mi+'"]')?.checked;
+    if(eatenNow)foods.forEach((food,fi)=>{
+     const m=foodMacros(food);
+     consumed.push({id:"plan_"+mi+"_"+fi,meal:meal.name||"Meal "+(mi+1),name:food.name||"Food item",calories:m.calories,proteinG:m.proteinG,carbsG:m.carbsG,fatsG:m.fatsG,fromMealPlan:true});
+    });
    });
-   total.innerHTML='<b>Your adjusted daily total</b><div class="meal-summary">P '+fmtMeal(daily.proteinG)+'g · C '+fmtMeal(daily.carbsG)+'g · F '+fmtMeal(daily.fatsG)+'g · '+Math.round(daily.calories)+' kcal</div>';
+   clientMealConsumed=consumed;
+   total.innerHTML='<b>Planned daily total</b><div class="meal-summary">P '+fmtMeal(daily.proteinG)+'g · C '+fmtMeal(daily.carbsG)+'g · F '+fmtMeal(daily.fatsG)+'g · '+Math.round(daily.calories)+' kcal</div>';
+   renderFoodDiary();
   };
-  host.querySelectorAll("[data-client-meal]").forEach(x=>x.addEventListener("change",()=>{update();}));
+  host.querySelectorAll("[data-client-meal]").forEach(x=>x.addEventListener("change",update));
+  host.querySelectorAll("[data-meal-eaten]").forEach(x=>x.addEventListener("change",async()=>{
+   const eatenMap={};host.querySelectorAll("[data-meal-eaten]").forEach(cb=>eatenMap[cb.dataset.mealEaten]=cb.checked);
+   const label=x.closest(".meal-plan-block")?.querySelector(".client-meal-eaten span");
+   if(label)label.textContent=x.checked?"Eaten · added to food diary":"I've eaten this meal";
+   update();
+   try{await setDoc(doc(db,"users",currentUser.uid,"mealPlanSelections",date),{date,dayType:type,eatenMeals:eatenMap,updatedAt:serverTimestamp()},{merge:true});}
+   catch(e){x.checked=!x.checked;update();if(label)label.textContent="Could not save · try again";$("foodDiaryEntries").textContent="Could not save meal status: "+e.message;}
+  }));
   update();
   save.addEventListener("click",async()=>{
    save.disabled=true;
    try{
-    const map={};host.querySelectorAll("[data-client-meal]").forEach(x=>map[x.dataset.clientMeal]=Number(x.value));
-    const custom={};
+    const map={},custom={};
+    host.querySelectorAll("[data-client-meal]").forEach(x=>map[x.dataset.clientMeal]=Number(x.value));
+    const eatenMap={};host.querySelectorAll("[data-meal-eaten]").forEach(x=>eatenMap[x.dataset.mealEaten]=x.checked);
     const selections=plan.map((meal,mi)=>{
      const foods=editedFoods[String(mi)]?.foods||[];
      custom[String(mi)]={optionIndex:map[mi],foods:foods.map(f=>({...f}))};
      const o={foods};
      return {meal:meal.name||"Meal "+(mi+1),option:(meal.options?.[map[mi]]?.name)||"Option",foods:foods.map(f=>({name:f.name||"",grams:Number(f.grams)||0})),...optionMacros(o)};
     });
-    await setDoc(doc(db,"users",currentUser.uid,"mealPlanSelections",date),{date,dayType:type,selectionMap:map,customFoods:custom,choices:selections,updatedAt:serverTimestamp()});
+    await setDoc(doc(db,"users",currentUser.uid,"mealPlanSelections",date),{date,dayType:type,selectionMap:map,customFoods:custom,eatenMeals:eatenMap,choices:selections,updatedAt:serverTimestamp()},{merge:true});
     clientMealSelections=map;save.textContent="CHOICES SAVED";
    }catch(e){save.textContent="SAVE FAILED: "+e.message;}
    finally{save.disabled=false;}
@@ -763,8 +787,10 @@ $("coachPlanReviewDate").value=localDateString();$("coachPlanReviewDate").addEve
 
 let foodEntries=[];
 let nutritionTargets=null;
+let clientMealConsumed=[];
 function renderFoodDiary(){
- const totals=foodEntries.reduce((a,x)=>({calories:a.calories+(Number(x.calories)||0),protein:a.protein+(Number(x.proteinG)||0),carbs:a.carbs+(Number(x.carbsG)||0),fats:a.fats+(Number(x.fatsG)||0)}),{calories:0,protein:0,carbs:0,fats:0});
+ const combinedEntries=foodEntries.concat(clientMealConsumed);
+ const totals=combinedEntries.reduce((a,x)=>({calories:a.calories+(Number(x.calories)||0),protein:a.protein+(Number(x.proteinG)||0),carbs:a.carbs+(Number(x.carbsG)||0),fats:a.fats+(Number(x.fatsG)||0)}),{calories:0,protein:0,carbs:0,fats:0});
  $("foodTotalCalories").textContent=Math.round(totals.calories).toLocaleString();
  $("foodTotalProtein").textContent=totals.protein.toFixed(1)+"g";
  $("foodTotalCarbs").textContent=totals.carbs.toFixed(1)+"g";
