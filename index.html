@@ -43,6 +43,13 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
    <div class="tile">SLEEP<strong id="overviewSleep">—</strong><span>Hours last night</span></div>
    <div class="tile">BODY WEIGHT<strong id="overviewWeight">—</strong><span>Latest weigh-in</span></div>
   </div>
+  <div id="dashboardMacros" class="hidden" style="margin-top:20px">
+   <div class="section-title">Your calorie & macro targets</div>
+   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
+    <div class="tile"><div class="eyebrow">HIGH DAY</div><strong id="dashHighCalories">—</strong><span>kcal · P <b id="dashHighProtein">—</b>g · C <b id="dashHighCarbs">—</b>g · F <b id="dashHighFats">—</b>g</span></div>
+    <div class="tile"><div class="eyebrow">LOW DAY</div><strong id="dashLowCalories">—</strong><span>kcal · P <b id="dashLowProtein">—</b>g · C <b id="dashLowCarbs">—</b>g · F <b id="dashLowFats">—</b>g</span></div>
+   </div>
+  </div>
   <div id="clientWeightTracker" class="hidden" style="margin-top:26px">
    <div class="section-title">Your weight tracker</div>
    <p class="muted">Record your weigh-in here. Your coach can see your entries and follow your progress.</p>
@@ -96,16 +103,28 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <button id="saveClientDetails" style="width:100%;margin-top:14px">SAVE CLIENT DETAILS</button>
   <div id="clientDetailsStatus" class="status" role="status"></div>
   <div class="section-title" style="margin-top:26px">Nutrition targets</div>
-  <p class="muted">Set this client's daily calorie and macro targets.</p>
-  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
-   <div><label for="targetCalories">Calories (kcal)</label><input id="targetCalories" type="number" min="0" step="1" placeholder="e.g. 2400"></div>
-   <div><label for="targetProtein">Protein (g)</label><input id="targetProtein" type="number" min="0" step="1" placeholder="e.g. 180"></div>
-   <div><label for="targetCarbs">Carbs (g)</label><input id="targetCarbs" type="number" min="0" step="1" placeholder="e.g. 250"></div>
-   <div><label for="targetFats">Fats (g)</label><input id="targetFats" type="number" min="0" step="1" placeholder="e.g. 70"></div>
+  <p class="muted">Set separate targets for higher-calorie and lower-calorie days.</p>
+  <div class="tile" style="margin-bottom:12px">
+   <div class="eyebrow">HIGH DAYS</div>
+   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">
+    <div><label for="highCalories">Calories (kcal)</label><input id="highCalories" type="number" min="0" step="1" placeholder="e.g. 2600"></div>
+    <div><label for="highProtein">Protein (g)</label><input id="highProtein" type="number" min="0" step="1" placeholder="e.g. 180"></div>
+    <div><label for="highCarbs">Carbs (g)</label><input id="highCarbs" type="number" min="0" step="1" placeholder="e.g. 300"></div>
+    <div><label for="highFats">Fats (g)</label><input id="highFats" type="number" min="0" step="1" placeholder="e.g. 65"></div>
+   </div>
+  </div>
+  <div class="tile" style="margin-bottom:12px">
+   <div class="eyebrow">LOW DAYS</div>
+   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">
+    <div><label for="lowCalories">Calories (kcal)</label><input id="lowCalories" type="number" min="0" step="1" placeholder="e.g. 2200"></div>
+    <div><label for="lowProtein">Protein (g)</label><input id="lowProtein" type="number" min="0" step="1" placeholder="e.g. 180"></div>
+    <div><label for="lowCarbs">Carbs (g)</label><input id="lowCarbs" type="number" min="0" step="1" placeholder="e.g. 220"></div>
+    <div><label for="lowFats">Fats (g)</label><input id="lowFats" type="number" min="0" step="1" placeholder="e.g. 65"></div>
+   </div>
   </div>
   <label for="nutritionCoachNotes">Nutrition notes for client</label>
   <textarea id="nutritionCoachNotes" rows="3" style="width:100%;padding:14px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit;resize:vertical" placeholder="Meal timing, preferences or guidance…"></textarea>
-  <button id="saveNutritionTargets" style="width:100%;margin-top:14px">SAVE NUTRITION TARGETS</button>
+  <button id="saveNutritionTargets" style="width:100%;margin-top:14px">SAVE HIGH & LOW DAY TARGETS</button>
   <div id="nutritionTargetStatus" class="status" role="status"></div>
   <div class="section-title" style="margin-top:26px">Daily weight tracking</div>
   <p class="muted">Record each weigh-in. Entries are kept as history, and the latest 7-entry average is calculated automatically.</p>
@@ -137,13 +156,25 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   </div>
  </section>
  <section class="card hidden" id="nutritionView">
-  <div class="eyebrow">NUTRITION</div><div class="heading">Your nutrition targets</div>
-  <p class="muted">Your coach-set daily calorie and macro targets will appear here.</p>
-  <div class="grid">
-   <div class="tile">CALORIES<strong id="nutritionCalories">—</strong><span>kcal per day</span></div>
-   <div class="tile">PROTEIN<strong id="nutritionProtein">—</strong><span>grams per day</span></div>
-   <div class="tile">CARBS<strong id="nutritionCarbs">—</strong><span>grams per day</span></div>
-   <div class="tile">FATS<strong id="nutritionFats">—</strong><span>grams per day</span></div>
+  <div class="eyebrow">NUTRITION</div><div class="heading">Your calories & macros</div>
+  <p class="muted">Your coach has assigned two sets of targets. Follow the correct one for each day of your plan.</p>
+  <div class="tile" style="margin-bottom:14px">
+   <div class="eyebrow">HIGH DAY TARGETS</div>
+   <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:12px">
+    <div>CALORIES<strong id="highDisplayCalories">—</strong><span>kcal</span></div>
+    <div>PROTEIN<strong id="highDisplayProtein">—</strong><span>grams</span></div>
+    <div>CARBS<strong id="highDisplayCarbs">—</strong><span>grams</span></div>
+    <div>FATS<strong id="highDisplayFats">—</strong><span>grams</span></div>
+   </div>
+  </div>
+  <div class="tile" style="margin-bottom:14px">
+   <div class="eyebrow">LOW DAY TARGETS</div>
+   <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:12px">
+    <div>CALORIES<strong id="lowDisplayCalories">—</strong><span>kcal</span></div>
+    <div>PROTEIN<strong id="lowDisplayProtein">—</strong><span>grams</span></div>
+    <div>CARBS<strong id="lowDisplayCarbs">—</strong><span>grams</span></div>
+    <div>FATS<strong id="lowDisplayFats">—</strong><span>grams</span></div>
+   </div>
   </div>
   <div id="nutritionNotesDisplay" class="muted" style="margin-top:16px"></div>
  </section>
@@ -322,24 +353,44 @@ async function showClientProfile(client){
   await loadCoachDailyLogs();
  }catch(e){$("clientDetailsStatus").textContent="Could not load saved details: "+e.message;}
 }
+function fillMacroInputs(prefix,data){
+ $(prefix+"Calories").value=data.calories??"";
+ $(prefix+"Protein").value=data.proteinG??"";
+ $(prefix+"Carbs").value=data.carbsG??"";
+ $(prefix+"Fats").value=data.fatsG??"";
+}
+function displayMacroSet(prefix,data){
+ $(prefix+"DisplayCalories").textContent=data.calories==null?"—":Number(data.calories).toLocaleString();
+ $(prefix+"DisplayProtein").textContent=data.proteinG==null?"—":Number(data.proteinG);
+ $(prefix+"DisplayCarbs").textContent=data.carbsG==null?"—":Number(data.carbsG);
+ $(prefix+"DisplayFats").textContent=data.fatsG==null?"—":Number(data.fatsG);
+}
 async function loadNutritionTargets(coachEditing=false){
  const uid=coachEditing?selectedClient?.uid:currentUser?.uid;
  if(!uid)return;
  try{
   const snap=await getDoc(doc(db,"users",uid,"nutrition","targets"));
   const d=snap.exists()?snap.data():{};
+  const high=d.highDay||{calories:d.calories,proteinG:d.proteinG,carbsG:d.carbsG,fatsG:d.fatsG};
+  const low=d.lowDay||{};
   if(coachEditing){
-   $("targetCalories").value=d.calories??"";
-   $("targetProtein").value=d.proteinG??"";
-   $("targetCarbs").value=d.carbsG??"";
-   $("targetFats").value=d.fatsG??"";
+   fillMacroInputs("high",high);
+   fillMacroInputs("low",low);
    $("nutritionCoachNotes").value=d.notes||"";
    $("nutritionTargetStatus").textContent="";
   }else{
-   $("nutritionCalories").textContent=d.calories==null?"—":Number(d.calories).toLocaleString();
-   $("nutritionProtein").textContent=d.proteinG==null?"—":Number(d.proteinG)+" g";
-   $("nutritionCarbs").textContent=d.carbsG==null?"—":Number(d.carbsG)+" g";
-   $("nutritionFats").textContent=d.fatsG==null?"—":Number(d.fatsG)+" g";
+   displayMacroSet("high",high);
+   displayMacroSet("low",low);
+   $("dashHighCalories").textContent=high.calories==null?"—":Number(high.calories).toLocaleString();
+   $("dashHighProtein").textContent=high.proteinG??"—";
+   $("dashHighCarbs").textContent=high.carbsG??"—";
+   $("dashHighFats").textContent=high.fatsG??"—";
+   $("dashLowCalories").textContent=low.calories==null?"—":Number(low.calories).toLocaleString();
+   $("dashLowProtein").textContent=low.proteinG??"—";
+   $("dashLowCarbs").textContent=low.carbsG??"—";
+   $("dashLowFats").textContent=low.fatsG??"—";
+   const hasTargets=high.calories!=null||low.calories!=null;
+   $("dashboardMacros").classList.toggle("hidden",!hasTargets);
    $("nutritionNotesDisplay").textContent=d.notes||"";
   }
  }catch(e){
@@ -349,28 +400,32 @@ async function loadNutritionTargets(coachEditing=false){
 }
 $("saveNutritionTargets").addEventListener("click",async()=>{
  if(!selectedClient?.uid)return;
- const ids=["targetCalories","targetProtein","targetCarbs","targetFats"];
- for(const id of ids){
+ const groups=[["highCalories","highProtein","highCarbs","highFats"],["lowCalories","lowProtein","lowCarbs","lowFats"]];
+ for(const group of groups)for(const id of group){
   const value=$(id).value.trim();
   if(value!==""&&(!Number.isFinite(Number(value))||Number(value)<0)){
    $("nutritionTargetStatus").textContent="Enter valid non-negative numbers for all targets.";return;
   }
  }
- $("saveNutritionTargets").disabled=true;$("nutritionTargetStatus").textContent="Saving nutrition targets…";
+ $("saveNutritionTargets").disabled=true;$("nutritionTargetStatus").textContent="Saving high and low day targets…";
  try{
-  const values=ids.map(id=>$(id).value.trim());
+  const readGroup=ids=>({
+   calories:$(ids[0]).value.trim()===""?null:Number($(ids[0]).value),
+   proteinG:$(ids[1]).value.trim()===""?null:Number($(ids[1]).value),
+   carbsG:$(ids[2]).value.trim()===""?null:Number($(ids[2]).value),
+   fatsG:$(ids[3]).value.trim()===""?null:Number($(ids[3]).value)
+  });
   await setDoc(doc(db,"users",selectedClient.uid,"nutrition","targets"),{
-   calories:values[0]===""?null:Number(values[0]),
-   proteinG:values[1]===""?null:Number(values[1]),
-   carbsG:values[2]===""?null:Number(values[2]),
-   fatsG:values[3]===""?null:Number(values[3]),
+   highDay:readGroup(groups[0]),
+   lowDay:readGroup(groups[1]),
    notes:$("nutritionCoachNotes").value.trim(),
    updatedAt:serverTimestamp(),updatedBy:currentUser.uid
   },{merge:true});
-  $("nutritionTargetStatus").textContent="Nutrition targets saved.";
+  $("nutritionTargetStatus").textContent="High and low day nutrition targets saved.";
  }catch(e){$("nutritionTargetStatus").textContent="Could not save nutrition targets: "+e.message;}
  finally{$("saveNutritionTargets").disabled=false;}
 });
+
 async function loadCoachDailyLogs(){
  const host=$("coachDailyLogs");
  if(!selectedClient?.uid)return;
