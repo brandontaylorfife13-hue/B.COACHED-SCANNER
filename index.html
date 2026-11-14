@@ -969,7 +969,7 @@ $("saveNutritionTargets").addEventListener("click",async()=>{
 });
 
 
-let coachTrainingProgram={workouts:[]},clientTrainingProgram={workouts:[]};
+let coachTrainingProgram={workouts:[]},clientTrainingProgram={workouts:[]},clientTrainingLogs=[];
 function renderCoachTrainingProgram(){
  const host=$("coachTrainingEditor");host.replaceChildren();
  if(!coachTrainingProgram.workouts.length){host.textContent="No workout days added yet.";return;}
@@ -1080,7 +1080,7 @@ async function loadClientTrainingDashboard(){
   if(d.progressionNote){const note=document.createElement("p");note.className="muted";note.textContent=d.progressionNote;ph.append(note);}
   const select=$("trainingWorkoutSelect");select.replaceChildren();const blank=document.createElement("option");blank.value="";blank.textContent="Choose a workout";select.append(blank);
   clientTrainingProgram.workouts.forEach((w,i)=>{const o=document.createElement("option");o.value=i;o.textContent=w.name||"Workout "+(i+1);select.append(o);});
-  const logs=ls.docs.map(x=>({id:x.id,...x.data()})).sort((a,b)=>(a.date||"").localeCompare(b.date||""));
+  const logs=ls.docs.map(x=>({id:x.id,...x.data()})).sort((a,b)=>(a.date||"").localeCompare(b.date||""));clientTrainingLogs=logs;
   const volume=logs.reduce((sum,x)=>sum+(x.exercises||[]).reduce((a,e)=>a+(e.sets||[]).reduce((b,z)=>b+(Number(z.weight)||0)*(Number(z.reps)||0),0),0),0);
   const monday=new Date();monday.setHours(0,0,0,0);monday.setDate(monday.getDate()-((monday.getDay()+6)%7));
   $("trainingSessionCount").textContent=logs.length;$("trainingTotalVolume").textContent=Math.round(volume).toLocaleString();$("trainingWeekCount").textContent=logs.filter(x=>new Date((x.date||"")+"T12:00:00")>=monday).length;
@@ -1103,7 +1103,7 @@ function renderTrainingProgressChart(logs,name){
 }
 $("trainingWorkoutSelect").addEventListener("change",()=>{
  const index=$("trainingWorkoutSelect").value,host=$("clientWorkoutLogger");host.replaceChildren();if(index==="")return;const w=clientTrainingProgram.workouts[Number(index)];if(!w)return;
- (w.exercises||[]).forEach((e,ei)=>{const card=document.createElement("div");card.className="training-exercise";const title=document.createElement("strong");title.textContent=e.name;const note=document.createElement("div");note.className="muted";note.textContent=(e.muscleGroup||"")+" · Target "+e.sets+" sets × "+e.reps;card.append(title,note);
+ (w.exercises||[]).forEach((e,ei)=>{const card=document.createElement("div");card.className="training-exercise";const title=document.createElement("strong");title.textContent=e.name;const note=document.createElement("div");note.className="muted";note.textContent=(e.muscleGroup||"")+" · Target "+e.sets+" sets × "+e.reps;card.append(title,note);const selectedDate=$("trainingWorkoutDate").value;const previous=clientTrainingLogs.filter(log=>(!selectedDate||!log.date||log.date<selectedDate)).slice().reverse().flatMap(log=>(log.exercises||[]).filter(x=>x.name===e.name).map(x=>({date:log.date,sets:x.sets||[]})))[0];const previousNote=document.createElement("div");previousNote.className="muted";previousNote.style.color="#c6ff00";previousNote.style.marginTop="5px";previousNote.textContent=previous?"Last time ("+new Date(previous.date+"T12:00:00").toLocaleDateString()+"): "+previous.sets.filter(z=>Number(z.weight)>0&&Number(z.reps)>0).map(z=>z.weight+" kg × "+z.reps).join(" · "):"No previous performance logged yet.";card.append(previousNote);
   for(let si=0;si<Number(e.sets||0);si++){const row=document.createElement("div");row.className="training-set-row";const lab=document.createElement("span");lab.className="muted";lab.textContent="Set "+(si+1);const weight=document.createElement("input");weight.type="number";weight.min="0";weight.step="0.5";weight.placeholder="Weight kg";weight.dataset.trainingWeight=ei+":"+si;const reps=document.createElement("input");reps.type="number";reps.min="0";reps.step="1";reps.placeholder="Reps";reps.dataset.trainingReps=ei+":"+si;row.append(lab,weight,reps);card.append(row);}host.append(card);});
  const save=document.createElement("button");save.id="saveTrainingSession";save.textContent="SAVE COMPLETED WORKOUT";save.style.width="100%";save.style.marginTop="12px";save.onclick=saveClientTrainingSession;host.append(save);
 });
