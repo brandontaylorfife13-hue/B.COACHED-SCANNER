@@ -112,6 +112,9 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <div id="weightChart" class="tile" style="min-height:180px;overflow:hidden"><span>Add weigh-ins to see the trend.</span></div>
   <div class="section-title" style="margin-top:22px">Weigh-in history</div>
   <div id="weightHistory" class="muted">No weigh-ins recorded.</div>
+  <div class="section-title" style="margin-top:26px">Client daily activity</div>
+  <p class="muted">Review the steps, water and sleep entries submitted by this client.</p>
+  <div id="coachDailyLogs" class="muted">Loading daily activity…</div>
   <div class="section-title" style="margin-top:22px">Coaching overview</div>
   <p class="muted">This is the client's central profile. We'll connect their nutrition targets, training plan, daily tracking and weekly check-ins here next.</p>
   <div class="grid">
@@ -292,7 +295,26 @@ async function showClientProfile(client){
   }
   $("clientDetailsStatus").textContent="";
   await loadWeightHistory();
+  await loadCoachDailyLogs();
  }catch(e){$("clientDetailsStatus").textContent="Could not load saved details: "+e.message;}
+}
+async function loadCoachDailyLogs(){
+ const host=$("coachDailyLogs");
+ if(!selectedClient?.uid)return;
+ host.textContent="Loading daily activity…";
+ try{
+  const result=await getDocs(collection(db,"users",selectedClient.uid,"dailyLogs"));
+  const rows=result.docs.map(d=>d.data()).sort((a,b)=>b.date.localeCompare(a.date));
+  host.replaceChildren();
+  if(!rows.length){host.textContent="This client has not submitted any daily activity yet.";return;}
+  rows.forEach(d=>{
+   const card=document.createElement("div");card.className="tile";card.style.margin="8px 0";card.style.minHeight="0";
+   const date=document.createElement("strong");date.style.fontSize="14px";date.style.color="#f5f7f1";date.textContent=new Date(d.date+"T12:00:00").toLocaleDateString();
+   const values=document.createElement("div");values.className="muted";values.style.marginTop="8px";
+   values.textContent=(d.steps==null?"Steps —":Number(d.steps).toLocaleString()+" steps")+"  ·  "+(d.waterLitres==null?"Water —":Number(d.waterLitres).toFixed(1)+" L water")+"  ·  "+(d.sleepHours==null?"Sleep —":Number(d.sleepHours).toFixed(1)+" hrs sleep");
+   card.append(date,values);host.append(card);
+  });
+ }catch(e){host.textContent="Unable to load daily activity: "+e.message;}
 }
 async function loadClientWeight(){
  if(!currentUser)return;
