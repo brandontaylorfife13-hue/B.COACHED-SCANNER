@@ -44,7 +44,26 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
    <div class="tile">BODY WEIGHT<strong>—</strong><span>Latest weigh-in</span></div>
   </div>
  </section>
- <section class="card hidden" id="clientsView"><div class="eyebrow">COACH ADMINISTRATION</div><div class="heading">Client directory</div><p class="muted">Registered client accounts will appear here.</p><div class="grid"><div class="tile">CLIENTS<strong id="clientCount">—</strong><span>Registered accounts</span></div><div class="tile">ACTIVE<strong id="activeCount">—</strong><span>Active accounts</span></div></div><div class="section-title" style="margin-top:20px">Invite a new client</div><p class="muted">Create an invitation for a client. They register with this exact email address and choose their own password.</p><label for="inviteName">Client name</label><input id="inviteName" placeholder="Client full name"><label for="inviteEmail">Client email</label><input id="inviteEmail" type="email" placeholder="client@example.com"><button id="inviteBtn" style="width:100%;margin-top:14px">CREATE CLIENT INVITATION</button><div id="inviteStatus" class="status" role="status"></div><div class="section-title" style="margin-top:20px">Registered clients</div><div id="clientList" class="muted" style="margin-top:14px">Loading clients…</div><div class="section-title" style="margin-top:20px">Pending invitations</div><div id="inviteList" class="muted">Loading invitations…</div></section>\n <section class="card hidden" id="nutritionView"><div class="eyebrow">NUTRITION</div><div class="heading">Meal planner & food diary</div><p class="muted">Your meal plan, macro targets, saved foods and barcode scanner will be added here.</p></section>
+ <section class="card hidden" id="clientsView"><div class="eyebrow">COACH ADMINISTRATION</div><div class="heading">Client directory</div><p class="muted">Registered client accounts will appear here.</p><div class="grid"><div class="tile">CLIENTS<strong id="clientCount">—</strong><span>Registered accounts</span></div><div class="tile">ACTIVE<strong id="activeCount">—</strong><span>Active accounts</span></div></div><div class="section-title" style="margin-top:20px">Invite a new client</div><p class="muted">Create an invitation for a client. They register with this exact email address and choose their own password.</p><label for="inviteName">Client name</label><input id="inviteName" placeholder="Client full name"><label for="inviteEmail">Client email</label><input id="inviteEmail" type="email" placeholder="client@example.com"><button id="inviteBtn" style="width:100%;margin-top:14px">CREATE CLIENT INVITATION</button><div id="inviteStatus" class="status" role="status"></div><div class="section-title" style="margin-top:20px">Registered clients</div><div id="clientList" class="muted" style="margin-top:14px">Loading clients…</div><div class="section-title" style="margin-top:20px">Pending invitations</div><div id="inviteList" class="muted">Loading invitations…</div></section>\n <section class="card hidden" id="clientProfileView">
+  <button id="backToClients" class="secondary">← BACK TO CLIENTS</button>
+  <div class="eyebrow" style="margin-top:20px">CLIENT PROFILE</div>
+  <div class="heading" id="profileName">Client</div>
+  <div class="pill" id="profileStatus">Active</div>
+  <div class="grid" style="margin-top:18px">
+   <div class="tile">EMAIL<strong id="profileEmail" style="font-size:15px;overflow-wrap:anywhere">—</strong><span>Account email</span></div>
+   <div class="tile">ACCOUNT<strong id="profileRole" style="font-size:15px">Client</strong><span>Account type</span></div>
+   <div class="tile">JOINED<strong id="profileJoined" style="font-size:15px">—</strong><span>Registration date</span></div>
+  </div>
+  <div class="section-title" style="margin-top:22px">Coaching overview</div>
+  <p class="muted">This is the client's central profile. We'll connect their nutrition targets, training plan, daily tracking and weekly check-ins here next.</p>
+  <div class="grid">
+   <div class="tile">NUTRITION<strong style="font-size:15px">Coming next</strong><span>Calories and macros</span></div>
+   <div class="tile">TRAINING<strong style="font-size:15px">Coming next</strong><span>Workout programme</span></div>
+   <div class="tile">PROGRESS<strong style="font-size:15px">Coming next</strong><span>Weight and measurements</span></div>
+   <div class="tile">CHECK-INS<strong style="font-size:15px">Coming next</strong><span>Weekly feedback</span></div>
+  </div>
+ </section>
+ <section class="card hidden" id="nutritionView"><div class="eyebrow">NUTRITION</div><div class="heading">Meal planner & food diary</div><p class="muted">Your meal plan, macro targets, saved foods and barcode scanner will be added here.</p></section>
  <section class="card hidden" id="trainingView"><div class="eyebrow">TRAINING</div><div class="heading">Your training plan</div><p class="muted">Your workouts, exercise demonstrations, sets, reps and training history will be added here.</p></section>
  <section class="card hidden" id="progressView"><div class="eyebrow">PROGRESS</div><div class="heading">Your progress</div><p class="muted">Weight averages, measurements and progress photos will be added here.</p></section>
  <section class="card hidden" id="checkinsView"><div class="eyebrow">COACHING</div><div class="heading">Weekly check-ins</div><p class="muted">Your weekly check-in forms and coach feedback will be added here.</p></section>
@@ -144,7 +163,8 @@ async function loadClients(){
    const name=document.createElement("strong");name.style.fontSize="17px";name.style.color="#f5f7f1";name.textContent=c.displayName||"Unnamed client";
    const email=document.createElement("span");email.textContent=c.email||"No email address";
    const state=document.createElement("div");state.className="pill";state.textContent=c.accountStatus||"Status unknown";
-   card.append(name,email,state);list.append(card);
+   const open=document.createElement("button");open.className="secondary";open.textContent="OPEN CLIENT PROFILE";open.style.width="100%";open.style.marginTop="12px";open.addEventListener("click",()=>showClientProfile(c));
+   card.append(name,email,state,open);list.append(card);
   });
   await loadInvitations();
  }catch(e){list.textContent="Unable to load clients. Check Firestore permissions and try refreshing.";}
@@ -176,6 +196,25 @@ $("inviteBtn").addEventListener("click",async()=>{
   await loadInvitations();
  }catch(e){$("inviteStatus").textContent="Could not create invitation. Check your coach permissions and published Firestore rules.";}
  finally{$("inviteBtn").disabled=false;}
+});
+function showClientProfile(client){
+ $("clientsView").classList.add("hidden");
+ $("overviewView").classList.add("hidden");
+ $("nutritionView").classList.add("hidden");
+ $("trainingView").classList.add("hidden");
+ $("progressView").classList.add("hidden");
+ $("checkinsView").classList.add("hidden");
+ $("clientProfileView").classList.remove("hidden");
+ $("profileName").textContent=client.displayName||"Unnamed client";
+ $("profileEmail").textContent=client.email||"No email recorded";
+ $("profileRole").textContent=client.role||"client";
+ $("profileStatus").textContent=client.accountStatus||"Status unknown";
+ const joined=client.createdAt?.toDate?client.createdAt.toDate():null;
+ $("profileJoined").textContent=joined?joined.toLocaleDateString():"Not available";
+}
+$("backToClients").addEventListener("click",()=>{
+ $("clientProfileView").classList.add("hidden");
+ $("clientsView").classList.remove("hidden");
 });
 document.querySelectorAll("#nav button").forEach(btn=>btn.addEventListener("click",()=>{
  document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b===btn));
