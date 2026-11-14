@@ -128,6 +128,14 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
    <div><label for="detailGoalWeight">Goal weight (kg)</label><input id="detailGoalWeight" type="number" min="0" step="0.1" placeholder="e.g. 80.0"></div>
    <div><label for="detailGoal">Primary goal</label><input id="detailGoal" placeholder="e.g. Fat loss, muscle gain"></div>
   </div>
+  <div class="section-title" style="margin-top:22px">Goal tracking & milestones</div>
+  <p class="muted">Set a target date, agree the next milestone and keep the client's coaching status up to date.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))">
+   <div><label for="detailGoalDate">Goal target date</label><input id="detailGoalDate" type="date"></div>
+   <div><label for="detailGoalStatus">Goal status</label><select id="detailGoalStatus"><option value="On track">On track</option><option value="Needs review">Needs review</option><option value="Achieved">Achieved</option><option value="Paused">Paused</option></select></div>
+  </div>
+  <label for="detailMilestone">Next milestone</label><input id="detailMilestone" placeholder="e.g. Reach 80 kg, complete first 8 weeks consistently">
+  <label for="detailMilestoneDate">Milestone target date</label><input id="detailMilestoneDate" type="date">
   <label for="detailNotes">Coaching notes</label><textarea id="detailNotes" rows="4" style="width:100%;padding:14px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit;resize:vertical" placeholder="Training background, preferences, important coaching notes…"></textarea>
   <button id="saveClientDetails" style="width:100%;margin-top:14px">SAVE CLIENT DETAILS</button>
   <div id="clientDetailsStatus" class="status" role="status"></div>
@@ -426,11 +434,12 @@ async function loadCoachReviewDashboard(clients){
  try{
   const now=Date.now(),cutoff=now-14*24*60*60*1000;
   const rows=await Promise.all(clients.map(async client=>{
-   const [checks,weights,sessions,messages]=await Promise.all([
+   const [checks,weights,sessions,messages,detailsSnap]=await Promise.all([
     getDocs(collection(db,"users",client.uid,"weeklyCheckins")),
     getDocs(collection(db,"users",client.uid,"weights")),
     getDocs(collection(db,"users",client.uid,"trainingSessions")),
-    getDocs(collection(db,"users",client.uid,"messages"))
+    getDocs(collection(db,"users",client.uid,"messages")),
+    getDoc(doc(db,"users",client.uid,"profile","details"))
    ]);
    const checkRows=checks.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.weekEnding||b.id).localeCompare(a.weekEnding||a.id));
    const latestCheck=checkRows[0];
@@ -440,7 +449,8 @@ async function loadCoachReviewDashboard(clients){
    const sessionRows=sessions.docs.map(d=>({id:d.id,...d.data()}));
    const latestSession=sessionRows.sort((a,b)=>(b.date||b.id).localeCompare(a.date||a.id))[0];
    const incoming=messages.docs.map(d=>d.data()).filter(m=>m.senderRole==="client").length;
-   return {client,latestCheck,checkTime,latestWeight,sessionCount:sessions.size,latestSession,incoming,never:!latestCheck,overdue:!latestCheck||checkTime<cutoff};
+   const details=detailsSnap.exists()?detailsSnap.data():{};
+   return {client,details,latestCheck,checkTime,latestWeight,sessionCount:sessions.size,latestSession,incoming,never:!latestCheck,overdue:!latestCheck||checkTime<cutoff};
   }));
   const attention=rows.filter(x=>x.overdue).length,recent=rows.length-attention,never=rows.filter(x=>x.never).length;
   $("reviewAttentionCount").textContent=String(attention);$("reviewRecentCount").textContent=String(recent);$("reviewNeverCount").textContent=String(never);
@@ -454,8 +464,11 @@ async function loadCoachReviewDashboard(clients){
    const weight=row.latestWeight?Number(row.latestWeight.weightKg??row.latestWeight.weight).toFixed(1)+" kg ("+row.latestWeight.date+")":"No weigh-ins";
    const check=row.latestCheck?(row.latestCheck.weekEnding||row.latestCheck.id):"Never";
    detail.textContent="Last check-in: "+check+" · Latest weight: "+weight+" · Workouts logged: "+row.sessionCount+" · Client messages: "+row.incoming;
+   const goal=document.createElement("div");goal.className="muted";goal.style.marginTop="6px";
+   goal.textContent="Goal: "+(row.details.primaryGoal||"Not set")+" · Status: "+(row.details.goalStatus||"Not set")+(row.details.goalTargetDate?" · Target: "+row.details.goalTargetDate:"")+(row.details.nextMilestone?" · Next milestone: "+row.details.nextMilestone:"");
+
    const open=document.createElement("button");open.className="secondary";open.style.width="100%";open.style.marginTop="10px";open.textContent="REVIEW CLIENT";open.onclick=()=>showClientProfile(row.client);
-   card.append(name,flag,detail,open);host.append(card);
+   card.append(name,flag,detail,goal,open);host.append(card);
   });
  }catch(e){host.textContent="Could not load the review dashboard: "+e.message;}
 }
@@ -525,7 +538,7 @@ async function showClientProfile(client){
  const joined=client.createdAt?.toDate?client.createdAt.toDate():null;
  $("profileJoined").textContent=joined?joined.toLocaleDateString():"Not available";
  $("clientDetailsStatus").textContent="Loading saved details…";
- ["detailDob","detailHeight","detailStartWeight","detailCurrentWeight","detailGoalWeight","detailGoal","detailNotes"].forEach(id=>$(id).value="");
+ ["detailDob","detailHeight","detailStartWeight","detailCurrentWeight","detailGoalWeight","detailGoal","detailGoalDate","detailGoalStatus","detailMilestone","detailMilestoneDate","detailNotes"].forEach(id=>$(id).value="");
  try{
   if(!client.uid) throw new Error("This client profile is missing its user ID.");
   const detailSnap=await getDoc(doc(db,"users",client.uid,"profile","details"));
@@ -537,6 +550,10 @@ async function showClientProfile(client){
    $("detailCurrentWeight").value=d.currentWeightKg??"";
    $("detailGoalWeight").value=d.goalWeightKg??"";
    $("detailGoal").value=d.primaryGoal||"";
+   $("detailGoalDate").value=d.goalTargetDate||"";
+   $("detailGoalStatus").value=d.goalStatus||"On track";
+   $("detailMilestone").value=d.nextMilestone||"";
+   $("detailMilestoneDate").value=d.milestoneTargetDate||"";
    $("detailNotes").value=d.coachingNotes||"";
   }
   $("clientDetailsStatus").textContent="";
@@ -1572,6 +1589,10 @@ $("saveClientDetails").addEventListener("click",async()=>{
    currentWeightKg:$("detailCurrentWeight").value===""?null:Number($("detailCurrentWeight").value),
    goalWeightKg:$("detailGoalWeight").value===""?null:Number($("detailGoalWeight").value),
    primaryGoal:$("detailGoal").value.trim(),
+   goalTargetDate:$("detailGoalDate").value||"",
+   goalStatus:$("detailGoalStatus").value,
+   nextMilestone:$("detailMilestone").value.trim(),
+   milestoneTargetDate:$("detailMilestoneDate").value||"",
    coachingNotes:$("detailNotes").value.trim(),
    updatedAt:serverTimestamp(),
    updatedBy:currentUser.uid
