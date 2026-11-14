@@ -438,8 +438,9 @@ async function loadFoodDiary(){
  }catch(e){$("foodDiaryEntries").textContent="Could not load food diary: "+e.message;}
 }
 $("lookupBarcode").addEventListener("click",async()=>{
- const code=$("foodBarcode").value.trim();
- if(!/^\d{8,14}$/.test(code)){$("barcodeStatus").textContent="Enter a valid 8–14 digit barcode.";return;}
+ const code=$("foodBarcode").value.replace(/\D/g,"");
+ $("foodBarcode").value=code;
+ if(!/^\d{8,14}$/.test(code)){$("barcodeStatus").textContent="Enter a barcode containing 8–14 digits. The number entered has "+code.length+" digits.";return;}
  $("lookupBarcode").disabled=true;$("barcodeStatus").textContent="Searching food database…";
  try{
   const response=await fetch("https://world.openfoodfacts.org/api/v2/product/"+encodeURIComponent(code)+".json");
