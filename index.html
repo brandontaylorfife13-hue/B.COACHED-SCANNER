@@ -212,6 +212,8 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <label for="foodMeal">Meal</label><input id="foodMeal" placeholder="Breakfast, lunch, dinner or snack">
   <button id="addFoodBtn" style="width:100%;margin-top:14px">ADD TO FOOD DIARY</button>
   <div id="foodStatus" class="status" role="status"></div>
+  <div class="section-title" style="margin-top:24px">Today's targets</div>
+  <div class="tile" id="foodTargetSummary" style="margin-bottom:14px"><div class="muted">Your coach's calorie and macro targets will appear here.</div></div>
   <div class="section-title" style="margin-top:24px">Daily totals</div>
   <div class="grid">
    <div class="tile">CALORIES<strong id="foodTotalCalories">0</strong><span>kcal</span></div>
@@ -413,12 +415,35 @@ function displayMacroSet(prefix,data){
 }
 
 let foodEntries=[];
+let nutritionTargets=null;
 function renderFoodDiary(){
  const totals=foodEntries.reduce((a,x)=>({calories:a.calories+(Number(x.calories)||0),protein:a.protein+(Number(x.proteinG)||0),carbs:a.carbs+(Number(x.carbsG)||0),fats:a.fats+(Number(x.fatsG)||0)}),{calories:0,protein:0,carbs:0,fats:0});
  $("foodTotalCalories").textContent=Math.round(totals.calories).toLocaleString();
  $("foodTotalProtein").textContent=totals.protein.toFixed(1)+"g";
  $("foodTotalCarbs").textContent=totals.carbs.toFixed(1)+"g";
  $("foodTotalFats").textContent=totals.fats.toFixed(1)+"g";
+ const targetHost=$("foodTargetSummary");
+ const selectedDate=$("foodDate").value||localDateString();
+ const targetData=nutritionTargets||{};
+ const highDays=Array.isArray(targetData.highDays)?targetData.highDays:[];
+ const dayName=new Date(selectedDate+"T12:00:00").toLocaleDateString("en-US",{weekday:"long"});
+ const targetSet=highDays.length?(highDays.includes(dayName)?targetData.highDay:targetData.lowDay):null;
+ if(!targetSet||["calories","proteinG","carbsG","fatsG"].every(k=>targetSet[k]==null)){
+  targetHost.textContent=highDays.length?"Your coach has not entered targets for this day type yet.":"Your coach has not assigned a weekly target schedule yet.";
+ }else{
+  targetHost.replaceChildren();
+  const names=[["Calories","calories","kcal",totals.calories],["Protein","proteinG","g",totals.protein],["Carbs","carbsG","g",totals.carbs],["Fats","fatsG","g",totals.fats]];
+  names.forEach(([label,key,unit,eaten])=>{
+   const target=targetSet[key];
+   const line=document.createElement("div");line.style.display="flex";line.style.justifyContent="space-between";line.style.gap="10px";line.style.padding="7px 0";line.style.borderBottom="1px solid #343b2c";
+   const left=document.createElement("span");left.textContent=label;
+   const right=document.createElement("strong");right.style.fontSize="13px";
+   if(target==null){right.textContent="Target not set";}
+   else{const remaining=Number(target)-eaten;right.textContent=Math.round(eaten*10)/10+" / "+Number(target)+unit+" · "+(remaining>=0?Math.round(remaining*10)/10+" left":Math.round(Math.abs(remaining)*10)/10+" over");}
+   line.append(left,right);targetHost.append(line);
+  });
+  const dayLabel=document.createElement("div");dayLabel.className="muted";dayLabel.style.marginTop="8px";dayLabel.textContent=(highDays.includes(dayName)?"High day":"Low day")+" · "+dayName;targetHost.append(dayLabel);
+ }
  const host=$("foodDiaryEntries");host.innerHTML="";
  if(!foodEntries.length){host.textContent="No food logged for this date yet.";return;}
  foodEntries.forEach(item=>{
@@ -482,6 +507,7 @@ async function loadNutritionTargets(coachEditing=false){
  try{
   const snap=await getDoc(doc(db,"users",uid,"nutrition","targets"));
   const d=snap.exists()?snap.data():{};
+  if(!coachEditing){nutritionTargets=d; if(typeof renderFoodDiary==="function"&&foodEntries)renderFoodDiary();}
   const high=d.highDay||{calories:d.calories,proteinG:d.proteinG,carbsG:d.carbsG,fatsG:d.fatsG};
   const low=d.lowDay||{};
   if(coachEditing){
