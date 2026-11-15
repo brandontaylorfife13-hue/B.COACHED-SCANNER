@@ -27,7 +27,7 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage(payload => {
   const title = payload.notification?.title || "B.COACHED";
   const options = {
-    body: payload.notification?.body || "You have a new coaching update.",
+    body: payload.data?.body || "You have a new coaching update.",
     data: { url: payload.data?.url || "./" }
   };
   return self.registration.showNotification(title, options);
