@@ -1,5 +1,5 @@
 // Diagnostic step 2: test Firebase App SDK import without Messaging.
-importScripts("https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js");
 
 firebase.initializeApp({
   apiKey: "AIzaSyDYm9hfARUWgQO3bpIlMkJnbDzV7O1OOAo",
