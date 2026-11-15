@@ -362,7 +362,7 @@ const firebaseConfig = {
 };
 const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app), storage=getStorage(app);
 // Add the Web Push certificate public key from Firebase Console > Project settings > Cloud Messaging.
-const FCM_VAPID_KEY="ADD_FIREBASE_WEB_PUSH_CERTIFICATE_KEY_HERE";
+const FCM_VAPID_KEY="BBLhBzIc5yjfVAyoGLZivWlyFq2cbVDkJc2TCu6FuCebSgjEb9r-U6_g5yydDa9lZWROMA94p7Ji-7_1TI4ioFA";
 let messagingInstance=null,pushServiceWorker=null;
 const $=id=>document.getElementById(id);
 let mode="login", currentUser=null, currentRole=null;
