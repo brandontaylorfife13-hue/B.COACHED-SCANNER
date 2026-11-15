@@ -489,21 +489,10 @@ onAuthStateChanged(auth,async user=>{
    snap=await getDoc(doc(db,"users",user.uid));
   }
   const profile=snap.data();
-  const needsClientOnboarding=profile.role!=="coach" && profile.onboardingComplete!==true;
-  $("clientOnboardingCard").classList.toggle("hidden",!needsClientOnboarding);
-  $("nav").classList.toggle("hidden",needsClientOnboarding);
-  if(needsClientOnboarding){
-   $("onboardName").value=profile.displayName||"";
-   const start=profile.onboarding||{};
-   $("onboardDob").value=start.dateOfBirth||"";
-   $("onboardHeight").value=start.heightCm??"";
-   $("onboardWeight").value=start.startingWeightKg??"";
-   $("onboardGoal").value=start.primaryGoal||"";
-   $("onboardDays").value=start.trainingDaysPerWeek??"";
-   $("onboardExperience").value=start.trainingExperience||"";
-   $("onboardActivity").value=start.dailyActivity||"";
-   $("onboardPreferences").value=start.preferences||"";
-  }
+  // Client details are collected by the coach and entered manually.
+  // Never block a client from accessing their dashboard with a questionnaire.
+  $("clientOnboardingCard").classList.add("hidden");
+  $("nav").classList.remove("hidden");
 
   $("authCard").classList.add("hidden");$("app").classList.remove("hidden");
   $("welcome").textContent="Welcome, "+(profile.displayName||"there");
