@@ -139,11 +139,12 @@ export default {
         body: JSON.stringify({
           message: {
             token: deviceToken,
-            notification: {
+            // Data-only messages are displayed once by the service worker.
+            data: {
               title: "B.COACHED test notification",
-              body: "Great news — your phone is connected to B.COACHED notifications."
-            },
-            data: { url: "https://brandontaylorfife13-hue.github.io/B.COACHED-SCANNER/" }
+              body: "Great news — your phone is connected to B.COACHED notifications.",
+              url: "https://brandontaylorfife13-hue.github.io/B.COACHED-SCANNER/"
+            }
           }
         })
       });
