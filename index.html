@@ -79,6 +79,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
    </div>
   </div>
   <div id="clientCheckinReminder" class="tile hidden" style="margin-top:18px;border-color:#829e22"><div class="eyebrow">WEEKLY CHECK-IN REMINDER</div><strong id="clientCheckinReminderTitle" style="font-size:17px;margin-top:8px">Your weekly check-in is due</strong><p id="clientCheckinReminderText" class="muted" style="margin:7px 0 12px">Take a moment to update your coach.</p><button id="clientCheckinReminderBtn" style="width:100%">COMPLETE WEEKLY CHECK-IN</button></div>
+  <div id="clientWeightReminder" class="tile hidden" style="margin-top:12px;border-color:#829e22"><div class="eyebrow">DAILY WEIGH-IN REMINDER</div><strong style="font-size:17px;margin-top:8px">Have you logged your weight today?</strong><p class="muted" style="margin:7px 0 12px">A consistent weigh-in routine helps you and your coach track your progress.</p><button id="clientWeightReminderBtn" style="width:100%">LOG TODAY’S WEIGHT</button></div>
   <div id="clientGoalDashboard" class="hidden" style="margin-top:22px">
    <div class="section-title">Your goals & milestones</div>
    <div class="tile" style="min-height:0">
@@ -338,7 +339,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 </section>
  <section class="card hidden" id="checkinsView"><div class="eyebrow">COACHING</div><div class="heading">Weekly check-in</div><p class="muted">Send your coach a weekly update on how things are going.</p><label for="checkinWeek">Week ending</label><input id="checkinWeek" type="date"><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))"><div><label for="checkinAverageWeight">Average weight (kg)</label><input id="checkinAverageWeight" type="number" min="0" step="0.1" placeholder="Optional"></div><div><label for="checkinAdherence">Nutrition adherence</label><select id="checkinAdherence" class="training-select"><option value="">Choose…</option><option>0–25%</option><option>26–50%</option><option>51–75%</option><option>76–90%</option><option>91–100%</option></select></div><div><label for="checkinTraining">Training sessions completed</label><input id="checkinTraining" type="number" min="0" max="14" step="1" placeholder="e.g. 4"></div></div><label for="checkinWins">What went well this week?</label><textarea id="checkinWins" rows="3" style="width:100%;padding:12px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit"></textarea><label for="checkinChallenges">What did you struggle with?</label><textarea id="checkinChallenges" rows="3" style="width:100%;padding:12px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit"></textarea><label for="checkinSupport">What would you like help with?</label><textarea id="checkinSupport" rows="3" style="width:100%;padding:12px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit"></textarea><button id="saveWeeklyCheckin" style="width:100%;margin-top:14px">SUBMIT WEEKLY CHECK-IN</button><div id="checkinStatus" class="status" role="status"></div><div class="section-title" style="margin-top:24px">Previous check-ins</div><div id="clientCheckinHistory" class="muted">No check-ins submitted yet.</div></section>
  <section class="card hidden" id="messagesView"><div class="eyebrow">DIRECT COACHING</div><div class="heading">Messages</div><div id="clientMessagesPanel"><p class="muted">Send a message to your coach. Replies will appear in this conversation.</p><div id="clientMessageHistory" class="muted">Loading messages…</div><label for="clientMessageInput">Your message</label><textarea id="clientMessageInput" rows="3" style="width:100%;padding:12px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit" placeholder="Write a message…"></textarea><button id="sendClientMessage" style="width:100%;margin-top:10px">SEND MESSAGE</button><div id="clientMessageStatus" class="status" role="status"></div></div><div id="coachMessagesPanel" class="hidden"><p class="muted">Choose a client conversation below. You can read and reply without opening their full profile.</p><div id="coachMessagesInbox" class="muted">Loading client conversations…</div><div class="section-title" style="margin-top:20px" id="coachInboxSelectedName">Select a conversation</div><div id="coachInboxThread" class="muted">Choose a client to view messages.</div><label for="coachInboxReply">Reply to client</label><textarea id="coachInboxReply" rows="3" style="width:100%;padding:12px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit" placeholder="Write your reply…"></textarea><button id="sendCoachInboxReply" style="width:100%;margin-top:10px">SEND REPLY</button><div id="coachInboxStatus" class="status" role="status"></div></div></section>
- <section class="card hidden" id="updatesView"><div class="eyebrow">ACCOUNT ACTIVITY</div><div class="heading" id="updatesHeading">Updates</div><p class="muted" id="updatesIntro">Recent messages and coaching feedback will appear here.</p><div id="updatesList" class="muted">Loading updates…</div></section>
+ <section class="card hidden" id="updatesView"><div class="eyebrow">ACCOUNT ACTIVITY</div><div class="heading" id="updatesHeading">Updates</div><p class="muted" id="updatesIntro">Recent messages and coaching feedback will appear here.</p><div id="updatesList" class="muted">Loading updates…</div><div id="notificationPreferences" class="tile" style="margin-top:20px;min-height:0"><div class="section-title">Reminder preferences</div><p class="muted">Choose which in-app reminders you want to see when you open B.COACHED.</p><label style="display:flex;align-items:center;gap:10px;margin:12px 0"><input id="weightReminderEnabled" type="checkbox" checked style="width:18px;height:18px;accent-color:var(--lime)"> Daily weigh-in reminder</label><label style="display:flex;align-items:center;gap:10px;margin:12px 0"><input id="checkinReminderEnabled" type="checkbox" checked style="width:18px;height:18px;accent-color:var(--lime)"> Weekly check-in reminder</label><button id="saveNotificationPreferences" style="width:100%;margin-top:8px">SAVE REMINDER PREFERENCES</button><div id="notificationPreferencesStatus" class="status" role="status"></div><p class="muted" style="margin-top:10px">These are in-app reminders only. Phone push notifications while the app is closed are not enabled yet.</p></div></section>
  <div id="coachNote" class="card hidden"><div class="eyebrow">COACH TOOLS</div><div class="heading">Coach account detected</div><p class="muted">Your coach dashboard and client management tools will be built in the next stages.</p></div>
 </section>
 <footer>B.COACHED · ONLINE COACHING</footer>
@@ -438,7 +439,7 @@ onAuthStateChanged(auth,async user=>{
   await loadNutritionTargets(false);
   $("dailyHabits").classList.toggle("hidden",coach);
   $("clientWeightTracker").classList.toggle("hidden",coach);
-  if(!coach){$("clientWeightDate").value=localDateString();await loadClientWeight();}
+  if(!coach){await loadNotificationPreferences();$("clientWeightDate").value=localDateString();await loadClientWeight();}
   if(!coach){$("habitDate").value=localDateString();await loadDailyHabits();}
   $("trainingWorkoutDate").value=localDateString();
   if(coach)await ensurePersonalTrainingProgram();
@@ -1069,7 +1070,7 @@ async function loadClientGoalDashboard(){
   $("clientDashCheckin").textContent=checkDate?new Date(checkDate+"T12:00:00").toLocaleDateString():"Not submitted";
   const checkAge=checkDate?Date.now()-new Date(checkDate+"T23:59:59").getTime():Infinity;
   const reminder=$("clientCheckinReminder");
-  const due=!checkDate||checkAge>=7*86400000;
+  const due=(!checkDate||checkAge>=7*86400000)&&window.clientReminderPreferences?.checkin!==false;
   reminder.classList.toggle("hidden",!due);
   $("clientCheckinReminderTitle").textContent=!checkDate?"Your first weekly check-in is due":"Your weekly check-in is due";
   $("clientCheckinReminderText").textContent=!checkDate?"Your coach is waiting for your first update. Complete your check-in to keep your coaching plan up to date.":"It's been "+Math.floor(checkAge/86400000)+" days since your last check-in. Send your coach an update when you're ready.";
@@ -1433,6 +1434,8 @@ async function loadClientWeight(){
   const result=await getDocs(collection(db,"users",currentUser.uid,"weights"));
   const entries=result.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.date.localeCompare(b.date));
   renderClientWeight(entries);
+  const loggedToday=entries.some(x=>(x.date||x.id)===localDateString());
+  $("clientWeightReminder").classList.toggle("hidden",loggedToday||window.clientReminderPreferences?.weight===false||currentRole==="coach");
   $("clientWeightStatus").textContent="";
  }catch(e){$("clientWeightStatus").textContent="Could not load weight history: "+e.message;}
 }
@@ -1474,6 +1477,16 @@ $("saveClientWeight").addEventListener("click",async()=>{
  }catch(e){$("clientWeightStatus").textContent="Could not save weight: "+e.message;}
  finally{$("saveClientWeight").disabled=false;}
 });
+window.clientReminderPreferences={weight:true,checkin:true};
+async function loadNotificationPreferences(){
+ if(!currentUser||currentRole==="coach")return;
+ try{const snap=await getDoc(doc(db,"users",currentUser.uid,"settings","notifications"));const d=snap.exists()?snap.data():{};window.clientReminderPreferences={weight:d.weightReminder!==false,checkin:d.checkinReminder!==false};$("weightReminderEnabled").checked=window.clientReminderPreferences.weight;$("checkinReminderEnabled").checked=window.clientReminderPreferences.checkin;}catch(e){console.warn("Reminder preferences could not be loaded",e);}
+}
+$("saveNotificationPreferences")?.addEventListener("click",async()=>{
+ if(!currentUser)return;const button=$("saveNotificationPreferences");button.disabled=true;$("notificationPreferencesStatus").textContent="Saving preferences…";
+ try{const prefs={weightReminder:$("weightReminderEnabled").checked,checkinReminder:$("checkinReminderEnabled").checked,updatedAt:serverTimestamp()};await setDoc(doc(db,"users",currentUser.uid,"settings","notifications"),prefs,{merge:true});window.clientReminderPreferences={weight:prefs.weightReminder,checkin:prefs.checkinReminder};$("notificationPreferencesStatus").textContent="Your reminder preferences have been saved.";await loadClientGoalDashboard();await loadClientWeight();}catch(e){$("notificationPreferencesStatus").textContent="Could not save preferences: "+e.message;}finally{button.disabled=false;}
+});
+$("clientWeightReminderBtn")?.addEventListener("click",()=>{$("clientWeightTracker").scrollIntoView({behavior:"smooth",block:"start"});$("clientWeightValue").focus();});
 async function loadDailyHabits(){
  if(!currentUser)return;
  const date=$("habitDate").value||localDateString();
