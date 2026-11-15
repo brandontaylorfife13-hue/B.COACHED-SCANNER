@@ -37,7 +37,7 @@ async function getGoogleAccessToken(serviceAccount) {
   const header = base64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
   const claims = base64url(JSON.stringify({
     iss: serviceAccount.client_email,
-    scope: "https://www.googleapis.com/auth/firebase.messaging",
+    scope: "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/firebase.messaging",
     aud: serviceAccount.token_uri || "https://oauth2.googleapis.com/token",
     iat: now,
     exp: now + 3600
@@ -83,7 +83,193 @@ async function verifyFirebaseUser(idToken) {
   return user.localId;
 }
 
+
+
+const FIRESTORE_BASE = "https://firestore.googleapis.com/v1/projects/" + PROJECT_ID + "/databases/(default)/documents";
+const APP_URL = "https://brandontaylorfife13-hue.github.io/B.COACHED-SCANNER/";
+const REMINDER_TIME_ZONE = "Europe/London";
+
+function londonClock(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: REMINDER_TIME_ZONE,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hourCycle: "h23"
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return {
+    date: values.year + "-" + values.month + "-" + values.day,
+    hour: Number(values.hour),
+    minute: Number(values.minute)
+  };
+}
+
+function firestoreValue(value) {
+  if (value?.stringValue !== undefined) return value.stringValue;
+  if (value?.booleanValue !== undefined) return value.booleanValue;
+  if (value?.integerValue !== undefined) return Number(value.integerValue);
+  if (value?.doubleValue !== undefined) return Number(value.doubleValue);
+  return null;
+}
+
+async function firestoreRequest(path, accessToken, options = {}) {
+  return fetch(FIRESTORE_BASE + path, {
+    ...options,
+    headers: {
+      "authorization": "Bearer " + accessToken,
+      ...(options.body ? { "content-type": "application/json" } : {}),
+      ...(options.headers || {})
+    }
+  });
+}
+
+async function listFirestoreDocuments(path, accessToken) {
+  const documents = [];
+  let pageToken = "";
+  do {
+    const query = "?pageSize=1000" + (pageToken ? "&pageToken=" + encodeURIComponent(pageToken) : "");
+    const result = await firestoreRequest(path + query, accessToken);
+    if (!result.ok) {
+      throw new Error("Firestore list failed (" + result.status + "): " + (await result.text()).slice(0, 300));
+    }
+    const data = await result.json();
+    documents.push(...(data.documents || []));
+    pageToken = data.nextPageToken || "";
+  } while (pageToken);
+  return documents;
+}
+
+async function getFirestoreDocument(path, accessToken) {
+  const result = await firestoreRequest(path, accessToken);
+  if (result.status === 404) return null;
+  if (!result.ok) throw new Error("Firestore read failed (" + result.status + "): " + (await result.text()).slice(0, 300));
+  return result.json();
+}
+
+async function sendWeightReminder(deviceToken, accessToken) {
+  const result = await fetch("https://fcm.googleapis.com/v1/projects/" + PROJECT_ID + "/messages:send", {
+    method: "POST",
+    headers: {
+      "authorization": "Bearer " + accessToken,
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      message: {
+        token: deviceToken,
+        data: {
+          title: "B.COACHED — Daily weigh-in",
+          body: "Good morning! It's time to log your weight. Tap here to update your progress.",
+          url: APP_URL,
+          notificationType: "daily-weight-reminder"
+        },
+        webpush: { headers: { Urgency: "high", TTL: "3600" } }
+      }
+    })
+  });
+  const payload = await result.json().catch(() => ({}));
+  if (!result.ok) {
+    throw new Error(payload.error?.message || "FCM send failed (" + result.status + ")");
+  }
+  return payload.name;
+}
+
+async function sendDailyWeightReminders(env) {
+  const now = new Date();
+  const london = londonClock(now);
+  // The Worker is triggered at 05:00 and 06:00 UTC. This check makes it
+  // fire once at 06:00 Europe/London in both GMT and BST.
+  if (london.hour !== 6) {
+    console.log("Daily reminder cron skipped; London time is " + london.hour + ":" + String(london.minute).padStart(2, "0"));
+    return;
+  }
+
+  const serviceAccount = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT_JSON || "{}");
+  if (serviceAccount.project_id !== PROJECT_ID || !serviceAccount.client_email || !serviceAccount.private_key) {
+    throw new Error("The Firebase service-account secret is missing or belongs to the wrong project.");
+  }
+  const accessToken = await getGoogleAccessToken(serviceAccount);
+  const users = await listFirestoreDocuments("/users", accessToken);
+  let eligible = 0, sent = 0, skipped = 0, failed = 0;
+
+  for (const userDoc of users) {
+    const fields = userDoc.fields || {};
+    const uid = userDoc.name?.split("/").pop();
+    if (!uid || firestoreValue(fields.role) !== "client") continue;
+    const accountStatus = firestoreValue(fields.accountStatus);
+    if (accountStatus === "inactive" || accountStatus === "archived") continue;
+
+    try {
+      const encodedUid = encodeURIComponent(uid);
+      const [preferences, alreadyLogged, alreadySent] = await Promise.all([
+        getFirestoreDocument("/users/" + encodedUid + "/settings/notifications", accessToken),
+        getFirestoreDocument("/users/" + encodedUid + "/weights/" + london.date, accessToken),
+        getFirestoreDocument("/users/" + encodedUid + "/pushReminderLog/" + london.date, accessToken)
+      ]);
+
+      if (preferences?.fields?.weightReminder?.booleanValue === false || alreadyLogged || alreadySent) {
+        skipped++;
+        continue;
+      }
+
+      const tokenDocs = await listFirestoreDocuments("/users/" + encodedUid + "/pushTokens", accessToken);
+      const tokens = [...new Set(tokenDocs.map(doc => decodeURIComponent(doc.name?.split("/").pop() || "")).filter(Boolean))];
+      if (!tokens.length) {
+        skipped++;
+        continue;
+      }
+
+      eligible++;
+      let delivered = 0;
+      for (const token of tokens) {
+        try {
+          await sendWeightReminder(token, accessToken);
+          delivered++;
+          sent++;
+        } catch (error) {
+          console.error("Daily weigh-in push failed for user " + uid + ":", error.message);
+          failed++;
+        }
+      }
+
+      // Record the date only after at least one device accepted the push.
+      // This prevents duplicate reminders if Cloudflare retries the cron.
+      if (delivered > 0) {
+        const logPath = "/users/" + encodedUid + "/pushReminderLog/" + london.date;
+        const logResult = await firestoreRequest(logPath, accessToken, {
+          method: "PATCH",
+          body: JSON.stringify({
+            fields: {
+              date: { stringValue: london.date },
+              type: { stringValue: "daily-weight-reminder" },
+              deliveredCount: { integerValue: String(delivered) },
+              sentAt: { timestampValue: new Date().toISOString() }
+            }
+          })
+        });
+        if (!logResult.ok) {
+          console.error("Could not record reminder log for user " + uid + ":", (await logResult.text()).slice(0, 300));
+        }
+      }
+    } catch (error) {
+      failed++;
+      console.error("Daily weigh-in reminder failed for user " + uid + ":", error.message);
+    }
+  }
+
+  console.log(JSON.stringify({
+    type: "daily-weight-reminder",
+    date: london.date,
+    timeZone: REMINDER_TIME_ZONE,
+    eligible,
+    sent,
+    skipped,
+    failed
+  }));
+}
+
 export default {
+  scheduled(controller, env, ctx) {
+    ctx.waitUntil(sendDailyWeightReminders(env));
+  },
   async fetch(request, env) {
     const origin = request.headers.get("Origin") || "";
     if (request.method === "OPTIONS") {
