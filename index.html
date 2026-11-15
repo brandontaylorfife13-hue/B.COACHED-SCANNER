@@ -269,6 +269,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
   <div><label for="coachWorkoutName">Workout name</label><input id="coachWorkoutName" placeholder="e.g. Push A"></div><div><label for="coachExerciseName">Exercise name</label><input id="coachExerciseName" placeholder="e.g. Incline dumbbell press"></div><div><label for="coachExerciseMuscle">Muscle group</label><input id="coachExerciseMuscle" placeholder="e.g. Chest"></div><div><label for="coachExerciseSets">Working sets</label><input id="coachExerciseSets" type="number" min="1" max="20" value="3"></div><div><label for="coachExerciseReps">Rep target</label><input id="coachExerciseReps" placeholder="e.g. 8–12"></div></div>
   <div class="actions"><button type="button" id="addCoachExercise">ADD EXERCISE TO WORKOUT</button><button type="button" class="secondary" id="addCoachWorkout">ADD WORKOUT DAY</button></div><div id="coachTrainingEditor" style="margin-top:14px"></div><button id="saveTrainingProgram" style="width:100%;margin-top:12px">SAVE TRAINING PROGRAMME</button><div id="coachTrainingStatus" class="status" role="status"></div>
+  <div class="section-title" style="margin-top:24px">Workout reviews</div><p class="muted">Review completed sessions, check the client's logged sets and leave coaching feedback.</p><div id="coachWorkoutReviews" class="muted">Loading workout history…</div>
   <div class="section-title" style="margin-top:24px">Client meal choices</div><p class="muted">Review the options selected by this client for a chosen date.</p>
   <label for="coachPlanReviewDate">Review date</label><input id="coachPlanReviewDate" type="date">
   <div id="coachMealPlanReview" class="muted">Select a date to review client choices.</div>
@@ -888,6 +889,7 @@ async function showClientProfile(client){
   $("coachPlanReviewDate").value=localDateString();
   await loadCoachMealPlan();
   await loadCoachTrainingProgram();
+  await loadCoachWorkoutReviews();
  }catch(e){$("clientDetailsStatus").textContent="Could not load saved details: "+e.message;}
 }
 function fillMacroInputs(prefix,data){
@@ -1437,6 +1439,31 @@ function renderCoachTrainingProgram(){
   (w.exercises||[]).forEach((e,ei)=>{const row=document.createElement("div");row.className="training-exercise";const title=document.createElement("strong");title.textContent=e.name;const meta=document.createElement("div");meta.className="muted";meta.textContent=e.muscleGroup+" · "+e.sets+" sets · "+e.reps+" reps";const del=document.createElement("button");del.type="button";del.className="secondary";del.textContent="REMOVE";del.onclick=()=>{w.exercises.splice(ei,1);renderCoachTrainingProgram();};row.append(title,meta,del);card.append(row);});
   const delDay=document.createElement("button");delDay.type="button";delDay.className="secondary";delDay.textContent="REMOVE WORKOUT DAY";delDay.style.width="100%";delDay.onclick=()=>{coachTrainingProgram.workouts.splice(wi,1);renderCoachTrainingProgram();};card.append(delDay);host.append(card);
  });
+}
+async function loadCoachWorkoutReviews(){
+ const host=$("coachWorkoutReviews");
+ if(!selectedClient?.uid)return;
+ host.textContent="Loading workout history…";
+ try{
+  const snap=await getDocs(collection(db,"users",selectedClient.uid,"trainingSessions"));
+  const sessions=snap.docs.map(x=>({id:x.id,...x.data()})).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  host.replaceChildren();
+  if(!sessions.length){host.textContent="No completed workouts have been logged by this client yet.";return;}
+  sessions.forEach(session=>{
+   const card=document.createElement("div");card.className="tile";card.style.minHeight="0";card.style.margin="10px 0";
+   const heading=document.createElement("strong");heading.style.fontSize="15px";heading.textContent=(session.workoutName||"Workout")+" · "+(session.date?new Date(session.date+"T12:00:00").toLocaleDateString():"Date not recorded");card.append(heading);
+   (session.exercises||[]).forEach(ex=>{
+    const line=document.createElement("div");line.className="muted";line.style.marginTop="8px";
+    const sets=(ex.sets||[]).map((set,i)=>"Set "+(i+1)+": "+(set.weight||0)+" kg × "+(set.reps||0)+" reps"+(set.rir===null||set.rir===undefined?"":" · RIR "+set.rir)).join(" | ");
+    line.textContent=(ex.name||"Exercise")+(sets?" — "+sets:" — no sets recorded");card.append(line);
+   });
+   const feedbackLabel=document.createElement("label");feedbackLabel.textContent="Coach feedback";feedbackLabel.style.display="block";feedbackLabel.style.marginTop="12px";
+   const feedback=document.createElement("textarea");feedback.rows=3;feedback.style.cssText="width:100%;padding:12px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit;resize:vertical";feedback.placeholder="Comment on performance, technique, progression or next session…";feedback.value=session.coachFeedback||"";card.append(feedbackLabel,feedback);
+   const save=document.createElement("button");save.textContent="SAVE WORKOUT FEEDBACK";save.style.width="100%";save.style.marginTop="9px";
+   save.onclick=async()=>{save.disabled=true;save.textContent="SAVING…";try{await setDoc(doc(db,"users",selectedClient.uid,"trainingSessions",session.id),{coachFeedback:feedback.value.trim(),feedbackUpdatedAt:serverTimestamp(),feedbackBy:currentUser.uid},{merge:true});session.coachFeedback=feedback.value.trim();save.textContent="FEEDBACK SAVED";}catch(e){save.textContent="SAVE FAILED";}finally{save.disabled=false;}};
+   card.append(save);host.append(card);
+  });
+ }catch(e){host.textContent="Could not load workout reviews: "+e.message;}
 }
 async function loadCoachTrainingProgram(){
  if(!selectedClient?.uid)return;
