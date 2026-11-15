@@ -3,10 +3,10 @@ main = "src/index.js"
 compatibility_date = "2026-11-15"
 workers_dev = true
 
-# UK 06:00 is 06:00 UTC in winter and 05:00 UTC in summer.
-# The Worker checks Europe/London time and sends only on the matching run.
+# Run at both UTC hours that can correspond to 06:00 and 18:00 in the UK.
+# The Worker checks Europe/London time, so daylight saving is handled automatically.
 [triggers]
-crons = ["0 5,6 * * *"]
+crons = ["0 5,6 * * *", "0 17,18 * * 0"]
 
 [observability]
 enabled = true
