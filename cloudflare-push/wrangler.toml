@@ -6,7 +6,7 @@ workers_dev = true
 # Run at both UTC hours that can correspond to 06:00 and 18:00 in the UK.
 # The Worker checks Europe/London time, so daylight saving is handled automatically.
 [triggers]
-crons = ["0 5,6 * * *", "0 17,18 * * 0"]
+crons = ["0 5,6 * * *", "0 17,18 * * 1"]
 
 [observability]
 enabled = true
