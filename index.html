@@ -1484,17 +1484,44 @@ $("saveClientWeight").addEventListener("click",async()=>{
 async function setupPushNotifications(){
  const host=$("pushNotificationStatus"),button=$("enablePushNotifications");
  if(!currentUser){host.textContent="Please log in first.";return;}
- if(!("serviceWorker" in navigator)){host.textContent="This browser does not support service workers.";return;}
- button.disabled=true;host.textContent="Testing basic notification service registration…";
+ if(!("Notification" in window)||!("serviceWorker" in navigator)){host.textContent="This browser does not support web push notifications.";return;}
+ if(!FCM_VAPID_KEY||FCM_VAPID_KEY.startsWith("ADD_")){host.textContent="The Firebase Web Push certificate key is missing.";return;}
+ if(Notification.permission==="denied"){host.textContent="Notifications are blocked for B.COACHED in iPhone Settings. Allow them, then try again.";return;}
+ if(!window.isSecureContext){host.textContent="Notifications require a secure HTTPS connection.";return;}
+ button.disabled=true;
+ let stage="checking Firebase messaging support";
  try{
-  const registration=await navigator.serviceWorker.register("./firebase-messaging-sw.js",{scope:"./"});
+  host.textContent="Checking Firebase messaging support…";
+  const supported=await isSupported();
+  if(!supported)throw new Error("Firebase reports that web push is not supported in this browser session. Open B.COACHED from its Home Screen icon and try again.");
+  stage="requesting notification permission";
+  host.textContent="Requesting notification permission…";
+  const permission=await Notification.requestPermission();
+  if(permission!=="granted")throw new Error("Notification permission was not granted (status: "+permission+").");
+  stage="installing the Firebase notification service";
+  host.textContent="Installing Firebase notification service…";
+  pushServiceWorker=await navigator.serviceWorker.register("./firebase-messaging-sw.js",{scope:"./",updateViaCache:"none"});
+  await pushServiceWorker.update();
   await navigator.serviceWorker.ready;
-  host.textContent="Basic service worker registered successfully. Safari can register B.COACHED notifications; the Firebase worker integration is the next thing to investigate.";
-  console.log("B.COACHED diagnostic service worker registered",registration.scope);
+  if(!pushServiceWorker.active)throw new Error("The Firebase notification service has not activated yet. Close and reopen B.COACHED, then try again.");
+  stage="connecting to Firebase Cloud Messaging";
+  host.textContent="Connecting to Firebase Cloud Messaging…";
+  messagingInstance=getMessaging(app);
+  const token=await getToken(messagingInstance,{vapidKey:FCM_VAPID_KEY,serviceWorkerRegistration:pushServiceWorker});
+  if(!token)throw new Error("Firebase did not return a device registration token.");
+  stage="saving this device to your coaching account";
+  host.textContent="Saving this device to your coaching account…";
+  await setDoc(doc(db,"users",currentUser.uid,"pushTokens",token),{token,platform:/iPhone|iPad|iPod/.test(navigator.userAgent)?"ios-web":"web",updatedAt:serverTimestamp(),userAgent:navigator.userAgent});
+  onMessage(messagingInstance,payload=>{
+   const title=payload.notification?.title||"B.COACHED";
+   const body=payload.notification?.body||"You have a new coaching update.";
+   if(Notification.permission==="granted")new Notification(title,{body,icon:"./icon-192.png"});
+  });
+  host.textContent="Phone notifications are enabled on this device. Firebase has registered it successfully.";
  }catch(e){
   const detail=[e.code,e.name,e.message].filter(Boolean).join(" · ");
-  console.error("B.COACHED basic service worker test failed",e);
-  host.textContent="Basic service worker registration failed: "+detail;
+  console.error("B.COACHED push setup failed during "+stage,e);
+  host.textContent="Push setup failed while "+stage+". "+detail+" Your in-app reminders are still available.";
  }finally{button.disabled=false;}
 }
 $("enablePushNotifications")?.addEventListener("click",setupPushNotifications);
