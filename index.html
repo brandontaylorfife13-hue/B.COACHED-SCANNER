@@ -381,8 +381,12 @@ $("primaryBtn").onclick=async()=>{
    status("Account created. Check your email and verify your address. Then log in using the same email and password.","good");
    await signOut(auth);setMode("login");
   }else{
-   const cred=await signInWithEmailAndPassword(auth,email,password);
-   if(!cred.user.emailVerified){await sendEmailVerification(cred.user);await signOut(auth);throw new Error("Please verify your email first. We've sent you a new verification link.");}
+   const loginAttempt=signInWithEmailAndPassword(auth,email,password);
+   const cred=await Promise.race([
+    loginAttempt,
+    new Promise((_,reject)=>setTimeout(()=>reject(new Error("Sign-in is taking too long. Check your connection and try again.")),15000))
+   ]);
+   if(!cred.user.emailVerified){await sendEmailVerification(cred.user);await signOut(auth);throw new Error("Please verify your email first. We have sent you a new verification link.");}
   }
  }catch(e){status(friendly(e),"bad");}
  finally{$("primaryBtn").disabled=false;}
