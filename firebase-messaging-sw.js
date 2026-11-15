@@ -7,5 +7,5 @@ firebase.initializeApp({
   projectId: "bcoached-889bc",
   storageBucket: "bcoached-889bc.firebasestorage.app",
   messagingSenderId: "597253859431",
-  appId: "1:18a0fa2c616039d0524cc2"
+  appId: "1:597253859431:web:18a0fa2c616039d0524cc2"
 });
