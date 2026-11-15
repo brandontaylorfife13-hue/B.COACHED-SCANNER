@@ -1484,39 +1484,17 @@ $("saveClientWeight").addEventListener("click",async()=>{
 async function setupPushNotifications(){
  const host=$("pushNotificationStatus"),button=$("enablePushNotifications");
  if(!currentUser){host.textContent="Please log in first.";return;}
- if(!("Notification" in window)||!("serviceWorker" in navigator)){host.textContent="This browser does not support web push notifications.";return;}
- if(!FCM_VAPID_KEY||FCM_VAPID_KEY.startsWith("ADD_")){host.textContent="One final setup step is needed: add the Firebase Web Push certificate key.";return;}
- if(Notification.permission==="denied"){host.textContent="Notifications are blocked in iPhone Settings. Allow notifications for B.COACHED, then try again.";return;}
- if(!window.isSecureContext){host.textContent="Notifications require a secure HTTPS connection.";return;}
- button.disabled=true;
- let stage="checking browser support";
+ if(!("serviceWorker" in navigator)){host.textContent="This browser does not support service workers.";return;}
+ button.disabled=true;host.textContent="Testing basic notification service registration…";
  try{
-  host.textContent="Checking notification support…";
-  const supported=await isSupported();
-  if(!supported)throw new Error("Firebase reports that push messaging is not supported in this browser or Home Screen environment.");
-  stage="requesting notification permission";
-  host.textContent="Requesting notification permission…";
-  const permission=await Notification.requestPermission();
-  if(permission!=="granted")throw new Error("Notification permission was not granted (status: "+permission+").");
-  stage="registering the notification service worker";
-  host.textContent="Registering B.COACHED notification service…";
-  pushServiceWorker=await navigator.serviceWorker.register("./firebase-messaging-sw.js",{scope:"./"});
+  const registration=await navigator.serviceWorker.register("./firebase-messaging-sw.js",{scope:"./"});
   await navigator.serviceWorker.ready;
-  if(!pushServiceWorker.active)throw new Error("The notification service worker has not activated yet. Close and reopen B.COACHED, then try again.");
-  stage="connecting to Firebase Cloud Messaging";
-  host.textContent="Connecting securely to Firebase…";
-  messagingInstance=getMessaging(app);
-  const token=await getToken(messagingInstance,{vapidKey:FCM_VAPID_KEY,serviceWorkerRegistration:pushServiceWorker});
-  if(!token)throw new Error("Firebase did not return a device token.");
-  stage="saving this device to your coaching account";
-  host.textContent="Saving this device…";
-  await setDoc(doc(db,"users",currentUser.uid,"pushTokens",token),{token,platform:/iPhone|iPad|iPod/.test(navigator.userAgent)?"ios-web":"web",updatedAt:serverTimestamp(),userAgent:navigator.userAgent});
-  onMessage(messagingInstance,payload=>{const title=payload.notification?.title||"B.COACHED";const body=payload.notification?.body||"You have a new coaching update.";if(Notification.permission==="granted")new Notification(title,{body,icon:"./icon-192.png"});});
-  host.textContent="Phone notifications are enabled on this device.";
+  host.textContent="Basic service worker registered successfully. Safari can register B.COACHED notifications; the Firebase worker integration is the next thing to investigate.";
+  console.log("B.COACHED diagnostic service worker registered",registration.scope);
  }catch(e){
   const detail=[e.code,e.name,e.message].filter(Boolean).join(" · ");
-  console.error("B.COACHED push setup failed",stage,e);
-  host.textContent="Push setup failed while "+stage+". "+detail+" If this mentions CORS or a network response, the request to Firebase may be blocked by an API-key restriction, network filter, or Firebase registration issue. Your in-app reminders are unaffected.";
+  console.error("B.COACHED basic service worker test failed",e);
+  host.textContent="Basic service worker registration failed: "+detail;
  }finally{button.disabled=false;}
 }
 $("enablePushNotifications")?.addEventListener("click",setupPushNotifications);
