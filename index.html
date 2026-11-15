@@ -270,6 +270,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <div><label for="coachWorkoutName">Workout name</label><input id="coachWorkoutName" placeholder="e.g. Push A"></div><div><label for="coachExerciseName">Exercise name</label><input id="coachExerciseName" placeholder="e.g. Incline dumbbell press"></div><div><label for="coachExerciseMuscle">Muscle group</label><input id="coachExerciseMuscle" placeholder="e.g. Chest"></div><div><label for="coachExerciseSets">Working sets</label><input id="coachExerciseSets" type="number" min="1" max="20" value="3"></div><div><label for="coachExerciseReps">Rep target</label><input id="coachExerciseReps" placeholder="e.g. 8–12"></div></div>
   <div class="actions"><button type="button" id="addCoachExercise">ADD EXERCISE TO WORKOUT</button><button type="button" class="secondary" id="addCoachWorkout">ADD WORKOUT DAY</button></div><div id="coachTrainingEditor" style="margin-top:14px"></div><button id="saveTrainingProgram" style="width:100%;margin-top:12px">SAVE TRAINING PROGRAMME</button><div id="coachTrainingStatus" class="status" role="status"></div>
   <div class="section-title" style="margin-top:24px">Workout reviews</div><p class="muted">Review completed sessions, check the client's logged sets and leave coaching feedback.</p><div id="coachWorkoutReviews" class="muted">Loading workout history…</div>
+  <div class="section-title" style="margin-top:26px">Progress photo comparison</div><p class="muted">Review the client's private progress photos and compare two dates side by side.</p><div id="coachProgressPhotoStatus" class="muted">Loading progress photos…</div><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-top:12px"><div><label for="coachPhotoCompareA">Earlier photo</label><select id="coachPhotoCompareA" class="training-select"><option value="">Choose photo</option></select></div><div><label for="coachPhotoCompareB">Later photo</label><select id="coachPhotoCompareB" class="training-select"><option value="">Choose photo</option></select></div></div><button id="compareCoachPhotos" class="secondary" style="width:100%;margin-top:10px">COMPARE PHOTOS</button><div id="coachPhotoComparison" class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:12px"></div><div class="section-title" style="margin-top:18px">All progress photos</div><div id="coachProgressPhotoGallery" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr))"></div>
   <div class="section-title" style="margin-top:24px">Client meal choices</div><p class="muted">Review the options selected by this client for a chosen date.</p>
   <label for="coachPlanReviewDate">Review date</label><input id="coachPlanReviewDate" type="date">
   <div id="coachMealPlanReview" class="muted">Select a date to review client choices.</div>
@@ -890,6 +891,7 @@ async function showClientProfile(client){
   await loadCoachMealPlan();
   await loadCoachTrainingProgram();
   await loadCoachWorkoutReviews();
+  await loadCoachProgressPhotos();
  }catch(e){$("clientDetailsStatus").textContent="Could not load saved details: "+e.message;}
 }
 function fillMacroInputs(prefix,data){
@@ -1440,6 +1442,30 @@ function renderCoachTrainingProgram(){
   const delDay=document.createElement("button");delDay.type="button";delDay.className="secondary";delDay.textContent="REMOVE WORKOUT DAY";delDay.style.width="100%";delDay.onclick=()=>{coachTrainingProgram.workouts.splice(wi,1);renderCoachTrainingProgram();};card.append(delDay);host.append(card);
  });
 }
+let coachProgressPhotoRows=[];
+async function loadCoachProgressPhotos(){
+ const host=$("coachProgressPhotoGallery"),statusEl=$("coachProgressPhotoStatus");
+ if(!selectedClient?.uid)return;
+ statusEl.textContent="Loading progress photos…";host.replaceChildren();$("coachPhotoComparison").replaceChildren();
+ try{
+  const snap=await getDocs(collection(db,"users",selectedClient.uid,"progressPhotos"));
+  coachProgressPhotoRows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.date||"").localeCompare(b.date||"")||(a.position||"").localeCompare(b.position||""));
+  const selects=[$("coachPhotoCompareA"),$("coachPhotoCompareB")];
+  selects.forEach(sel=>{sel.replaceChildren();const blank=document.createElement("option");blank.value="";blank.textContent="Choose photo";sel.append(blank);coachProgressPhotoRows.forEach(photo=>{const option=document.createElement("option");option.value=photo.id;option.textContent=(photo.position||"Photo")+" · "+(photo.date||"Date unknown");sel.append(option);});});
+  if(!coachProgressPhotoRows.length){statusEl.textContent="This client has not uploaded any progress photos yet.";return;}
+  statusEl.textContent=coachProgressPhotoRows.length+" progress photo(s) available.";
+  coachProgressPhotoRows.slice().reverse().forEach(photo=>{
+   const card=document.createElement("div");card.className="tile";card.style.minHeight="0";card.style.padding="8px";
+   const img=document.createElement("img");img.src=photo.downloadURL;img.alt=(photo.position||"Progress")+" photo";img.loading="lazy";img.style.width="100%";img.style.aspectRatio="3/4";img.style.objectFit="cover";img.style.borderRadius="8px";
+   const caption=document.createElement("div");caption.className="muted";caption.style.marginTop="6px";caption.textContent=(photo.position||"Photo")+" · "+(photo.date||"Date unknown");card.append(img,caption);host.append(card);
+  });
+ }catch(e){statusEl.textContent="Could not load progress photos: "+e.message;}
+}
+$("compareCoachPhotos").addEventListener("click",()=>{
+ const a=coachProgressPhotoRows.find(x=>x.id===$("coachPhotoCompareA").value),b=coachProgressPhotoRows.find(x=>x.id===$("coachPhotoCompareB").value),host=$("coachPhotoComparison");host.replaceChildren();
+ if(!a||!b){host.textContent="Choose two photos to compare.";return;}
+ [a,b].forEach(photo=>{const card=document.createElement("div");card.className="tile";card.style.minHeight="0";card.style.padding="7px";const img=document.createElement("img");img.src=photo.downloadURL;img.alt=(photo.position||"Progress")+" photo";img.style.width="100%";img.style.aspectRatio="3/4";img.style.objectFit="contain";img.style.borderRadius="8px";const caption=document.createElement("div");caption.className="muted";caption.style.marginTop="6px";caption.textContent=(photo.position||"Photo")+" · "+(photo.date||"Date unknown");card.append(img,caption);host.append(card);});
+});
 async function loadCoachWorkoutReviews(){
  const host=$("coachWorkoutReviews");
  if(!selectedClient?.uid)return;
