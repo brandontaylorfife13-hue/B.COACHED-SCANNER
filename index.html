@@ -78,6 +78,25 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
     <div class="tile"><div class="eyebrow">LOW DAY</div><strong id="dashLowCalories">—</strong><span>kcal · P <b id="dashLowProtein">—</b>g · C <b id="dashLowCarbs">—</b>g · F <b id="dashLowFats">—</b>g</span></div>
    </div>
   </div>
+  <div id="clientGoalDashboard" class="hidden" style="margin-top:22px">
+   <div class="section-title">Your goals & milestones</div>
+   <div class="tile" style="min-height:0">
+    <div class="eyebrow">MAIN GOAL</div><strong id="clientDashGoal" style="font-size:20px">Loading your goal…</strong>
+    <div class="muted" id="clientDashGoalDate" style="margin-top:5px"></div>
+    <div style="height:10px;background:#252b20;border-radius:20px;overflow:hidden;margin-top:14px"><div id="clientDashGoalBar" style="height:100%;width:0%;background:var(--lime);border-radius:20px"></div></div>
+    <div class="muted" id="clientDashGoalProgress" style="margin-top:7px">Progress will appear once your coach sets starting and target weights.</div>
+    <div class="pill" id="clientDashGoalStatus" style="margin-top:12px">Goal status</div>
+   </div>
+   <div class="tile" style="min-height:0;margin-top:10px"><div class="eyebrow">NEXT MILESTONE</div><strong id="clientDashMilestone" style="font-size:18px">No milestone set yet</strong><div class="muted" id="clientDashMilestoneDate" style="margin-top:5px"></div></div>
+   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(145px,1fr));margin-top:10px">
+    <div class="tile">LATEST CHECK-IN<strong id="clientDashCheckin">—</strong><span id="clientDashCheckinNote">Your weekly update</span></div>
+    <div class="tile">WORKOUTS THIS WEEK<strong id="clientDashWorkouts">—</strong><span>Sessions logged since Monday</span></div>
+   </div>
+   <div class="section-title" style="margin-top:20px">Your coaching shortcuts</div>
+   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:9px">
+    <button class="secondary" id="dashGoTraining">OPEN TRAINING</button><button class="secondary" id="dashGoCheckin">WEEKLY CHECK-IN</button><button class="secondary" id="dashGoProgress">VIEW PROGRESS</button><button class="secondary" id="dashGoMessages">MESSAGE COACH</button>
+   </div>
+  </div>
   <div id="clientWeightTracker" class="hidden" style="margin-top:26px">
    <div class="section-title">Your weight tracker</div>
    <p class="muted">Record your weigh-in here. Your coach can see your entries and follow your progress.</p>
@@ -423,6 +442,7 @@ onAuthStateChanged(auth,async user=>{
   $("trainingWorkoutDate").value=localDateString();
   if(coach)await ensurePersonalTrainingProgram();
   await loadClientTrainingDashboard();
+  if(!coach)await loadClientGoalDashboard();
   if(coach)loadClients();
  }catch(e){
   status(friendly(e),"bad");
@@ -983,6 +1003,45 @@ $("addFoodBtn").addEventListener("click",async()=>{
  finally{$("addFoodBtn").disabled=false;}
 });
 $("foodDate").addEventListener("change",loadFoodDiary);
+async function loadClientGoalDashboard(){
+ if(!currentUser||currentRole==="coach")return;
+ const panel=$("clientGoalDashboard");panel.classList.remove("hidden");
+ try{
+  const [detailsSnap,weightsSnap,checksSnap,sessionsSnap]=await Promise.all([
+   getDoc(doc(db,"users",currentUser.uid,"profile","details")),
+   getDocs(collection(db,"users",currentUser.uid,"weights")),
+   getDocs(collection(db,"users",currentUser.uid,"weeklyCheckins")),
+   getDocs(collection(db,"users",currentUser.uid,"trainingSessions"))
+  ]);
+  const d=detailsSnap.exists()?detailsSnap.data():{};
+  const weights=weightsSnap.docs.map(x=>({date:x.id,...x.data()})).filter(x=>Number(x.weightKg??x.weight)>0).sort((a,b)=>a.date.localeCompare(b.date));
+  const latest=weights[weights.length-1],current=latest?Number(latest.weightKg??latest.weight):Number(d.currentWeightKg)||null;
+  const start=Number(d.startingWeightKg)||null,goal=Number(d.goalWeightKg)||null;
+  $("clientDashGoal").textContent=d.primaryGoal||"Your coach hasn't added a main goal yet";
+  $("clientDashGoalDate").textContent=d.goalTargetDate?"Target date: "+new Date(d.goalTargetDate+"T12:00:00").toLocaleDateString():"No target date set";
+  $("clientDashGoalStatus").textContent=d.goalStatus||"Status not set";
+  if(start&&goal&&current!==null&&start!==goal){
+   const pct=Math.max(0,Math.min(100,((current-start)/(goal-start))*100));
+   $("clientDashGoalBar").style.width=pct.toFixed(1)+"%";
+   $("clientDashGoalProgress").textContent=current.toFixed(1)+" kg currently · "+goal.toFixed(1)+" kg target · "+pct.toFixed(0)+"% of the weight change completed";
+  }else{
+   $("clientDashGoalBar").style.width="0%";
+   $("clientDashGoalProgress").textContent="Your coach can add starting and target weights to show weight-goal progress here.";
+  }
+  $("clientDashMilestone").textContent=d.nextMilestone||"No milestone set yet";
+  $("clientDashMilestoneDate").textContent=d.milestoneTargetDate?"Target: "+new Date(d.milestoneTargetDate+"T12:00:00").toLocaleDateString():"Ask your coach to set your next milestone";
+  const checks=checksSnap.docs.map(x=>({id:x.id,...x.data()})).sort((a,b)=>(b.weekEnding||b.id).localeCompare(a.weekEnding||a.id));
+  const latestCheck=checks[0],checkDate=latestCheck?.weekEnding||latestCheck?.id||"";
+  $("clientDashCheckin").textContent=checkDate?new Date(checkDate+"T12:00:00").toLocaleDateString():"Not submitted";
+  $("clientDashCheckinNote").textContent=checkDate&&Date.now()-new Date(checkDate+"T23:59:59").getTime()<7*86400000?"Recent weekly update":"Your weekly update";
+  const monday=new Date();monday.setHours(0,0,0,0);monday.setDate(monday.getDate()-((monday.getDay()+6)%7));
+  const sessions=sessionsSnap.docs.map(x=>({id:x.id,...x.data()}));
+  $("clientDashWorkouts").textContent=String(sessions.filter(x=>new Date((x.date||x.id.slice(0,10))+"T12:00:00")>=monday).length);
+ }catch(e){
+  $("clientDashGoal").textContent="Your coaching goals couldn't be loaded";
+  $("clientDashGoalProgress").textContent=e.message;
+ }
+}
 async function loadNutritionTargets(coachEditing=false){
  const uid=coachEditing?selectedClient?.uid:currentUser?.uid;
  if(!uid)return;
@@ -1605,6 +1664,10 @@ $("backToClients").addEventListener("click",()=>{
  $("clientProfileView").classList.add("hidden");
  $("clientsView").classList.remove("hidden");
 });
+["dashGoTraining","dashGoCheckin","dashGoProgress","dashGoMessages"].forEach(id=>$(id).addEventListener("click",()=>{
+ const view={dashGoTraining:"training",dashGoCheckin:"checkins",dashGoProgress:"progress",dashGoMessages:"messages"}[id];
+ document.querySelector('#nav button[data-view="'+view+'"]')?.click();
+}));
 document.querySelectorAll("#nav button").forEach(btn=>btn.addEventListener("click",()=>{
  document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b===btn));
  ["overview","clients","nutrition","foodDiary","training","progress","checkins","messages","updates"].forEach(v=>$(v+"View").classList.toggle("hidden",v!==btn.dataset.view));
