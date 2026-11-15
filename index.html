@@ -610,10 +610,14 @@ async function loadPerformanceAnalytics(){
   const weekKey=d=>{const x=new Date(d);const day=(x.getDay()+6)%7;x.setDate(x.getDate()-day);x.setHours(0,0,0,0);return x.toISOString().slice(0,10);};
   const dateOf=(row,fallback)=>{const raw=row.date||row.weekEnding||row.id||fallback||"";const d=new Date(String(raw).slice(0,10)+"T12:00:00");return Number.isNaN(d.getTime())?null:d;};
   const rows=await Promise.all(clients.map(async client=>{
+   const safeRead=async path=>{
+    try{return await getDocs(collection(db,"users",client.uid,path));}
+    catch(error){console.warn("Analytics read failed",client.uid,path,error);return {docs:[],readError:error};}
+   };
    const [checks,weights,sessions]=await Promise.all([
-    getDocs(collection(db,"users",client.uid,"weeklyCheckins")),
-    getDocs(collection(db,"users",client.uid,"weights")),
-    getDocs(collection(db,"users",client.uid,"trainingSessions"))
+    safeRead("weeklyCheckins"),
+    safeRead("weights"),
+    safeRead("trainingSessions")
    ]);
    const checkRows=checks.docs.map(d=>({id:d.id,...d.data()}));
    const recentChecks=checkRows.filter(x=>{const d=dateOf(x,x.weekEnding);return d&&d>=cutoff8&&d<=now;});
@@ -624,7 +628,7 @@ async function loadPerformanceAnalytics(){
    const latestWeight=weightRows[weightRows.length-1];
    const firstWeight=weightRows[0];
    const change=firstWeight&&latestWeight&&firstWeight!==latestWeight?Number(latestWeight.weightKg??latestWeight.weight)-Number(firstWeight.weightKg??firstWeight.weight):null;
-   return {client,checkRows,recentChecks,latestCheck,weightRows,latestWeight,change,recentSessions:recentSessions.length};
+   return {client,checkRows,recentChecks,latestCheck,weightRows,latestWeight,change,recentSessions:recentSessions.length,readErrors:[checks.readError,weights.readError,sessions.readError].filter(Boolean)};
   }));
   const active=rows.filter(x=>x.client.accountStatus!=="inactive"&&x.client.accountStatus!=="archived");
   const checkedIn=active.filter(x=>x.latestCheck&&x.latestCheck.date>=cutoff14).length;
@@ -639,7 +643,7 @@ async function loadPerformanceAnalytics(){
   if(!rows.length){checkChart.textContent="No client records are available yet.";}
   else{
    const max=Math.max(1,...counts),w=640,h=190,left=35,bottom=32,bar=44,gap=28;
-   const bars=counts.map((v,i)=>{const x=left+i*(bar+gap),height=(v/max)*118,y=142-height;return '<rect x="'+x+'" y="'+y+'" width="'+bar+'" height="'+height+'" rx="5" fill="#c6ff00"/><text x="'+(x+bar/2)+'" y="'+(y-7)+'" text-anchor="middle" fill="#f5f7f1" font-size="12">'+v+'</text><text x="'+(x+bar/2)+'" y="165" text-anchor="middle" fill="#aeb6a2" font-size="10">'+new Date(key+'T12:00:00').toLocaleDateString(undefined,{day:"numeric",month:"short"})+'</text>';}).join("");
+   const bars=counts.map((v,i)=>{const x=left+i*(bar+gap),height=(v/max)*118,y=142-height;return '<rect x="'+x+'" y="'+y+'" width="'+bar+'" height="'+height+'" rx="5" fill="#c6ff00"/><text x="'+(x+bar/2)+'" y="'+(y-7)+'" text-anchor="middle" fill="#f5f7f1" font-size="12">'+v+'</text><text x="'+(x+bar/2)+'" y="165" text-anchor="middle" fill="#aeb6a2" font-size="10">'+new Date(weekStarts[i]+'T12:00:00').toLocaleDateString(undefined,{day:"numeric",month:"short"})+'</text>';}).join("");
    checkChart.innerHTML='<svg viewBox="0 0 '+w+' '+h+'" role="img" aria-label="Weekly check-in submissions for the last eight weeks" style="width:100%;height:auto;display:block"><line x1="24" y1="143" x2="620" y2="143" stroke="#566148"/>'+bars+'</svg><div class="muted">Submissions per week · last 8 weeks · '+counts.reduce((a,b)=>a+b,0)+' total submissions</div>';
   }
   const progress=active.filter(x=>x.change!==null);
@@ -669,16 +673,18 @@ async function loadPerformanceAnalytics(){
    const thead=document.createElement("thead"),tr=document.createElement("tr");
    headers.forEach(label=>{const th=document.createElement("th");th.textContent=label;th.style.textAlign="left";th.style.padding="10px 7px";th.style.borderBottom="1px solid #4b5540";tr.append(th);});thead.append(tr);t.append(thead);
    const tbody=document.createElement("tbody");
-   rows.slice().sort((a,b)=>(a.latestCheck?.date?.getTime()||0)-(b.latestCheck?.date?.getTime()||0)).forEach(x=>{
+   active.slice().sort((a,b)=>(a.latestCheck?.date?.getTime()||0)-(b.latestCheck?.date?.getTime()||0)).forEach(x=>{
     const r=document.createElement("tr");
     const vals=[x.client.displayName||x.client.email||"Client",x.latestCheck?x.latestCheck.date.toLocaleDateString():"Never",x.change===null?"Insufficient data":(x.change>0?"+":"")+x.change.toFixed(1)+" kg",String(x.recentSessions)];
     vals.forEach(v=>{const td=document.createElement("td");td.textContent=v;td.style.padding="10px 7px";td.style.borderBottom="1px solid #30372a";r.append(td);});tbody.append(r);
    });
    t.append(tbody);tbl.append(t);table.append(tbl);
   }
-  $("analyticsUpdated").textContent="Updated "+now.toLocaleString();
+  const failedReads=rows.flatMap(x=>x.readErrors||[]);
+  $("analyticsUpdated").textContent="Updated "+now.toLocaleString()+(failedReads.length?" · "+failedReads.length+" client data request(s) failed ("+([...new Set(failedReads.map(e=>e.code||e.message||"unknown"))].join(", "))+"). Some figures may be incomplete.":"");
  }catch(e){
-  checkChart.textContent="Unable to load analytics: "+e.message;weightChart.textContent="Analytics could not be calculated.";table.textContent="Check Firestore permissions and refresh.";
+  console.error("Performance analytics failed",e);
+  checkChart.textContent="Unable to load analytics: "+(e.code||"unknown")+" — "+e.message;weightChart.textContent="Analytics could not be calculated.";table.textContent="Database access failed. Please share the exact error above so we can fix the cause without weakening security.";
  }
 }
 $("refreshAnalytics")?.addEventListener("click",loadPerformanceAnalytics);
