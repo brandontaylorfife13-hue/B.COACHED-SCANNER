@@ -195,6 +195,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
    <div class="tile">JOINED<strong id="profileJoined" style="font-size:15px">—</strong><span>Registration date</span></div>
   </div>
   <div class="section-title profile-anchor" id="profile-progress-overview" style="margin-top:24px">Progress overview</div><p class="muted">A live snapshot of this client's recorded weight, measurements, training and weekly check-ins.</p><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(135px,1fr))"><div class="tile">LATEST WEIGHT<strong id="coachProgressWeight">—</strong><span id="coachProgressWeightDate">No weigh-ins</span></div><div class="tile">CHANGE FROM START<strong id="coachProgressChange">—</strong><span>Based on recorded weights</span></div><div class="tile">TRAINING SESSIONS<strong id="coachProgressSessions">—</strong><span>Logged workouts</span></div><div class="tile">WEEKLY CHECK-INS<strong id="coachProgressCheckins">—</strong><span>Submitted check-ins</span></div></div><div class="tile" style="margin-top:12px;min-height:0"><strong>Latest measurements</strong><div id="coachProgressMeasurements" class="muted" style="margin-top:8px">Loading measurements…</div></div><div class="tile" style="margin-top:12px;min-height:0"><strong>Recent weigh-ins</strong><div id="coachProgressWeightHistory" class="muted" style="margin-top:8px">Loading weight history…</div></div><div class="section-title profile-anchor" id="profile-progress-trends" style="margin-top:20px">Progress trends</div><div class="tile" style="margin-top:10px;min-height:0"><strong>Weight trend</strong><div id="coachWeightTrendChart" style="margin-top:12px">Loading chart…</div></div><div class="tile" style="margin-top:12px;min-height:0"><strong>Body measurement trend</strong><label for="coachMeasurementMetric">Choose measurement</label><select id="coachMeasurementMetric" class="training-select"><option value="waist">Waist</option><option value="chest">Chest</option><option value="hips">Hips</option><option value="arm">Arm</option><option value="thigh">Thigh</option><option value="calf">Calf</option></select><div id="coachMeasurementTrendChart" style="margin-top:12px">Loading chart…</div></div>
+  <div class="tile" id="coachOnboardingSummary" style="margin-top:18px;min-height:0"><div class="eyebrow">CLIENT ONBOARDING</div><strong style="font-size:15px;color:var(--white);margin-top:8px">Getting started information</strong><div id="coachOnboardingSummaryText" class="muted" style="margin-top:8px">No onboarding profile submitted yet.</div></div>
   <div class="section-title profile-anchor" id="profile-client-details" style="margin-top:22px">Client details</div>
   <p class="muted">Add or update the client's key starting information. Changes are saved securely to their profile.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(210px,1fr))">
@@ -844,6 +845,21 @@ async function showClientProfile(client){
  $("profileStatus").textContent=client.accountStatus||"Status unknown";
  const joined=client.createdAt?.toDate?client.createdAt.toDate():null;
  $("profileJoined").textContent=joined?joined.toLocaleDateString():"Not available";
+ const onboarding=client.onboarding||{};
+ const onboardingLines=[
+  onboarding.primaryGoal&&("Main goal: "+onboarding.primaryGoal),
+  onboarding.heightCm&&("Height: "+onboarding.heightCm+" cm"),
+  onboarding.startingWeightKg&&("Starting weight: "+onboarding.startingWeightKg+" kg"),
+  onboarding.trainingDaysPerWeek&&("Training days: "+onboarding.trainingDaysPerWeek),
+  onboarding.trainingExperience&&("Experience: "+onboarding.trainingExperience),
+  onboarding.dailyActivity&&("Daily activity: "+onboarding.dailyActivity),
+  onboarding.dateOfBirth&&("Date of birth: "+onboarding.dateOfBirth),
+  onboarding.preferences&&("Notes: "+onboarding.preferences)
+ ].filter(Boolean);
+ $("coachOnboardingSummaryText").textContent=client.onboardingComplete
+  ?(onboardingLines.join(" · ")||"Client completed onboarding without optional details.")
+  :"Client has not completed onboarding yet.";
+
  $("clientDetailsStatus").textContent="Loading saved details…";
  ["detailDob","detailHeight","detailStartWeight","detailCurrentWeight","detailGoalWeight","detailGoal","detailGoalDate","detailGoalStatus","detailMilestone","detailMilestoneDate","detailNotes"].forEach(id=>$(id).value="");
  try{
