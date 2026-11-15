@@ -42,6 +42,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 
 .client-meal-eaten{display:flex;align-items:center;gap:9px;margin-top:12px;padding:9px 11px;background:#171b14;border:1px solid var(--line);border-radius:9px;font-size:13px;cursor:pointer}
 .client-meal-eaten input{width:18px;height:18px;accent-color:var(--lime);margin:0}
+.profile-anchor{scroll-margin-top:16px}
 </style>
 </head>
 <body><main>
@@ -148,6 +149,23 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
  </section>
  <section class="card hidden" id="clientsView"><div class="eyebrow">COACH ADMINISTRATION</div><div class="heading">Client directory</div><p class="muted">Registered client accounts will appear here.</p><div class="grid"><div class="tile">CLIENTS<strong id="clientCount">—</strong><span>Registered accounts</span></div><div class="tile">ACTIVE<strong id="activeCount">—</strong><span>Active accounts</span></div></div><div class="section-title" style="margin-top:24px">Coach action centre</div><p class="muted">A live snapshot of clients who may need your attention. Review the alerts and open the client profile to follow up.</p><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(135px,1fr))"><div class="tile">ACTION ITEMS<strong id="actionTotal">—</strong><span>Clients needing attention</span></div><div class="tile">AWAITING REPLY<strong id="actionMessages">—</strong><span>Latest message from client</span></div><div class="tile">INACTIVE<strong id="actionInactive">—</strong><span>No recent training or weigh-in</span></div><div class="tile">GOAL REVIEW<strong id="actionGoals">—</strong><span>Review or milestone due</span></div></div><div id="coachActionList" class="muted" style="margin-top:12px">Loading action items…</div><div class="section-title" style="margin-top:24px">Coach review dashboard</div><p class="muted">A quick check of recent client activity. Clients with no weekly check-in in the last 14 days are flagged for follow-up.</p><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(135px,1fr))"><div class="tile">NEEDS ATTENTION<strong id="reviewAttentionCount">—</strong><span>Check-in overdue</span></div><div class="tile">CHECKED IN<strong id="reviewRecentCount">—</strong><span>Within 14 days</span></div><div class="tile">NO CHECK-INS<strong id="reviewNeverCount">—</strong><span>Nothing submitted yet</span></div></div><div id="coachReviewList" class="muted" style="margin-top:12px">Loading client activity…</div><div class="section-title" style="margin-top:20px">Invite a new client</div><p class="muted">Create an invitation for a client. They register with this exact email address and choose their own password.</p><label for="inviteName">Client name</label><input id="inviteName" placeholder="Client full name"><label for="inviteEmail">Client email</label><input id="inviteEmail" type="email" placeholder="client@example.com"><button id="inviteBtn" style="width:100%;margin-top:14px">CREATE CLIENT INVITATION</button><div id="inviteStatus" class="status" role="status"></div><div class="section-title" style="margin-top:20px">Registered clients</div><div id="clientList" class="muted" style="margin-top:14px">Loading clients…</div><div class="section-title" style="margin-top:20px">Pending invitations</div><div id="inviteList" class="muted">Loading invitations…</div></section>\n <section class="card hidden" id="clientProfileView">
   <button id="backToClients" class="secondary">← BACK TO CLIENTS</button>
+  <div class="tile profile-quick-nav" style="margin-top:14px;min-height:0">
+   <label for="profileQuickNav">JUMP TO CLIENT SECTION</label>
+   <select id="profileQuickNav" class="training-select">
+    <option value="">Choose a section…</option>
+    <option value="profile-progress-overview">Progress overview</option>
+    <option value="profile-progress-trends">Progress trends</option>
+    <option value="profile-client-details">Client details</option>
+    <option value="profile-goal-tracking">Goal tracking & milestones</option>
+    <option value="profile-nutrition-targets">Nutrition targets</option>
+    <option value="profile-meal-plan">Tailored meal plan</option>
+    <option value="profile-training-program">Training programme</option>
+    <option value="profile-weight-tracking">Daily weight tracking</option>
+    <option value="profile-daily-activity">Daily activity</option>
+    <option value="profile-messages">Client messages</option>
+    <option value="profile-weekly-checkins">Weekly check-ins</option>
+   </select>
+  </div>
   <div class="eyebrow" style="margin-top:20px">CLIENT PROFILE</div>
   <div class="heading" id="profileName">Client</div>
   <div class="pill" id="profileStatus">Active</div>
@@ -156,8 +174,8 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
    <div class="tile">ACCOUNT<strong id="profileRole" style="font-size:15px">Client</strong><span>Account type</span></div>
    <div class="tile">JOINED<strong id="profileJoined" style="font-size:15px">—</strong><span>Registration date</span></div>
   </div>
-  <div class="section-title" style="margin-top:24px">Progress overview</div><p class="muted">A quick snapshot of this client's weight, measurements, training and weekly check-ins.</p><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(135px,1fr))"><div class="tile">LATEST WEIGHT<strong id="coachProgressWeight">—</strong><span id="coachProgressWeightDate">No weigh-ins</span></div><div class="tile">CHANGE FROM START<strong id="coachProgressChange">—</strong><span>Based on recorded weights</span></div><div class="tile">TRAINING SESSIONS<strong id="coachProgressSessions">—</strong><span>Logged workouts</span></div><div class="tile">WEEKLY CHECK-INS<strong id="coachProgressCheckins">—</strong><span>Submitted check-ins</span></div></div><div class="tile" style="margin-top:12px;min-height:0"><strong>Latest measurements</strong><div id="coachProgressMeasurements" class="muted" style="margin-top:8px">Loading measurements…</div></div><div class="tile" style="margin-top:12px;min-height:0"><strong>Recent weigh-ins</strong><div id="coachProgressWeightHistory" class="muted" style="margin-top:8px">Loading weight history…</div></div><div class="section-title" style="margin-top:20px">Progress trends</div><div class="tile" style="margin-top:10px;min-height:0"><strong>Weight trend</strong><div id="coachWeightTrendChart" style="margin-top:12px">Loading chart…</div></div><div class="tile" style="margin-top:12px;min-height:0"><strong>Body measurement trend</strong><label for="coachMeasurementMetric">Choose measurement</label><select id="coachMeasurementMetric" class="training-select"><option value="waist">Waist</option><option value="chest">Chest</option><option value="hips">Hips</option><option value="arm">Arm</option><option value="thigh">Thigh</option><option value="calf">Calf</option></select><div id="coachMeasurementTrendChart" style="margin-top:12px">Loading chart…</div></div>
-  <div class="section-title" style="margin-top:22px">Client details</div>
+  <div class="section-title profile-anchor" id="profile-progress-overview" style="margin-top:24px">Progress overview</div><p class="muted">A live snapshot of this client's recorded weight, measurements, training and weekly check-ins.</p><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(135px,1fr))"><div class="tile">LATEST WEIGHT<strong id="coachProgressWeight">—</strong><span id="coachProgressWeightDate">No weigh-ins</span></div><div class="tile">CHANGE FROM START<strong id="coachProgressChange">—</strong><span>Based on recorded weights</span></div><div class="tile">TRAINING SESSIONS<strong id="coachProgressSessions">—</strong><span>Logged workouts</span></div><div class="tile">WEEKLY CHECK-INS<strong id="coachProgressCheckins">—</strong><span>Submitted check-ins</span></div></div><div class="tile" style="margin-top:12px;min-height:0"><strong>Latest measurements</strong><div id="coachProgressMeasurements" class="muted" style="margin-top:8px">Loading measurements…</div></div><div class="tile" style="margin-top:12px;min-height:0"><strong>Recent weigh-ins</strong><div id="coachProgressWeightHistory" class="muted" style="margin-top:8px">Loading weight history…</div></div><div class="section-title profile-anchor" id="profile-progress-trends" style="margin-top:20px">Progress trends</div><div class="tile" style="margin-top:10px;min-height:0"><strong>Weight trend</strong><div id="coachWeightTrendChart" style="margin-top:12px">Loading chart…</div></div><div class="tile" style="margin-top:12px;min-height:0"><strong>Body measurement trend</strong><label for="coachMeasurementMetric">Choose measurement</label><select id="coachMeasurementMetric" class="training-select"><option value="waist">Waist</option><option value="chest">Chest</option><option value="hips">Hips</option><option value="arm">Arm</option><option value="thigh">Thigh</option><option value="calf">Calf</option></select><div id="coachMeasurementTrendChart" style="margin-top:12px">Loading chart…</div></div>
+  <div class="section-title profile-anchor" id="profile-client-details" style="margin-top:22px">Client details</div>
   <p class="muted">Add or update the client's key starting information. Changes are saved securely to their profile.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(210px,1fr))">
    <div><label for="detailDob">Date of birth</label><input id="detailDob" type="date"></div>
@@ -167,7 +185,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
    <div><label for="detailGoalWeight">Goal weight (kg)</label><input id="detailGoalWeight" type="number" min="0" step="0.1" placeholder="e.g. 80.0"></div>
    <div><label for="detailGoal">Primary goal</label><input id="detailGoal" placeholder="e.g. Fat loss, muscle gain"></div>
   </div>
-  <div class="section-title" style="margin-top:22px">Goal tracking & milestones</div>
+  <div class="section-title profile-anchor" id="profile-goal-tracking" style="margin-top:22px">Goal tracking & milestones</div>
   <p class="muted">Set a target date, agree the next milestone and keep the client's coaching status up to date.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))">
    <div><label for="detailGoalDate">Goal target date</label><input id="detailGoalDate" type="date"></div>
@@ -178,7 +196,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <label for="detailNotes">Coaching notes</label><textarea id="detailNotes" rows="4" style="width:100%;padding:14px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit;resize:vertical" placeholder="Training background, preferences, important coaching notes…"></textarea>
   <button id="saveClientDetails" style="width:100%;margin-top:14px">SAVE CLIENT DETAILS</button>
   <div id="clientDetailsStatus" class="status" role="status"></div>
-  <div class="section-title" style="margin-top:26px">Nutrition targets</div>
+  <div class="section-title profile-anchor" id="profile-nutrition-targets" style="margin-top:26px">Nutrition targets</div>
   <p class="muted">Set separate targets for higher-calorie and lower-calorie days.</p>
   <div class="tile" style="margin-bottom:12px">
    <div class="eyebrow">HIGH DAYS</div>
@@ -214,13 +232,13 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <button id="saveNutritionTargets" style="width:100%;margin-top:14px">SAVE HIGH & LOW DAY TARGETS</button>
   <div id="nutritionTargetStatus" class="status" role="status"></div>
 
-  <div class="section-title" style="margin-top:26px">Tailored meal plan builder</div>
+  <div class="section-title profile-anchor" id="profile-meal-plan" style="margin-top:26px">Tailored meal plan builder</div>
   <p class="muted">Build separate high- and low-day plans. Add as many meals, options and foods as needed. All food quantities are entered in grams and nutrition is calculated automatically.</p>
   <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr))"><button type="button" class="secondary" id="coachPlanHigh">HIGH DAY PLAN</button><button type="button" class="secondary" id="coachPlanLow">LOW DAY PLAN</button></div>
   <div id="coachMealPlanEditor"></div>
   <button id="saveMealPlan" style="width:100%;margin-top:12px">SAVE TAILORED MEAL PLAN</button>
   <div id="mealPlanCoachStatus" class="status" role="status"></div>
-  <div class="section-title" style="margin-top:28px">Training programme builder</div><p class="muted">Create the client's weekly split and prescribe exercises, target sets, rep ranges and muscle groups. Clients log their working weights and reps against this plan.</p>
+  <div class="section-title profile-anchor" id="profile-training-program" style="margin-top:28px">Training programme builder</div><p class="muted">Create the client's weekly split and prescribe exercises, target sets, rep ranges and muscle groups. Clients log their working weights and reps against this plan.</p>
   <div class="tile" style="margin:12px 0"><div class="eyebrow">READY-MADE TEMPLATE</div><strong style="font-size:16px;color:#f5f7f1">Torso / Limb Split</strong><p class="muted">Load your four-session programme into this client's builder. This replaces the programme currently loaded in the editor; save it to assign it to the client.</p><button type="button" id="applyTorsoLimbTemplate" style="width:100%">LOAD TORSO / LIMB TEMPLATE</button><div id="trainingTemplateStatus" class="status"></div></div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
   <div><label for="coachWorkoutName">Workout name</label><input id="coachWorkoutName" placeholder="e.g. Push A"></div><div><label for="coachExerciseName">Exercise name</label><input id="coachExerciseName" placeholder="e.g. Incline dumbbell press"></div><div><label for="coachExerciseMuscle">Muscle group</label><input id="coachExerciseMuscle" placeholder="e.g. Chest"></div><div><label for="coachExerciseSets">Working sets</label><input id="coachExerciseSets" type="number" min="1" max="20" value="3"></div><div><label for="coachExerciseReps">Rep target</label><input id="coachExerciseReps" placeholder="e.g. 8–12"></div></div>
@@ -228,7 +246,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <div class="section-title" style="margin-top:24px">Client meal choices</div><p class="muted">Review the options selected by this client for a chosen date.</p>
   <label for="coachPlanReviewDate">Review date</label><input id="coachPlanReviewDate" type="date">
   <div id="coachMealPlanReview" class="muted">Select a date to review client choices.</div>
-  <div class="section-title" style="margin-top:26px">Daily weight tracking</div>
+  <div class="section-title profile-anchor" id="profile-weight-tracking" style="margin-top:26px">Daily weight tracking</div>
   <p class="muted">Record each weigh-in. Entries are kept as history, and the latest 7-entry average is calculated automatically.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
    <div><label for="weightDate">Weigh-in date</label><input id="weightDate" type="date"></div>
@@ -245,19 +263,11 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <div id="weightChart" class="tile" style="min-height:180px;overflow:hidden"><span>Add weigh-ins to see the trend.</span></div>
   <div class="section-title" style="margin-top:22px">Weigh-in history</div>
   <div id="weightHistory" class="muted">No weigh-ins recorded.</div>
-  <div class="section-title" style="margin-top:26px">Client daily activity</div>
+  <div class="section-title profile-anchor" id="profile-daily-activity" style="margin-top:26px">Client daily activity</div>
   <p class="muted">Review the steps, water and sleep entries submitted by this client.</p>
   <div id="coachDailyLogs" class="muted">Loading daily activity…</div>
-  <div class="section-title" style="margin-top:26px">Client messages</div><p class="muted">Messages exchanged with this client.</p><button type="button" id="refreshCoachMessages" class="secondary" style="width:100%;margin:8px 0">REFRESH MESSAGES</button><div id="coachMessageHistory" class="muted">Loading messages…</div><label for="coachMessageInput">Reply to client</label><textarea id="coachMessageInput" rows="3" style="width:100%;padding:12px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit" placeholder="Write a reply…"></textarea><button id="sendCoachMessage" style="width:100%;margin-top:10px">SEND REPLY</button><div id="coachMessageStatus" class="status" role="status"></div>
-  <div class="section-title" style="margin-top:26px">Weekly check-ins from client</div><p class="muted">Review submissions and leave feedback.</p><div id="coachCheckinReview" class="muted">Loading check-ins…</div>
-  <div class="section-title" style="margin-top:22px">Coaching overview</div>
-  <p class="muted">This is the client's central profile. We'll connect their nutrition targets, training plan, daily tracking and weekly check-ins here next.</p>
-  <div class="grid">
-   <div class="tile">NUTRITION<strong style="font-size:15px">Coming next</strong><span>Calories and macros</span></div>
-   <div class="tile">TRAINING<strong style="font-size:15px">Coming next</strong><span>Workout programme</span></div>
-   <div class="tile">PROGRESS<strong style="font-size:15px">Coming next</strong><span>Weight and measurements</span></div>
-   <div class="tile">CHECK-INS<strong style="font-size:15px">Coming next</strong><span>Weekly feedback</span></div>
-  </div>
+  <div class="section-title profile-anchor" id="profile-messages" style="margin-top:26px">Client messages</div><p class="muted">Messages exchanged with this client.</p><button type="button" id="refreshCoachMessages" class="secondary" style="width:100%;margin:8px 0">REFRESH MESSAGES</button><div id="coachMessageHistory" class="muted">Loading messages…</div><label for="coachMessageInput">Reply to client</label><textarea id="coachMessageInput" rows="3" style="width:100%;padding:12px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit" placeholder="Write a reply…"></textarea><button id="sendCoachMessage" style="width:100%;margin-top:10px">SEND REPLY</button><div id="coachMessageStatus" class="status" role="status"></div>
+  <div class="section-title profile-anchor" id="profile-weekly-checkins" style="margin-top:26px">Weekly check-ins from client</div><p class="muted">Review submissions and leave feedback.</p><div id="coachCheckinReview" class="muted">Loading check-ins…</div>
  </section>
  <section class="card hidden" id="analyticsView">
   <div class="eyebrow">COACHING INTELLIGENCE</div><div class="heading">Performance analytics</div>
@@ -1533,17 +1543,22 @@ async function loadCoachProgressOverview(){
  const ids=["coachProgressWeight","coachProgressWeightDate","coachProgressChange","coachProgressSessions","coachProgressCheckins","coachProgressMeasurements","coachProgressWeightHistory"];
  ids.forEach(id=>{if($(id))$(id).textContent="Loading…";});
  try{
-  const [weights,measurements,sessions,checkins]=await Promise.all([
+  const [weights,measurements,sessions,checkins,detailsSnap]=await Promise.all([
    getDocs(collection(db,"users",uid,"weights")),
    getDocs(collection(db,"users",uid,"measurements")),
    getDocs(collection(db,"users",uid,"trainingSessions")),
-   getDocs(collection(db,"users",uid,"weeklyCheckins"))
+   getDocs(collection(db,"users",uid,"weeklyCheckins")),
+   getDoc(doc(db,"users",uid,"profile","details"))
   ]);
   const weightRows=weights.docs.map(d=>({date:d.id,...d.data()})).filter(x=>Number(x.weightKg??x.weight)>0).sort((a,b)=>a.date.localeCompare(b.date));
   const latest=weightRows[weightRows.length-1];$("coachProgressWeight").textContent=latest?Number(latest.weightKg??latest.weight).toFixed(1)+" kg":"—";
   $("coachProgressWeightDate").textContent=latest?latest.date:"No weigh-ins recorded";
-  const start=Number(selectedClient.startWeightKg??selectedClient.startingWeightKg??0);
+  const savedDetails=detailsSnap.exists()?detailsSnap.data():{};
+  const savedStart=Number(savedDetails.startingWeightKg??selectedClient.startWeightKg??selectedClient.startingWeightKg??0);
+  const firstRecorded=weightRows.length?Number(weightRows[0].weightKg??weightRows[0].weight):0;
+  const start=savedStart>0?savedStart:firstRecorded;
   $("coachProgressChange").textContent=latest&&start?(Number(latest.weightKg??latest.weight)-start>0?"+":"")+(Number(latest.weightKg??latest.weight)-start).toFixed(1)+" kg":"—";
+  $("coachProgressChange").nextElementSibling.textContent=savedStart>0?"Compared with saved starting weight":"Compared with first recorded weigh-in";
   $("coachProgressSessions").textContent=String(sessions.size);$("coachProgressCheckins").textContent=String(checkins.size);
   const m=measurements.docs.map(d=>({date:d.id,...d.data()})).sort((a,b)=>b.date.localeCompare(a.date))[0];
   const measureHost=$("coachProgressMeasurements");measureHost.textContent="";
@@ -1950,6 +1965,11 @@ $("saveClientDetails").addEventListener("click",async()=>{
 $("backToClients").addEventListener("click",()=>{
  $("clientProfileView").classList.add("hidden");
  $("clientsView").classList.remove("hidden");
+});
+$("profileQuickNav")?.addEventListener("change",event=>{
+ const target=$(event.target.value);
+ if(target)target.scrollIntoView({behavior:"smooth",block:"start"});
+ event.target.value="";
 });
 ["dashGoTraining","dashGoCheckin","dashGoProgress","dashGoMessages"].forEach(id=>$(id).addEventListener("click",()=>{
  const view={dashGoTraining:"training",dashGoCheckin:"checkins",dashGoProgress:"progress",dashGoMessages:"messages"}[id];
