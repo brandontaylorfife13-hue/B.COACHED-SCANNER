@@ -92,12 +92,13 @@ const REMINDER_TIME_ZONE = "Europe/London";
 function londonClock(date = new Date()) {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: REMINDER_TIME_ZONE,
-    year: "numeric", month: "2-digit", day: "2-digit",
+    year: "numeric", month: "2-digit", day: "2-digit", weekday: "short",
     hour: "2-digit", minute: "2-digit", hourCycle: "h23"
   }).formatToParts(date);
   const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
   return {
     date: values.year + "-" + values.month + "-" + values.day,
+    weekday: values.weekday,
     hour: Number(values.hour),
     minute: Number(values.minute)
   };
@@ -145,7 +146,7 @@ async function getFirestoreDocument(path, accessToken) {
   return result.json();
 }
 
-async function sendWeightReminder(deviceToken, accessToken) {
+async function sendPushNotification(deviceToken, accessToken, notification) {
   const result = await fetch("https://fcm.googleapis.com/v1/projects/" + PROJECT_ID + "/messages:send", {
     method: "POST",
     headers: {
@@ -156,10 +157,10 @@ async function sendWeightReminder(deviceToken, accessToken) {
       message: {
         token: deviceToken,
         data: {
-          title: "B.COACHED — Daily weigh-in",
-          body: "Good morning! It's time to log your weight. Tap here to update your progress.",
+          title: notification.title,
+          body: notification.body,
           url: APP_URL,
-          notificationType: "daily-weight-reminder"
+          notificationType: notification.type
         },
         webpush: { headers: { Urgency: "high", TTL: "3600" } }
       }
@@ -170,6 +171,22 @@ async function sendWeightReminder(deviceToken, accessToken) {
     throw new Error(payload.error?.message || "FCM send failed (" + result.status + ")");
   }
   return payload.name;
+}
+
+async function sendWeightReminder(deviceToken, accessToken) {
+  return sendPushNotification(deviceToken, accessToken, {
+    title: "B.COACHED — Daily weigh-in",
+    body: "Good morning! It's time to log your weight. Tap here to update your progress.",
+    type: "daily-weight-reminder"
+  });
+}
+
+async function sendCheckinReminder(deviceToken, accessToken) {
+  return sendPushNotification(deviceToken, accessToken, {
+    title: "B.COACHED — Weekly check-in",
+    body: "Your weekly check-in is due. Take a few minutes to update your coach on your progress.",
+    type: "weekly-checkin-reminder"
+  });
 }
 
 async function sendDailyWeightReminders(env) {
@@ -266,9 +283,115 @@ async function sendDailyWeightReminders(env) {
   }));
 }
 
+
+async function sendSundayCheckinReminders(env) {
+  const london = londonClock();
+  if (london.weekday !== "Sun" || london.hour !== 18) return;
+
+  const serviceAccount = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT_JSON || "{}");
+  if (serviceAccount.project_id !== PROJECT_ID || !serviceAccount.client_email || !serviceAccount.private_key) {
+    throw new Error("The Firebase service-account secret is missing or belongs to the wrong project.");
+  }
+  const accessToken = await getGoogleAccessToken(serviceAccount);
+  const users = await listFirestoreDocuments("/users", accessToken);
+  const today = new Date(london.date + "T12:00:00Z");
+  const monday = new Date(today);
+  monday.setUTCDate(monday.getUTCDate() - ((today.getUTCDay() + 6) % 7));
+  const weekStart = monday.toISOString().slice(0, 10);
+
+  let eligible = 0, sent = 0, skipped = 0, failed = 0;
+  for (const userDoc of users) {
+    const fields = userDoc.fields || {};
+    const uid = userDoc.name?.split("/").pop();
+    if (!uid || firestoreValue(fields.role) !== "client") continue;
+    const accountStatus = firestoreValue(fields.accountStatus);
+    if (accountStatus === "inactive" || accountStatus === "archived") continue;
+
+    try {
+      const encodedUid = encodeURIComponent(uid);
+      const [preferences, alreadySent, checkins] = await Promise.all([
+        getFirestoreDocument("/users/" + encodedUid + "/settings/notifications", accessToken),
+        getFirestoreDocument("/users/" + encodedUid + "/pushCheckinReminderLog/" + london.date, accessToken),
+        listFirestoreDocuments("/users/" + encodedUid + "/weeklyCheckins", accessToken)
+      ]);
+      if (preferences?.fields?.checkinReminder?.booleanValue === false || alreadySent) {
+        skipped++;
+        continue;
+      }
+
+      const submittedThisWeek = checkins.some(checkin => {
+        const data = checkin.fields || {};
+        const weekEnding = firestoreValue(data.weekEnding) || checkin.name?.split("/").pop() || "";
+        return typeof weekEnding === "string" && weekEnding >= weekStart && weekEnding <= london.date;
+      });
+      if (submittedThisWeek) {
+        skipped++;
+        continue;
+      }
+
+      const tokenDocs = await listFirestoreDocuments("/users/" + encodedUid + "/pushTokens", accessToken);
+      const tokens = [...new Set(tokenDocs.map(item => decodeURIComponent(item.name?.split("/").pop() || "")).filter(Boolean))];
+      if (!tokens.length) {
+        skipped++;
+        continue;
+      }
+
+      eligible++;
+      let delivered = 0;
+      for (const token of tokens) {
+        try {
+          await sendCheckinReminder(token, accessToken);
+          delivered++;
+          sent++;
+        } catch (error) {
+          failed++;
+          console.error("Weekly check-in push failed for user " + uid + ":", error.message);
+        }
+      }
+
+      if (delivered > 0) {
+        const logResult = await firestoreRequest(
+          "/users/" + encodedUid + "/pushCheckinReminderLog/" + london.date,
+          accessToken,
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              fields: {
+                date: { stringValue: london.date },
+                type: { stringValue: "weekly-checkin-reminder" },
+                deliveredCount: { integerValue: String(delivered) },
+                sentAt: { timestampValue: new Date().toISOString() }
+              }
+            })
+          }
+        );
+        if (!logResult.ok) {
+          console.error("Could not record weekly check-in reminder for user " + uid + ":", (await logResult.text()).slice(0, 300));
+        }
+      }
+    } catch (error) {
+      failed++;
+      console.error("Weekly check-in reminder failed for user " + uid + ":", error.message);
+    }
+  }
+
+  console.log(JSON.stringify({
+    type: "weekly-checkin-reminder",
+    date: london.date,
+    weekStart,
+    timeZone: REMINDER_TIME_ZONE,
+    eligible,
+    sent,
+    skipped,
+    failed
+  }));
+}
+
 export default {
   scheduled(controller, env, ctx) {
-    ctx.waitUntil(sendDailyWeightReminders(env));
+    const london = londonClock();
+    if (london.hour === 6) ctx.waitUntil(sendDailyWeightReminders(env));
+    if (london.weekday === "Sun" && london.hour === 18) ctx.waitUntil(sendSundayCheckinReminders(env));
   },
   async fetch(request, env) {
     const origin = request.headers.get("Origin") || "";
