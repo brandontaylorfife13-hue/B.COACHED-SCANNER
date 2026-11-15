@@ -112,6 +112,19 @@ export default {
       const body = await request.json();
       const deviceToken = typeof body.token === "string" ? body.token : "";
       if (!deviceToken || deviceToken.length > 4096) return response({ error: "A valid device token is required." }, 400);
+
+      // Only allow a signed-in user to send to a device token stored under their own account.
+      const tokenRecord = await fetch(
+        "https://firestore.googleapis.com/v1/projects/" + PROJECT_ID +
+        "/databases/(default)/documents/users/" + encodeURIComponent(uid) +
+        "/pushTokens/" + encodeURIComponent(deviceToken),
+        { headers: { "authorization": "Bearer " + idToken } }
+      );
+      if (!tokenRecord.ok) {
+        if (tokenRecord.status === 404) return response({ error: "This phone is not registered to your account. Enable phone notifications in B.COACHED again." }, 403);
+        return response({ error: "Could not verify that this phone belongs to your account." }, 502);
+      }
+
       const serviceAccount = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT_JSON || "{}");
       if (serviceAccount.project_id !== PROJECT_ID || !serviceAccount.client_email || !serviceAccount.private_key) {
         return response({ error: "The Firebase service-account secret is missing or belongs to the wrong project." }, 500);
