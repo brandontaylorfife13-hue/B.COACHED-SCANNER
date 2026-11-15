@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#090b08"><title>B.COACHED | Coaching Platform</title>
+<meta name="theme-color" content="#090b08"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><link rel="manifest" href="./manifest.json"><title>B.COACHED | Coaching Platform</title>
 <style>
 :root{--lime:#c6ff00;--bg:#090b08;--panel:#171b14;--panel2:#20251c;--line:#343b2c;--muted:#a5ad9b;--white:#f5f7f1;--red:#ff7777}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -15%,#26320d 0,transparent 48%),var(--bg);color:var(--white);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;min-height:100vh}
@@ -339,7 +339,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 </section>
  <section class="card hidden" id="checkinsView"><div class="eyebrow">COACHING</div><div class="heading">Weekly check-in</div><p class="muted">Send your coach a weekly update on how things are going.</p><label for="checkinWeek">Week ending</label><input id="checkinWeek" type="date"><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))"><div><label for="checkinAverageWeight">Average weight (kg)</label><input id="checkinAverageWeight" type="number" min="0" step="0.1" placeholder="Optional"></div><div><label for="checkinAdherence">Nutrition adherence</label><select id="checkinAdherence" class="training-select"><option value="">Choose…</option><option>0–25%</option><option>26–50%</option><option>51–75%</option><option>76–90%</option><option>91–100%</option></select></div><div><label for="checkinTraining">Training sessions completed</label><input id="checkinTraining" type="number" min="0" max="14" step="1" placeholder="e.g. 4"></div></div><label for="checkinWins">What went well this week?</label><textarea id="checkinWins" rows="3" style="width:100%;padding:12px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit"></textarea><label for="checkinChallenges">What did you struggle with?</label><textarea id="checkinChallenges" rows="3" style="width:100%;padding:12px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit"></textarea><label for="checkinSupport">What would you like help with?</label><textarea id="checkinSupport" rows="3" style="width:100%;padding:12px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit"></textarea><button id="saveWeeklyCheckin" style="width:100%;margin-top:14px">SUBMIT WEEKLY CHECK-IN</button><div id="checkinStatus" class="status" role="status"></div><div class="section-title" style="margin-top:24px">Previous check-ins</div><div id="clientCheckinHistory" class="muted">No check-ins submitted yet.</div></section>
  <section class="card hidden" id="messagesView"><div class="eyebrow">DIRECT COACHING</div><div class="heading">Messages</div><div id="clientMessagesPanel"><p class="muted">Send a message to your coach. Replies will appear in this conversation.</p><div id="clientMessageHistory" class="muted">Loading messages…</div><label for="clientMessageInput">Your message</label><textarea id="clientMessageInput" rows="3" style="width:100%;padding:12px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit" placeholder="Write a message…"></textarea><button id="sendClientMessage" style="width:100%;margin-top:10px">SEND MESSAGE</button><div id="clientMessageStatus" class="status" role="status"></div></div><div id="coachMessagesPanel" class="hidden"><p class="muted">Choose a client conversation below. You can read and reply without opening their full profile.</p><div id="coachMessagesInbox" class="muted">Loading client conversations…</div><div class="section-title" style="margin-top:20px" id="coachInboxSelectedName">Select a conversation</div><div id="coachInboxThread" class="muted">Choose a client to view messages.</div><label for="coachInboxReply">Reply to client</label><textarea id="coachInboxReply" rows="3" style="width:100%;padding:12px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit" placeholder="Write your reply…"></textarea><button id="sendCoachInboxReply" style="width:100%;margin-top:10px">SEND REPLY</button><div id="coachInboxStatus" class="status" role="status"></div></div></section>
- <section class="card hidden" id="updatesView"><div class="eyebrow">ACCOUNT ACTIVITY</div><div class="heading" id="updatesHeading">Updates</div><p class="muted" id="updatesIntro">Recent messages and coaching feedback will appear here.</p><div id="updatesList" class="muted">Loading updates…</div><div id="notificationPreferences" class="tile" style="margin-top:20px;min-height:0"><div class="section-title">Reminder preferences</div><p class="muted">Choose which in-app reminders you want to see when you open B.COACHED.</p><label style="display:flex;align-items:center;gap:10px;margin:12px 0"><input id="weightReminderEnabled" type="checkbox" checked style="width:18px;height:18px;accent-color:var(--lime)"> Daily weigh-in reminder</label><label style="display:flex;align-items:center;gap:10px;margin:12px 0"><input id="checkinReminderEnabled" type="checkbox" checked style="width:18px;height:18px;accent-color:var(--lime)"> Weekly check-in reminder</label><button id="saveNotificationPreferences" style="width:100%;margin-top:8px">SAVE REMINDER PREFERENCES</button><div id="notificationPreferencesStatus" class="status" role="status"></div><p class="muted" style="margin-top:10px">These are in-app reminders only. Phone push notifications while the app is closed are not enabled yet.</p></div></section>
+ <section class="card hidden" id="updatesView"><div class="eyebrow">ACCOUNT ACTIVITY</div><div class="heading" id="updatesHeading">Updates</div><p class="muted" id="updatesIntro">Recent messages and coaching feedback will appear here.</p><div id="updatesList" class="muted">Loading updates…</div><div id="notificationPreferences" class="tile" style="margin-top:20px;min-height:0"><div class="section-title">Reminder preferences</div><p class="muted">Choose which in-app reminders you want to see when you open B.COACHED.</p><label style="display:flex;align-items:center;gap:10px;margin:12px 0"><input id="weightReminderEnabled" type="checkbox" checked style="width:18px;height:18px;accent-color:var(--lime)"> Daily weigh-in reminder</label><label style="display:flex;align-items:center;gap:10px;margin:12px 0"><input id="checkinReminderEnabled" type="checkbox" checked style="width:18px;height:18px;accent-color:var(--lime)"> Weekly check-in reminder</label><button id="saveNotificationPreferences" style="width:100%;margin-top:8px">SAVE REMINDER PREFERENCES</button><div id="notificationPreferencesStatus" class="status" role="status"></div><p class="muted" style="margin-top:10px">In-app reminders work now. Enable phone push below when your device supports it. Remote alerts require the final Firebase server setup.</p><div class="section-title" style="margin-top:18px">Phone notifications</div><p class="muted">Allow B.COACHED to send notifications to this device. On iPhone, add the website to your Home Screen first, then open it from there.</p><button id="enablePushNotifications" class="secondary" style="width:100%">ENABLE PHONE NOTIFICATIONS</button><div id="pushNotificationStatus" class="status" role="status"></div></div></section>
  <div id="coachNote" class="card hidden"><div class="eyebrow">COACH TOOLS</div><div class="heading">Coach account detected</div><p class="muted">Your coach dashboard and client management tools will be built in the next stages.</p></div>
 </section>
 <footer>B.COACHED · ONLINE COACHING</footer>
@@ -349,6 +349,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/fireba
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, serverTimestamp, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
+import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging.js";
 import { BrowserMultiFormatReader } from "https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm";
 
 const firebaseConfig = {
@@ -360,6 +361,9 @@ const firebaseConfig = {
  appId: "1:597253859431:web:18a0fa2c616039d0524cc2"
 };
 const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app), storage=getStorage(app);
+// Add the Web Push certificate public key from Firebase Console > Project settings > Cloud Messaging.
+const FCM_VAPID_KEY="ADD_FIREBASE_WEB_PUSH_CERTIFICATE_KEY_HERE";
+let messagingInstance=null,pushServiceWorker=null;
 const $=id=>document.getElementById(id);
 let mode="login", currentUser=null, currentRole=null;
 function status(message,kind=""){ $("authStatus").textContent=message; $("authStatus").className="status "+kind; }
@@ -1477,6 +1481,27 @@ $("saveClientWeight").addEventListener("click",async()=>{
  }catch(e){$("clientWeightStatus").textContent="Could not save weight: "+e.message;}
  finally{$("saveClientWeight").disabled=false;}
 });
+async function setupPushNotifications(){
+ const host=$("pushNotificationStatus"),button=$("enablePushNotifications");
+ if(!currentUser){host.textContent="Please log in first.";return;}
+ if(!("Notification" in window)||!("serviceWorker" in navigator)){host.textContent="This browser does not support web push notifications.";return;}
+ if(!FCM_VAPID_KEY||FCM_VAPID_KEY.startsWith("ADD_")){host.textContent="One final setup step is needed: add the Firebase Web Push certificate key. I’ll guide you through this in the next step.";return;}
+ if(Notification.permission==="denied"){host.textContent="Notifications are blocked in your browser settings. Allow them for this website, then try again.";return;}
+ button.disabled=true;host.textContent="Requesting notification permission…";
+ try{
+  const supported=await isSupported();if(!supported)throw new Error("Push messaging is not supported in this browser.");
+  const permission=await Notification.requestPermission();if(permission!=="granted")throw new Error("Notification permission was not granted.");
+  pushServiceWorker=await navigator.serviceWorker.register("./firebase-messaging-sw.js");
+  messagingInstance=getMessaging(app);
+  const token=await getToken(messagingInstance,{vapidKey:FCM_VAPID_KEY,serviceWorkerRegistration:pushServiceWorker});
+  if(!token)throw new Error("Firebase did not return a device token. Please try again.");
+  await setDoc(doc(db,"users",currentUser.uid,"pushTokens",token),{token,platform:/iPhone|iPad|iPod/.test(navigator.userAgent)?"ios-web":"web",updatedAt:serverTimestamp(),userAgent:navigator.userAgent});
+  onMessage(messagingInstance,payload=>{const title=payload.notification?.title||"B.COACHED";const body=payload.notification?.body||"You have a new coaching update.";if(Notification.permission==="granted")new Notification(title,{body,icon:"./icon-192.png"});});
+  host.textContent="Phone notifications are enabled on this device.";
+ }catch(e){host.textContent="Could not enable notifications: "+(e.message||e);}
+ finally{button.disabled=false;}
+}
+$("enablePushNotifications")?.addEventListener("click",setupPushNotifications);
 window.clientReminderPreferences={weight:true,checkin:true};
 async function loadNotificationPreferences(){
  if(!currentUser||currentRole==="coach")return;
