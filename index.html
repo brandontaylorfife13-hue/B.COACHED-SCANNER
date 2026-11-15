@@ -61,6 +61,26 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 
 <section id="app" class="hidden">
  <div class="top"><div><div class="brandname"><b>B.</b>COACHED</div><div class="muted" id="welcome">Your dashboard</div></div><button id="logoutBtn" class="secondary">LOG OUT</button></div>
+
+ <section class="card hidden" id="clientOnboardingCard" style="border-color:#829e22">
+  <div class="eyebrow">LET'S GET YOU STARTED</div>
+  <div class="heading">Build your coaching profile</div>
+  <p class="muted">A few details help your coach understand your starting point and build a plan that fits your routine. You can update these later.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))">
+   <div><label for="onboardName">Your name</label><input id="onboardName" autocomplete="name" placeholder="Full name"></div>
+   <div><label for="onboardDob">Date of birth (optional)</label><input id="onboardDob" type="date"></div>
+   <div><label for="onboardHeight">Height (cm)</label><input id="onboardHeight" type="number" min="80" max="250" step="0.1" placeholder="e.g. 175"></div>
+   <div><label for="onboardWeight">Starting weight (kg)</label><input id="onboardWeight" type="number" min="25" max="400" step="0.1" placeholder="e.g. 82.5"></div>
+   <div><label for="onboardGoal">Main goal</label><select id="onboardGoal" class="training-select"><option value="">Choose your goal</option><option>Fat loss</option><option>Build muscle</option><option>Body recomposition</option><option>Strength</option><option>General fitness</option><option>Improve health and habits</option><option>Competition preparation</option><option>Other</option></select></div>
+   <div><label for="onboardDays">Training days per week</label><select id="onboardDays" class="training-select"><option value="">Choose days</option><option value="1">1 day</option><option value="2">2 days</option><option value="3">3 days</option><option value="4">4 days</option><option value="5">5 days</option><option value="6">6 days</option><option value="7">7 days</option><option value="Not currently training">Not currently training</option></select></div>
+   <div><label for="onboardExperience">Training experience</label><select id="onboardExperience" class="training-select"><option value="">Choose experience</option><option>Beginner</option><option>Intermediate</option><option>Advanced</option><option>Competitive athlete</option></select></div>
+   <div><label for="onboardActivity">Daily activity outside the gym</label><select id="onboardActivity" class="training-select"><option value="">Choose activity level</option><option>Mostly seated</option><option>Lightly active</option><option>Moderately active</option><option>Very active / physical job</option></select></div>
+  </div>
+  <label for="onboardPreferences">Food preferences, routine or anything you'd like your coach to know (optional)</label>
+  <textarea id="onboardPreferences" rows="3" style="width:100%;padding:14px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit;resize:vertical" placeholder="For example: shift work, preferred training times, foods you enjoy…"></textarea>
+  <button id="completeOnboardingBtn" style="width:100%;margin-top:16px">SAVE PROFILE & CONTINUE</button>
+  <div id="onboardingStatus" class="status" role="status" aria-live="polite"></div>
+ </section>
  <nav id="nav"><button class="active" data-view="overview">Overview</button><button id="clientsNav" class="hidden" data-view="clients">Clients</button><button id="analyticsNav" class="hidden" data-view="analytics">Analytics</button><button data-view="nutrition">Nutrition</button><button id="foodDiaryNav" data-view="foodDiary">Food diary</button><button data-view="training">Training</button><button data-view="progress">Progress</button><button data-view="checkins">Check-ins</button><button data-view="messages">Messages</button><button data-view="updates">Updates</button></nav>
  <section class="card" id="overviewView">
   <div class="eyebrow" id="roleLabel">CLIENT DASHBOARD</div><div class="heading" id="overviewHeading">Your daily overview</div>
@@ -468,6 +488,22 @@ onAuthStateChanged(auth,async user=>{
    snap=await getDoc(doc(db,"users",user.uid));
   }
   const profile=snap.data();
+  const needsClientOnboarding=profile.role!=="coach" && profile.onboardingComplete!==true;
+  $("clientOnboardingCard").classList.toggle("hidden",!needsClientOnboarding);
+  $("nav").classList.toggle("hidden",needsClientOnboarding);
+  if(needsClientOnboarding){
+   $("onboardName").value=profile.displayName||"";
+   const start=profile.onboarding||{};
+   $("onboardDob").value=start.dateOfBirth||"";
+   $("onboardHeight").value=start.heightCm??"";
+   $("onboardWeight").value=start.startingWeightKg??"";
+   $("onboardGoal").value=start.primaryGoal||"";
+   $("onboardDays").value=start.trainingDaysPerWeek??"";
+   $("onboardExperience").value=start.trainingExperience||"";
+   $("onboardActivity").value=start.dailyActivity||"";
+   $("onboardPreferences").value=start.preferences||"";
+  }
+
   $("authCard").classList.add("hidden");$("app").classList.remove("hidden");
   $("welcome").textContent="Welcome, "+(profile.displayName||"there");
   currentRole=profile.role||"client";
@@ -505,6 +541,49 @@ onAuthStateChanged(auth,async user=>{
   status(friendly(e),"bad");
   await signOut(auth);
  }
+});
+
+$("completeOnboardingBtn").addEventListener("click",async()=>{
+ const name=$("onboardName").value.trim();
+ const height=Number($("onboardHeight").value);
+ const weight=Number($("onboardWeight").value);
+ const goal=$("onboardGoal").value;
+ const days=$("onboardDays").value;
+ const experience=$("onboardExperience").value;
+ const activity=$("onboardActivity").value;
+ if(!name||!height||height<80||height>250||!weight||weight<25||weight>400||!goal||!days||!experience||!activity){
+  $("onboardingStatus").textContent="Please complete your name, height, starting weight, main goal, training days, experience and daily activity.";
+  $("onboardingStatus").className="status bad";return;
+ }
+ const button=$("completeOnboardingBtn");button.disabled=true;
+ $("onboardingStatus").textContent="Saving your coaching profile…";$("onboardingStatus").className="status";
+ try{
+  const onboarding={
+   dateOfBirth:$("onboardDob").value||"",
+   heightCm:height,
+   startingWeightKg:weight,
+   primaryGoal:goal,
+   trainingDaysPerWeek:days==="Not currently training"?days:Number(days),
+   trainingExperience:experience,
+   dailyActivity:activity,
+   preferences:$("onboardPreferences").value.trim(),
+   completedAt:serverTimestamp()
+  };
+  await setDoc(doc(db,"users",currentUser.uid),{
+   displayName:name,
+   onboarding,
+   onboardingComplete:true,
+   onboardingCompletedAt:serverTimestamp()
+  },{merge:true});
+  $("welcome").textContent="Welcome, "+name;
+  $("clientOnboardingCard").classList.add("hidden");
+  $("nav").classList.remove("hidden");
+  $("onboardingStatus").textContent="Your profile is saved. Welcome to B.COACHED!";
+  $("onboardingStatus").className="status good";
+ }catch(e){
+  $("onboardingStatus").textContent="Could not save your profile: "+e.message;
+  $("onboardingStatus").className="status bad";
+ }finally{button.disabled=false;}
 });
 async function loadCoachReviewDashboard(clients){
  const host=$("coachReviewList"),actionHost=$("coachActionList");host.textContent="Reviewing client activity…";actionHost.textContent="Checking client activity…";
