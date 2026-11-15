@@ -205,7 +205,12 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
    <div><label for="detailCurrentWeight">Current weight (kg)</label><input id="detailCurrentWeight" type="number" min="0" step="0.1" placeholder="e.g. 82.5"></div>
    <div><label for="detailGoalWeight">Goal weight (kg)</label><input id="detailGoalWeight" type="number" min="0" step="0.1" placeholder="e.g. 80.0"></div>
    <div><label for="detailGoal">Primary goal</label><input id="detailGoal" placeholder="e.g. Fat loss, muscle gain"></div>
+   <div><label for="detailTrainingDays">Training days per week</label><select id="detailTrainingDays"><option value="">Select days</option><option value="Not currently training">Not currently training</option><option value="1">1 day</option><option value="2">2 days</option><option value="3">3 days</option><option value="4">4 days</option><option value="5">5 days</option><option value="6">6 days</option><option value="7">7 days</option></select></div>
+   <div><label for="detailTrainingExperience">Training experience</label><select id="detailTrainingExperience"><option value="">Select experience</option><option>Beginner</option><option>Intermediate</option><option>Advanced</option><option>Competitive athlete</option></select></div>
+   <div><label for="detailActivity">Daily activity outside the gym</label><select id="detailActivity"><option value="">Select activity</option><option>Mostly seated</option><option>Lightly active</option><option>Moderately active</option><option>Very active / physical job</option></select></div>
   </div>
+  <label for="detailFoodPreferences">Food preferences</label><textarea id="detailFoodPreferences" rows="2" style="width:100%;padding:14px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit;resize:vertical" placeholder="Foods they enjoy, dislikes, preferred meal routine…"></textarea>
+  <label for="detailDietaryRequirements">Dietary requirements / foods to avoid</label><textarea id="detailDietaryRequirements" rows="2" style="width:100%;padding:14px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit;resize:vertical" placeholder="Allergies, intolerances or dietary choices…"></textarea>
   <div class="section-title profile-anchor" id="profile-goal-tracking" style="margin-top:22px">Goal tracking & milestones</div>
   <p class="muted">Set a target date, agree the next milestone and keep the client's coaching status up to date.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))">
@@ -850,7 +855,7 @@ async function showClientProfile(client){
   :"Client has not completed onboarding yet.";
 
  $("clientDetailsStatus").textContent="Loading saved details…";
- ["detailDob","detailHeight","detailStartWeight","detailCurrentWeight","detailGoalWeight","detailGoal","detailGoalDate","detailGoalStatus","detailMilestone","detailMilestoneDate","detailNotes"].forEach(id=>$(id).value="");
+ ["detailDob","detailHeight","detailStartWeight","detailCurrentWeight","detailGoalWeight","detailGoal","detailTrainingDays","detailTrainingExperience","detailActivity","detailFoodPreferences","detailDietaryRequirements","detailGoalDate","detailGoalStatus","detailMilestone","detailMilestoneDate","detailNotes"].forEach(id=>$(id).value="");
  try{
   if(!client.uid) throw new Error("This client profile is missing its user ID.");
   const detailSnap=await getDoc(doc(db,"users",client.uid,"profile","details"));
@@ -862,6 +867,11 @@ async function showClientProfile(client){
    $("detailCurrentWeight").value=d.currentWeightKg??"";
    $("detailGoalWeight").value=d.goalWeightKg??"";
    $("detailGoal").value=d.primaryGoal||"";
+   $("detailTrainingDays").value=d.trainingDaysPerWeek??"";
+   $("detailTrainingExperience").value=d.trainingExperience||"";
+   $("detailActivity").value=d.dailyActivity||"";
+   $("detailFoodPreferences").value=d.foodPreferences||"";
+   $("detailDietaryRequirements").value=d.dietaryRequirements||"";
    $("detailGoalDate").value=d.goalTargetDate||"";
    $("detailGoalStatus").value=d.goalStatus||"On track";
    $("detailMilestone").value=d.nextMilestone||"";
@@ -2034,6 +2044,11 @@ $("saveClientDetails").addEventListener("click",async()=>{
    currentWeightKg:$("detailCurrentWeight").value===""?null:Number($("detailCurrentWeight").value),
    goalWeightKg:$("detailGoalWeight").value===""?null:Number($("detailGoalWeight").value),
    primaryGoal:$("detailGoal").value.trim(),
+   trainingDaysPerWeek:$("detailTrainingDays").value,
+   trainingExperience:$("detailTrainingExperience").value,
+   dailyActivity:$("detailActivity").value,
+   foodPreferences:$("detailFoodPreferences").value.trim(),
+   dietaryRequirements:$("detailDietaryRequirements").value.trim(),
    goalTargetDate:$("detailGoalDate").value||"",
    goalStatus:$("detailGoalStatus").value,
    nextMilestone:$("detailMilestone").value.trim(),
