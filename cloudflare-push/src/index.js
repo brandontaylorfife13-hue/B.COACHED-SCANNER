@@ -10,8 +10,8 @@ function response(data, status = 200, origin = ALLOWED_ORIGIN) {
     headers: {
       "content-type": "application/json; charset=utf-8",
       "access-control-allow-origin": origin,
-      "access-control-allow-methods": "POST, OPTIONS",
-      "access-control-allow-headers": "authorization, content-type",
+      "access-control-allow-methods": "GET, POST, OPTIONS",
+      "access-control-allow-headers": "authorization, content-type, x-photo-date, x-photo-position, x-photo-name",
       "vary": "Origin",
       "cache-control": "no-store"
     }
@@ -410,6 +410,64 @@ export default {
     }
     if (origin !== ALLOWED_ORIGIN) return response({ error: "Origin not allowed." }, 403);
     const url = new URL(request.url);
+    if (url.pathname === "/photo-upload" && request.method === "POST") {
+      try {
+        if (!env.PHOTO_BUCKET) return response({ error: "Photo storage is not connected. Check the PHOTO_BUCKET binding." }, 503);
+        const authorization = request.headers.get("Authorization") || "";
+        if (!authorization.startsWith("Bearer ")) return response({ error: "Sign in is required." }, 401);
+        const idToken = authorization.slice(7);
+        const uid = await verifyFirebaseUser(idToken);
+        const userResponse = await fetch(FIRESTORE_BASE + "/users/" + encodeURIComponent(uid), { headers: { authorization: "Bearer " + idToken } });
+        if (!userResponse.ok) return response({ error: "Could not verify your B.COACHED account." }, 403);
+        const userData = await userResponse.json();
+        if (userData.fields?.role?.stringValue !== "client") return response({ error: "Only client accounts can upload progress photos." }, 403);
+        const contentType = request.headers.get("Content-Type") || "";
+        const size = Number(request.headers.get("Content-Length") || 0);
+        if (!contentType.startsWith("image/")) return response({ error: "Please upload an image file." }, 415);
+        if (size > 10 * 1024 * 1024) return response({ error: "Photo must be smaller than 10 MB." }, 413);
+        const date = (request.headers.get("X-Photo-Date") || "").replace(/[^0-9-]/g, "").slice(0, 10);
+        const position = (request.headers.get("X-Photo-Position") || "other").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 20) || "other";
+        const name = (request.headers.get("X-Photo-Name") || "photo").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 100);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return response({ error: "Choose a valid photo date." }, 400);
+        const key = "users/" + uid + "/progressPhotos/" + date + "_" + position + "_" + Date.now() + "_" + name;
+        await env.PHOTO_BUCKET.put(key, request.body, { httpMetadata: { contentType } });
+        return response({ success: true, key, size }, 200);
+      } catch (error) {
+        console.error("Progress photo upload failed:", error);
+        return response({ error: error.message || "Photo upload failed." }, 500);
+      }
+    }
+
+    if (url.pathname === "/photo" && request.method === "GET") {
+      try {
+        if (!env.PHOTO_BUCKET) return response({ error: "Photo storage is not connected." }, 503);
+        const authorization = request.headers.get("Authorization") || "";
+        if (!authorization.startsWith("Bearer ")) return response({ error: "Sign in is required." }, 401);
+        const idToken = authorization.slice(7);
+        const uid = await verifyFirebaseUser(idToken);
+        const key = url.searchParams.get("key") || "";
+        if (!key.startsWith("users/") || !key.includes("/progressPhotos/") || key.includes("..")) return response({ error: "Invalid photo reference." }, 400);
+        const ownerUid = key.split("/")[1];
+        if (ownerUid !== uid) {
+          const userResponse = await fetch(FIRESTORE_BASE + "/users/" + encodeURIComponent(uid), { headers: { authorization: "Bearer " + idToken } });
+          if (!userResponse.ok) return response({ error: "Could not verify your account." }, 403);
+          const userData = await userResponse.json();
+          if (userData.fields?.role?.stringValue !== "coach") return response({ error: "You are not allowed to view this photo." }, 403);
+        }
+        const object = await env.PHOTO_BUCKET.get(key);
+        if (!object) return response({ error: "Photo not found." }, 404);
+        return new Response(object.body, { status: 200, headers: {
+          "access-control-allow-origin": ALLOWED_ORIGIN,
+          "vary": "Origin",
+          "content-type": object.httpMetadata?.contentType || "application/octet-stream",
+          "cache-control": "private, no-store"
+        }});
+      } catch (error) {
+        console.error("Progress photo retrieval failed:", error);
+        return response({ error: error.message || "Could not retrieve photo." }, 500);
+      }
+    }
+
     if (request.method !== "POST" || url.pathname !== "/send-test") {
       return response({ error: "Not found." }, 404);
     }
