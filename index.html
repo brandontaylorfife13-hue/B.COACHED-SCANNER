@@ -1965,6 +1965,7 @@ $("weightDate").value=localDateString();
 const PHOTO_WORKER_URL="https://bcoached-push.brandontaylorfife13.workers.dev";
 const photoObjectUrls=new Map();
 async function getPrivatePhotoUrl(photo){
+ if(photo.downloadURL)return photo.downloadURL;
  const key=photo.storagePath||photo.photoKey;
  if(!key)throw new Error("This photo has no Cloudflare storage reference.");
  if(photoObjectUrls.has(key))return photoObjectUrls.get(key);
