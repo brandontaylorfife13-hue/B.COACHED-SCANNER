@@ -8,5 +8,9 @@ workers_dev = true
 [triggers]
 crons = ["0 5,6 * * *", "0 17,18 * * 1"]
 
+[[r2_buckets]]
+binding = "PHOTO_BUCKET"
+bucket_name = "bcoachedphotos"
+
 [observability]
 enabled = true
