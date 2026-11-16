@@ -265,7 +265,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <button id="saveMealPlan" style="width:100%;margin-top:12px">SAVE TAILORED MEAL PLAN</button>
   <div id="mealPlanCoachStatus" class="status" role="status"></div>
   <div class="section-title profile-anchor" id="profile-training-program" style="margin-top:28px">Training programme builder</div><p class="muted">Create the client's weekly split and prescribe exercises, target sets, rep ranges and muscle groups. Clients log their working weights and reps against this plan.</p>
-  <div class="tile" style="margin:12px 0"><div class="eyebrow">READY-MADE TEMPLATES</div><strong style="font-size:16px;color:#f5f7f1">Torso / Limb Split</strong><p class="muted">Load the four-session torso/limb programme into this client’s editor.</p><button type="button" id="applyTorsoLimbTemplate" style="width:100%">LOAD TORSO / LIMB TEMPLATE</button><div id="trainingTemplateStatus" class="status"></div><hr style="border-color:var(--line);margin:14px 0"><strong style="font-size:16px;color:#f5f7f1">Megan Peacock – Glute & Leg Development</strong><p class="muted">Two lower-body sessions: Leg A glutes/quads and Leg B glutes/hamstrings/adductors. Two working sets per exercise, maximum 12 per session. Replaces the selected client’s current programme.</p><button type="button" id="loadMeganGluteProgram" style="width:100%">LOAD & SAVE MEGAN’S PROGRAMME</button><div id="meganProgramStatus" class="status" role="status"></div></div></div>
+  <div class="tile" style="margin:12px 0"><div class="eyebrow">READY-MADE TEMPLATES</div><strong style="font-size:16px;color:#f5f7f1">Torso / Limb Split</strong><p class="muted">Load the four-session torso/limb programme into this client’s editor.</p><button type="button" id="applyTorsoLimbTemplate" style="width:100%">LOAD TORSO / LIMB TEMPLATE</button><div id="trainingTemplateStatus" class="status"></div></div></div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
   <div><label for="coachWorkoutName">Workout name</label><input id="coachWorkoutName" placeholder="e.g. Push A"></div><div><label for="coachExerciseName">Exercise name</label><input id="coachExerciseName" placeholder="e.g. Incline dumbbell press"></div><div><label for="coachExerciseMuscle">Muscle group</label><input id="coachExerciseMuscle" placeholder="e.g. Chest"></div><div><label for="coachExerciseSets">Working sets</label><input id="coachExerciseSets" type="number" min="1" max="20" value="3"></div><div><label for="coachExerciseReps">Rep target</label><input id="coachExerciseReps" placeholder="e.g. 8–12"></div></div>
   <div class="actions"><button type="button" id="addCoachExercise">ADD EXERCISE TO WORKOUT</button><button type="button" class="secondary" id="addCoachWorkout">ADD WORKOUT DAY</button></div><div id="coachTrainingEditor" style="margin-top:14px"></div><button id="saveTrainingProgram" style="width:100%;margin-top:12px">SAVE TRAINING PROGRAMME</button><div id="coachTrainingStatus" class="status" role="status"></div>
@@ -1590,45 +1590,7 @@ function applyTorsoLimbTemplate(){
  $("trainingTemplateStatus").textContent="Template loaded. The client's saved programme will not change until you press SAVE TRAINING PROGRAMME.";
 }
 $("applyTorsoLimbTemplate").addEventListener("click",applyTorsoLimbTemplate);
-const meganGluteLegProgram={
- scheduleNote:"PPL A/B rotation. Place Leg A after the first Push/Pull pair and Leg B after the second Push/Pull pair, with rest days as needed for recovery.",
- progressionNote:"Complete 2 working sets per exercise. Use 8–12 reps for most movements (12–15 for hip abduction). Keep 1–2 reps in reserve on most sets, use controlled technique, and increase load once both sets reach the top of the rep range with good form. Warm-up sets do not count toward the 12-working-set maximum.",
- workouts:[
-  {name:"Leg A – Glutes & Quads",exercises:[
-   {name:"Barbell Hip Thrust",muscleGroup:"Glutes",sets:2,reps:"8–12"},
-   {name:"Hack Squat",muscleGroup:"Quads · Glutes",sets:2,reps:"8–12"},
-   {name:"Bulgarian Split Squat",muscleGroup:"Quads · Glutes",sets:2,reps:"8–12 each leg"},
-   {name:"Leg Extension",muscleGroup:"Quads",sets:2,reps:"10–12"},
-   {name:"Cable Glute Kickback",muscleGroup:"Glutes",sets:2,reps:"10–12 each leg"},
-   {name:"Seated Hip Abduction",muscleGroup:"Glute Medius",sets:2,reps:"12–15"}
-  ]},
-  {name:"Leg B – Glutes, Hamstrings & Adductors",exercises:[
-   {name:"Romanian Deadlift",muscleGroup:"Hamstrings · Glutes",sets:2,reps:"8–12"},
-   {name:"Seated Leg Curl",muscleGroup:"Hamstrings",sets:2,reps:"8–12"},
-   {name:"Smith Machine Reverse Lunge",muscleGroup:"Glutes · Quads",sets:2,reps:"8–12 each leg"},
-   {name:"45-Degree Glute-Focused Back Extension",muscleGroup:"Glutes · Hamstrings",sets:2,reps:"10–12"},
-   {name:"Seated Hip Adduction",muscleGroup:"Adductors",sets:2,reps:"10–12"},
-   {name:"Lying Leg Curl",muscleGroup:"Hamstrings",sets:2,reps:"10–12"}
-  ]}
- ]
-};
-$("loadMeganGluteProgram").addEventListener("click",async()=>{
- const status=$("meganProgramStatus");
- if(!selectedClient?.uid){status.textContent="Open a client profile first.";return;}
- const clientName=(selectedClient.displayName||selectedClient.name||"").trim().toLowerCase();
- if(clientName!=="megan peacock"){status.textContent="This preset is specifically for Megan Peacock. Please open Megan’s profile first.";return;}
- if(!confirm("This will replace Megan Peacock’s currently saved training programme with the Glute & Leg Development programme. Continue?"))return;
- const btn=$("loadMeganGluteProgram");btn.disabled=true;status.textContent="Saving Megan’s programme…";
- try{
-  await setDoc(doc(db,"users",selectedClient.uid,"training","program"),{...meganGluteLegProgram,updatedAt:serverTimestamp(),updatedBy:currentUser.uid,programSource:"megan-glute-leg-preset"});
-  const check=await getDoc(doc(db,"users",selectedClient.uid,"training","program"));
-  if(!check.exists()||!Array.isArray(check.data().workouts)||check.data().workouts.length!==2)throw new Error("Save could not be verified.");
-  coachTrainingProgram={workouts:check.data().workouts};renderCoachTrainingProgram();
-  status.textContent="Saved and verified for Megan Peacock: Leg A 12 working sets · Leg B 12 working sets.";
-  $("coachTrainingStatus").textContent="Megan’s Glute & Leg Development programme is saved.";
- }catch(e){status.textContent="Could not save Megan’s programme: "+e.message;}
- finally{btn.disabled=false;}
-});
+
 async function ensurePersonalTrainingProgram(){
  if(!currentUser)return;
  const ref=doc(db,"users",currentUser.uid,"training","program");
