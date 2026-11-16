@@ -1453,12 +1453,14 @@ async function loadCoachProgressPhotos(){
   const selects=[$("coachPhotoCompareA"),$("coachPhotoCompareB")];
   selects.forEach(sel=>{sel.replaceChildren();const blank=document.createElement("option");blank.value="";blank.textContent="Choose photo";sel.append(blank);coachProgressPhotoRows.forEach(photo=>{const option=document.createElement("option");option.value=photo.id;option.textContent=(photo.position||"Photo")+" · "+(photo.date||"Date unknown");sel.append(option);});});
   if(!coachProgressPhotoRows.length){statusEl.textContent="This client has not uploaded any progress photos yet.";return;}
-  statusEl.textContent=coachProgressPhotoRows.length+" progress photo(s) available.";
-  coachProgressPhotoRows.slice().reverse().forEach(photo=>{
+  let failed=0;
+  for(const photo of coachProgressPhotoRows.slice().reverse()){
    const card=document.createElement("div");card.className="tile";card.style.minHeight="0";card.style.padding="8px";
-   const img=document.createElement("img");img.src=photo.downloadURL;img.alt=(photo.position||"Progress")+" photo";img.loading="lazy";img.style.width="100%";img.style.aspectRatio="3/4";img.style.objectFit="cover";img.style.borderRadius="8px";
+   const img=document.createElement("img");img.alt=(photo.position||"Progress")+" photo";img.loading="lazy";img.style.width="100%";img.style.aspectRatio="3/4";img.style.objectFit="cover";img.style.borderRadius="8px";
+   try{photo.displayURL=await getPrivatePhotoUrl(photo);img.src=photo.displayURL;}catch(error){failed++;img.alt="Photo unavailable: "+error.message;}
    const caption=document.createElement("div");caption.className="muted";caption.style.marginTop="6px";caption.textContent=(photo.position||"Photo")+" · "+(photo.date||"Date unknown");card.append(img,caption);host.append(card);
-  });
+  }
+  statusEl.textContent=coachProgressPhotoRows.length+" progress photo(s) available."+(failed?" · "+failed+" could not be loaded.":"");
  }catch(e){statusEl.textContent="Could not load progress photos: "+e.message;}
 }
 let coachPhotoSliderValue=50;
