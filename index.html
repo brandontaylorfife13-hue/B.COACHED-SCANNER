@@ -423,7 +423,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, serverTimestamp, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
+import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging.js";
 import { BrowserMultiFormatReader } from "https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm";
 
@@ -1964,18 +1964,29 @@ $("uploadProgressPhoto").addEventListener("click",async()=>{
  if(!file||!date){$("progressPhotoStatus").textContent="Choose a photo and date first.";return;}
  if(!file.type.startsWith("image/")){$("progressPhotoStatus").textContent="Please choose an image file.";return;}
  if(file.size>10*1024*1024){$("progressPhotoStatus").textContent="Please choose an image smaller than 10 MB.";return;}
- $("uploadProgressPhoto").disabled=true;$("progressPhotoStatus").textContent="Uploading photo…";
+ const button=$("uploadProgressPhoto"),statusBox=$("progressPhotoStatus");
+ button.disabled=true;button.textContent="UPLOADING…";statusBox.textContent="Preparing photo upload…";
  try{
   const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,"_");
   const path="users/"+currentUser.uid+"/progressPhotos/"+date+"_"+position.toLowerCase()+"_"+Date.now()+"_"+safeName;
   const target=storageRef(storage,path);
-  await uploadBytes(target,file,{contentType:file.type});
+  const task=uploadBytesResumable(target,file,{contentType:file.type});
+  await new Promise((resolve,reject)=>{
+   task.on("state_changed",snapshot=>{
+    const percent=snapshot.totalBytes?Math.round(snapshot.bytesTransferred/snapshot.totalBytes*100):0;
+    statusBox.textContent="Uploading photo… "+percent+"%";
+   },reject,resolve);
+  });
+  statusBox.textContent="Upload complete. Saving photo to your account…";
   const downloadURL=await getDownloadURL(target);
   await setDoc(doc(collection(db,"users",currentUser.uid,"progressPhotos")),{date,position,storagePath:path,downloadURL,fileName:file.name,size:file.size,uploadedAt:serverTimestamp()});
-  $("progressPhotoFile").value="";$("progressPhotoStatus").textContent="Progress photo uploaded.";
+  $("progressPhotoFile").value="";statusBox.textContent="Progress photo uploaded successfully.";
   await loadProgressPhotos();
- }catch(e){$("progressPhotoStatus").textContent="Could not upload photo: "+e.message;}
- finally{$("uploadProgressPhoto").disabled=false;}
+ }catch(e){
+  console.error("Progress photo upload failed",e);
+  const code=e.code?e.code+" — ":"";
+  statusBox.textContent="Upload failed: "+code+(e.message||"Unknown error")+". Please try again; if it repeats, send this message to your coach.";
+ }finally{button.disabled=false;button.textContent="UPLOAD PROGRESS PHOTO";}
 });
 async function loadBodyMeasurements(){
  if(!currentUser||currentRole==="coach")return;
