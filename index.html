@@ -423,7 +423,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc, serverTimestamp, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-import { getStorage, ref as storageRef, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
+
 import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging.js";
 import { BrowserMultiFormatReader } from "https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm";
 
@@ -435,7 +435,7 @@ const firebaseConfig = {
  messagingSenderId: "597253859431",
  appId: "1:597253859431:web:18a0fa2c616039d0524cc2"
 };
-const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app), storage=getStorage(app);
+const app=initializeApp(firebaseConfig), auth=getAuth(app), db=getFirestore(app);
 // Add the Web Push certificate public key from Firebase Console > Project settings > Cloud Messaging.
 const FCM_VAPID_KEY="BBLhBzIc5yjfVAyoGLZivWlyFq2cbVDkJc2TCu6FuCebSgjEb9r-U6_g5yydDa9lZWROMA94p7Ji-7_1TI4ioFA";
 let messagingInstance=null,pushServiceWorker=null;
@@ -1960,6 +1960,17 @@ function localDateString(){
  const d=new Date();const offset=d.getTimezoneOffset();return new Date(d.getTime()-offset*60000).toISOString().slice(0,10);
 }
 $("weightDate").value=localDateString();
+const PHOTO_WORKER_URL="https://bcoached-push.brandontaylorfife13.workers.dev";
+const photoObjectUrls=new Map();
+async function getPrivatePhotoUrl(photo){
+ const key=photo.storagePath||photo.photoKey;
+ if(!key)throw new Error("This photo has no Cloudflare storage reference.");
+ if(photoObjectUrls.has(key))return photoObjectUrls.get(key);
+ const token=await currentUser.getIdToken();
+ const result=await fetch(PHOTO_WORKER_URL+"/photo?key="+encodeURIComponent(key),{headers:{Authorization:"Bearer "+token}});
+ if(!result.ok){const data=await result.json().catch(()=>({}));throw new Error(data.error||("Photo request failed ("+result.status+")"));}
+ const url=URL.createObjectURL(await result.blob());photoObjectUrls.set(key,url);return url;
+}
 async function loadProgressPhotos(){
  if(!currentUser||currentRole==="coach")return;
  const host=$("progressPhotoHistory");host.replaceChildren();
@@ -1967,12 +1978,13 @@ async function loadProgressPhotos(){
   const result=await getDocs(collection(db,"users",currentUser.uid,"progressPhotos"));
   const rows=result.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   if(!rows.length){host.textContent="No progress photos uploaded yet.";return;}
-  rows.forEach(photo=>{
+  for(const photo of rows){
    const card=document.createElement("div");card.className="tile";card.style.minHeight="0";card.style.padding="9px";
-   const img=document.createElement("img");img.src=photo.downloadURL;img.alt=(photo.position||"Progress")+" photo";img.loading="lazy";img.style.width="100%";img.style.aspectRatio="3/4";img.style.objectFit="cover";img.style.borderRadius="9px";
+   const img=document.createElement("img");img.alt=(photo.position||"Progress")+" photo";img.loading="lazy";img.style.width="100%";img.style.aspectRatio="3/4";img.style.objectFit="cover";img.style.borderRadius="9px";
+   try{img.src=await getPrivatePhotoUrl(photo);}catch(error){img.alt="Photo unavailable: "+error.message;img.style.minHeight="100px";}
    const caption=document.createElement("div");caption.className="muted";caption.style.marginTop="7px";caption.textContent=(photo.position||"Photo")+" · "+new Date(photo.date+"T12:00:00").toLocaleDateString();
    card.append(img,caption);host.append(card);
-  });
+  }
  }catch(e){host.textContent="Could not load progress photos: "+e.message;}
 }
 $("uploadProgressPhoto").addEventListener("click",async()=>{
@@ -1982,27 +1994,22 @@ $("uploadProgressPhoto").addEventListener("click",async()=>{
  if(!file.type.startsWith("image/")){$("progressPhotoStatus").textContent="Please choose an image file.";return;}
  if(file.size>10*1024*1024){$("progressPhotoStatus").textContent="Please choose an image smaller than 10 MB.";return;}
  const button=$("uploadProgressPhoto"),statusBox=$("progressPhotoStatus");
- button.disabled=true;button.textContent="UPLOADING…";statusBox.textContent="Preparing photo upload…";
+ button.disabled=true;button.textContent="UPLOADING…";statusBox.textContent="Preparing photo upload… 0%";
  try{
-  const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,"_");
-  const path="users/"+currentUser.uid+"/progressPhotos/"+date+"_"+position.toLowerCase()+"_"+Date.now()+"_"+safeName;
-  const target=storageRef(storage,path);
-  const task=uploadBytesResumable(target,file,{contentType:file.type});
-  await new Promise((resolve,reject)=>{
-   task.on("state_changed",snapshot=>{
-    const percent=snapshot.totalBytes?Math.round(snapshot.bytesTransferred/snapshot.totalBytes*100):0;
-    statusBox.textContent="Uploading photo… "+percent+"%";
-   },reject,resolve);
-  });
-  statusBox.textContent="Upload complete. Saving photo to your account…";
-  const downloadURL=await getDownloadURL(target);
-  await setDoc(doc(collection(db,"users",currentUser.uid,"progressPhotos")),{date,position,storagePath:path,downloadURL,fileName:file.name,size:file.size,uploadedAt:serverTimestamp()});
+  const token=await currentUser.getIdToken();
+  const response=await fetch(PHOTO_WORKER_URL+"/photo-upload",{method:"POST",headers:{
+   Authorization:"Bearer "+token,"Content-Type":file.type,"X-Photo-Date":date,"X-Photo-Position":position,"X-Photo-Name":file.name
+  },body:file});
+  if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(data.error||("Upload failed ("+response.status+")"));}
+  const data=await response.json();
+  if(!data.success||!data.key)throw new Error("Photo storage did not confirm the upload.");
+  statusBox.textContent="Photo uploaded. Saving it to your progress history…";
+  await setDoc(doc(collection(db,"users",currentUser.uid,"progressPhotos")),{date,position,storagePath:data.key,fileName:file.name,size:file.size,uploadedAt:serverTimestamp()});
   $("progressPhotoFile").value="";statusBox.textContent="Progress photo uploaded successfully.";
   await loadProgressPhotos();
  }catch(e){
   console.error("Progress photo upload failed",e);
-  const code=e.code?e.code+" — ":"";
-  statusBox.textContent="Upload failed: "+code+(e.message||"Unknown error")+". Please try again; if it repeats, send this message to your coach.";
+  statusBox.textContent="Upload failed: "+(e.message||"Unknown error")+". Please try again; if it repeats, send this message to your coach.";
  }finally{button.disabled=false;button.textContent="UPLOAD PROGRESS PHOTO";}
 });
 async function loadBodyMeasurements(){
