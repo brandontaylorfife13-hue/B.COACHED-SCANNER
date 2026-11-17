@@ -1657,6 +1657,21 @@ function restoreTrainingDraft(index,date){
  }));
  $("trainingLogStatus").textContent="Previous entries restored for this workout.";
 }
+function flushTrainingAutosave(){
+ if(trainingAutosaveTimer){clearTimeout(trainingAutosaveTimer);trainingAutosaveTimer=null;}
+ const draft=readTrainingDraft();if(!draft||!currentUser)return;
+ const version=++trainingAutosaveVersion;
+ trainingAutosaveQueue=trainingAutosaveQueue.then(async()=>{
+  $("trainingLogStatus").textContent="Saving before leaving…";
+  const ref=doc(db,"users",currentUser.uid,"trainingSessions",draft.date+"_"+draft.index);
+  await setDoc(ref,{date:draft.date,workoutIndex:draft.index,workoutName:draft.workoutName,exercises:draft.exercises,updatedAt:serverTimestamp(),autoSaved:true},{merge:true});
+  const snap=await getDoc(ref);const saved={id:snap.id,...snap.data()};
+  clientTrainingLogs=clientTrainingLogs.filter(x=>x.id!==saved.id).concat(saved).sort((a,b)=>(a.date||"").localeCompare(b.date||""));
+  if(version===trainingAutosaveVersion)$("trainingLogStatus").textContent="Saved automatically ✓";
+ }).catch(error=>{$("trainingLogStatus").textContent="Auto-save failed: "+error.message+" · Reopen the app and check your entries.";});
+}
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")flushTrainingAutosave();});
+window.addEventListener("pagehide",flushTrainingAutosave);
 function queueTrainingAutosave(){
  if(trainingAutosaveTimer)clearTimeout(trainingAutosaveTimer);
  const version=++trainingAutosaveVersion;
