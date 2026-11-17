@@ -87,6 +87,21 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
  <section class="card" id="overviewView">
   <div class="eyebrow" id="roleLabel">CLIENT DASHBOARD</div><div class="heading" id="overviewHeading">Your daily overview</div>
   <p class="muted">Welcome to your B.COACHED space. Your personal targets and coaching plan will appear here as we build each section.</p>
+  <section id="clientWelcomeCard" class="tile hidden" style="margin:14px 0 18px;min-height:0;padding:17px;border-color:#829e22;background:linear-gradient(135deg,#1d2611,#171b14 68%)">
+   <div class="eyebrow">WELCOME TO B.COACHED</div>
+   <div class="heading" id="clientWelcomeHeading" style="font-size:23px;margin:7px 0">Your coaching starts here</div>
+   <p class="muted" style="margin:0 0 14px">Everything you need to stay on track is in one place. Your coach will keep your plans updated here, and you can log your progress as you go.</p>
+   <div style="display:grid;gap:10px;margin:12px 0 15px">
+    <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:var(--lime);font-weight:900">01</span><div><strong style="font-size:13px">Follow your plan</strong><div class="muted" style="font-size:12px">Check your nutrition targets, meal plan and training programme.</div></div></div>
+    <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:var(--lime);font-weight:900">02</span><div><strong style="font-size:13px">Log your progress</strong><div class="muted" style="font-size:12px">Keep your food diary, weigh-ins, workouts and check-ins up to date.</div></div></div>
+    <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:var(--lime);font-weight:900">03</span><div><strong style="font-size:13px">Stay connected</strong><div class="muted" style="font-size:12px">Use Messages and Updates to keep in touch with your coach.</div></div></div>
+   </div>
+   <div class="actions" style="margin-top:8px">
+    <button id="clientWelcomeNutrition" type="button">MY NUTRITION</button>
+    <button id="clientWelcomeTraining" class="secondary" type="button">MY TRAINING</button>
+    <button id="clientWelcomeCheckin" class="secondary" type="button">WEEKLY CHECK-IN</button>
+   </div>
+  </section>
   <section id="clientSetupCard" class="tile hidden" style="margin:14px 0 18px;min-height:0;padding:15px;border-color:#829e22">
    <div class="eyebrow">YOUR COACHING JOURNEY</div>
    <div class="section-title" style="margin-top:6px">Your setup checklist</div>
@@ -638,6 +653,7 @@ onAuthStateChanged(auth,async user=>{
 
    $("authCard").classList.add("hidden");$("app").classList.remove("hidden");
    $("welcome").textContent="Welcome, "+(profile.displayName||"there");
+  if(currentRole!=="coach"){$("clientWelcomeCard").classList.remove("hidden");const firstName=(profile.displayName||user.displayName||"there").trim().split(/\\s+/)[0];$("clientWelcomeHeading").textContent="Welcome"+(firstName&&firstName!=="there"?", "+firstName:"")+". Let’s get started.";}else{$("clientWelcomeCard").classList.add("hidden");}
    const coach=currentRole==="coach";
   $("clientOverviewMetrics").classList.toggle("hidden",coach);
   $("coachOverviewPanel").classList.toggle("hidden",!coach);
@@ -3356,6 +3372,13 @@ $("profileQuickNav")?.addEventListener("change",event=>{
  const view={dashGoTraining:"training",dashGoCheckin:"checkins",dashGoProgress:"progress",dashGoMessages:"messages"}[id];
  document.querySelector('#nav button[data-view="'+view+'"]')?.click();
 }));
+["clientWelcomeNutrition","clientWelcomeTraining","clientWelcomeCheckin"].forEach(id=>{
+ const button=$(id);if(!button)return;
+ button.addEventListener("click",()=>{
+  const view={clientWelcomeNutrition:"nutrition",clientWelcomeTraining:"training",clientWelcomeCheckin:"checkins"}[id];
+  document.querySelector('#nav button[data-view="'+view+'"]')?.click();
+ });
+});
 document.querySelectorAll("#nav button").forEach(btn=>btn.addEventListener("click",()=>{
  document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b===btn));
  ["overview","clients","analytics","nutrition","foodDiary","training","progress","checkins","messages","updates"].forEach(v=>$(v+"View").classList.toggle("hidden",v!==btn.dataset.view));
