@@ -111,7 +111,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
     <div class="tile">TOTAL CLIENTS<strong id="overviewClientCount">—</strong><span>Registered client accounts</span></div>
     <div class="tile">NEEDS ATTENTION<strong id="overviewActionCount">—</strong><span>Clients with an action to take</span></div>
     <div class="tile">CHECK-INS OVERDUE<strong id="overviewOverdueCount">—</strong><span>No check-in in 14 days</span></div>
-    <div class="tile">AWAITING REPLY<strong id="overviewMessageCount">—</strong><span>Latest message is from a client</span></div>
+    <div class="tile">AWAITING REPLY<strong id="overviewMessageCount">—</strong><span>Latest message is from a client</span></div><div class="tile">CHECK-INS TO REVIEW<strong id="overviewCheckinReviewCount">—</strong><span>Submitted but not reviewed</span></div>
    </div>
    <div class="section-title" style="margin-top:22px">Your action centre</div>
    <p class="muted">The clients who need your attention most, with a direct link to their profile.</p>
@@ -629,16 +629,21 @@ async function loadCoachReviewDashboard(clients){
    const awaitingReply=!!latestMessage&&latestMessage.senderRole==="client";
    const inactive=(!sessionTime||sessionTime<cutoff7)&&(!weightTime||weightTime<cutoff14);
    const never=!latestCheck,overdue=!latestCheck||checkTime<cutoff14;
-   return {client,details,latestCheck,checkTime,latestWeight,sessionCount:sessions.size,latestSession,incoming,never,overdue,awaitingReply,inactive,goalNeedsReview,milestoneDue,latestMessage};
+   const needsCheckinReview=!!latestCheck&&latestCheck.coachReviewStatus!=="reviewed";
+   const adherenceScore=({"0–25%":12.5,"26–50%":38,"51–75%":63,"76–90%":83,"91–100%":95}[latestCheck?.adherence]??null);
+   const lowAdherence=adherenceScore!==null&&adherenceScore<76;
+   const weightOverdue=!weightTime||weightTime<cutoff14;
+   return {client,details,latestCheck,checkTime,latestWeight,sessionCount:sessions.size,latestSession,incoming,never,overdue,awaitingReply,inactive,goalNeedsReview,milestoneDue,latestMessage,needsCheckinReview,adherenceScore,lowAdherence,weightOverdue};
   }));
   const attention=rows.filter(x=>x.overdue).length,recent=rows.length-attention,never=rows.filter(x=>x.never).length;
   $("overviewClientCount").textContent=String(clients.length);
-  $("overviewActionCount").textContent=String(rows.filter(x=>x.awaitingReply||x.inactive||x.goalNeedsReview||x.milestoneDue||x.overdue).length);
+  $("overviewActionCount").textContent=String(rows.filter(x=>x.awaitingReply||x.inactive||x.goalNeedsReview||x.milestoneDue||x.overdue||x.needsCheckinReview||x.lowAdherence).length);
   $("overviewOverdueCount").textContent=String(attention);
   $("overviewMessageCount").textContent=String(rows.filter(x=>x.awaitingReply).length);
+  $("overviewCheckinReviewCount").textContent=String(rows.filter(x=>x.needsCheckinReview).length);
   const overviewHost=$("overviewActionList");overviewHost.replaceChildren();
   const overviewRows=rows.filter(x=>x.awaitingReply||x.inactive||x.goalNeedsReview||x.milestoneDue||x.overdue)
-   .sort((a,b)=>(Number(b.awaitingReply)-Number(a.awaitingReply))||(Number(b.overdue)-Number(a.overdue))||(a.client.displayName||"").localeCompare(b.client.displayName||"")).slice(0,5);
+   .sort((a,b)=>(Number(b.awaitingReply)-Number(a.awaitingReply))||(Number(b.needsCheckinReview)-Number(a.needsCheckinReview))||(Number(b.overdue)-Number(a.overdue))||(Number(b.lowAdherence)-Number(a.lowAdherence))||(a.client.displayName||"").localeCompare(b.client.displayName||"")).slice(0,5);
   if(!overviewRows.length){
    const clear=document.createElement("div");clear.className="tile";clear.style.minHeight="0";clear.textContent=clients.length?"All clear — no clients currently need attention based on the latest activity.":"Your client action list will appear here once clients have joined.";overviewHost.append(clear);
   }else{
@@ -647,6 +652,8 @@ async function loadCoachReviewDashboard(clients){
     const name=document.createElement("strong");name.style.fontSize="16px";name.textContent=row.client.displayName||row.client.email||"Client";
     const reasons=[];
     if(row.awaitingReply)reasons.push("Awaiting your reply");
+    if(row.needsCheckinReview)reasons.push("New check-in needs review");
+    if(row.lowAdherence)reasons.push("Reported nutrition adherence below 76%");
     if(row.overdue)reasons.push(row.never?"No weekly check-in submitted":"Weekly check-in overdue");
     if(row.inactive)reasons.push("No training in 7 days and no weigh-in in 14 days");
     if(row.goalNeedsReview)reasons.push("Goal marked Needs review");
@@ -657,7 +664,7 @@ async function loadCoachReviewDashboard(clients){
    });
   }
   $("reviewAttentionCount").textContent=String(attention);$("reviewRecentCount").textContent=String(recent);$("reviewNeverCount").textContent=String(never);
-  const actionRows=rows.filter(x=>x.awaitingReply||x.inactive||x.goalNeedsReview||x.milestoneDue||x.overdue);
+  const actionRows=rows.filter(x=>x.awaitingReply||x.inactive||x.goalNeedsReview||x.milestoneDue||x.overdue||x.needsCheckinReview||x.lowAdherence);
   $("actionTotal").textContent=String(actionRows.length);
   $("actionMessages").textContent=String(rows.filter(x=>x.awaitingReply).length);
   $("actionInactive").textContent=String(rows.filter(x=>x.inactive).length);
@@ -665,12 +672,14 @@ async function loadCoachReviewDashboard(clients){
   actionHost.replaceChildren();
   if(!actionRows.length){actionHost.textContent="All clear — no clients currently match these action checks."; }
   else{
-   actionRows.sort((a,b)=>(Number(b.awaitingReply)-Number(a.awaitingReply))||(Number(b.overdue)-Number(a.overdue))||(Number(b.goalNeedsReview||b.milestoneDue)-Number(a.goalNeedsReview||a.milestoneDue))||(a.client.displayName||"").localeCompare(b.client.displayName||""));
+   actionRows.sort((a,b)=>(Number(b.awaitingReply)-Number(a.awaitingReply))||(Number(b.needsCheckinReview)-Number(a.needsCheckinReview))||(Number(b.overdue)-Number(a.overdue))||(Number(b.lowAdherence)-Number(a.lowAdherence))||(Number(b.goalNeedsReview||b.milestoneDue)-Number(a.goalNeedsReview||a.milestoneDue))||(a.client.displayName||"").localeCompare(b.client.displayName||""));
    actionRows.forEach(row=>{
     const card=document.createElement("div");card.className="tile";card.style.minHeight="0";card.style.margin="9px 0";
     const name=document.createElement("strong");name.style.fontSize="16px";name.textContent=row.client.displayName||row.client.email||"Client";
     const reasons=[];
     if(row.awaitingReply)reasons.push("Awaiting your reply");
+    if(row.needsCheckinReview)reasons.push("New check-in needs review");
+    if(row.lowAdherence)reasons.push("Reported nutrition adherence below 76%");
     if(row.overdue)reasons.push(row.never?"No weekly check-in submitted":"Weekly check-in overdue");
     if(row.inactive)reasons.push("No training in 7 days and no weigh-in in 14 days");
     if(row.goalNeedsReview)reasons.push("Goal marked Needs review");
