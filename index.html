@@ -152,6 +152,18 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
     <button class="secondary" id="dashGoTraining">OPEN TRAINING</button><button class="secondary" id="dashGoCheckin">WEEKLY CHECK-IN</button><button class="secondary" id="dashGoProgress">VIEW PROGRESS</button><button class="secondary" id="dashGoMessages">MESSAGE COACH</button>
    </div>
   </div>
+  <div id="clientFourWeekReview" class="tile" style="margin-top:22px;min-height:0">
+   <div class="eyebrow">YOUR LAST FOUR WEEKS</div><div class="section-title" style="margin-top:6px">Consistency dashboard</div>
+   <p class="muted">A simple view of your check-ins, food diary activity, training and weight trend. Missing diary entries are not treated as zero food intake.</p>
+   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px">
+    <div class="tile">WEEKLY CHECK-INS<strong id="client4WeekCheckins">—</strong><span>Submitted in 4 weeks</span></div>
+    <div class="tile">FOOD DIARY DAYS<strong id="client4WeekFoodDays">—</strong><span>Days with entries · out of 28</span></div>
+    <div class="tile">TRAINING SESSIONS<strong id="client4WeekTraining">—</strong><span>Logged in 4 weeks</span></div>
+    <div class="tile">WEIGHT CHANGE<strong id="client4WeekWeight">—</strong><span>First to latest recorded</span></div>
+   </div>
+   <div id="client4WeekRows" class="muted" style="margin-top:12px">Loading your four-week review…</div>
+   <div id="client4WeekStatus" class="muted" style="margin-top:8px" aria-live="polite"></div>
+  </div>
   <div id="clientWeightTracker" class="hidden" style="margin-top:26px">
    <div class="section-title">Your weight tracker</div>
    <p class="muted">Record your weigh-in here. Your coach can see your entries and follow your progress.</p>
@@ -1516,6 +1528,47 @@ $("addFoodBtn").addEventListener("click",async()=>{
  finally{$("addFoodBtn").disabled=false;}
 });
 $("foodDate").addEventListener("change",loadFoodDiary);
+async function loadClientFourWeekReview(){
+ if(!currentUser||currentRole==="coach")return;
+ const ids=["client4WeekCheckins","client4WeekFoodDays","client4WeekTraining","client4WeekWeight","client4WeekRows"];
+ ids.forEach(id=>{const el=$(id);if(el)el.textContent="Loading…";});
+ try{
+  const now=new Date();now.setHours(0,0,0,0);
+  const start=new Date(now);start.setDate(start.getDate()-27);
+  const dates=Array.from({length:28},(_,i)=>{const d=new Date(start);d.setDate(start.getDate()+i);return d.toISOString().slice(0,10);});
+  const [checksSnap,sessionsSnap,weightsSnap,foodSnaps]=await Promise.all([
+   getDocs(collection(db,"users",currentUser.uid,"weeklyCheckins")),
+   getDocs(collection(db,"users",currentUser.uid,"trainingSessions")),
+   getDocs(collection(db,"users",currentUser.uid,"weights")),
+   Promise.all(dates.map(date=>getDocs(collection(db,"users",currentUser.uid,"foodLogs",date,"entries"))))
+  ]);
+  const checks=checksSnap.docs.map(d=>({id:d.id,...d.data()})).filter(x=>{const date=x.weekEnding||x.id;return date>=dates[0]&&date<=dates[27];});
+  const sessions=sessionsSnap.docs.map(d=>({id:d.id,...d.data()})).filter(x=>{const date=x.date||x.id.slice(0,10);return date>=dates[0]&&date<=dates[27]&&(x.completedAt||x.autoSaved===false||x.status==="completed");});
+  const weights=weightsSnap.docs.map(d=>({date:d.id,...d.data()})).map(x=>({...x,value:Number(x.weightKg??x.weight)})).filter(x=>x.date>=dates[0]&&x.date<=dates[27]&&Number.isFinite(x.value)&&x.value>0).sort((a,b)=>a.date.localeCompare(b.date));
+  const logged=foodSnaps.map((snap,i)=>({date:dates[i],entries:snap.size})).filter(x=>x.entries>0);
+  $("client4WeekCheckins").textContent=String(checks.length);
+  $("client4WeekFoodDays").textContent=logged.length+" / 28";
+  $("client4WeekTraining").textContent=String(sessions.length);
+  const delta=weights.length>1?weights[weights.length-1].value-weights[0].value:null;
+  $("client4WeekWeight").textContent=delta===null?"—":(delta>0?"+":"")+delta.toFixed(1)+" kg";
+  const host=$("client4WeekRows");host.replaceChildren();
+  for(let w=0;w<4;w++){
+   const from=dates[w*7],to=dates[w*7+6];
+   const weekSessions=sessions.filter(x=>{const d=x.date||x.id.slice(0,10);return d>=from&&d<=to;}).length;
+   const weekFood=logged.filter(x=>x.date>=from&&x.date<=to).length;
+   const weekChecks=checks.filter(x=>{const d=x.weekEnding||x.id;return d>=from&&d<=to;}).length;
+   const row=document.createElement("div");row.className="tile";row.style.cssText="min-height:0;margin:7px 0;padding:10px";
+   const title=document.createElement("strong");title.textContent="Week "+(w+1)+" · "+new Date(from+"T12:00:00").toLocaleDateString(undefined,{day:"numeric",month:"short"})+" – "+new Date(to+"T12:00:00").toLocaleDateString(undefined,{day:"numeric",month:"short"});
+   const detail=document.createElement("div");detail.className="muted";detail.style.marginTop="6px";detail.textContent=weekChecks+" check-in(s) · "+weekFood+"/7 food diary days · "+weekSessions+" completed workout(s)";
+   row.append(title,detail);host.append(row);
+  }
+  $("client4WeekStatus").textContent="Diary consistency means days with at least one food entry, not proof that every meal was logged. Training counts completed sessions only.";
+ }catch(e){
+  console.error("Four-week client review failed:",e);
+  $("client4WeekRows").textContent="Could not load your four-week review: "+e.message;
+  $("client4WeekStatus").textContent="Your existing records have not been changed.";
+ }
+}
 async function loadClientGoalDashboard(){
  if(!currentUser||currentRole==="coach")return;
  const panel=$("clientGoalDashboard");panel.classList.remove("hidden");
@@ -2573,6 +2626,7 @@ document.querySelectorAll("#nav button").forEach(btn=>btn.addEventListener("clic
  if(btn.dataset.view==="analytics"&&currentUser&&currentRole==="coach"){loadPerformanceAnalytics();loadTrainingPerformanceCentre();}
  if(btn.dataset.view==="nutrition"&&currentUser)loadNutritionTargets(false);
  if(btn.dataset.view==="foodDiary"&&currentUser){$("foodDate").value=$("foodDate").value||localDateString();loadFoodDiary();}
+ if(btn.dataset.view==="overview"&&currentUser&&currentRole!=="coach")loadClientFourWeekReview();
  if(btn.dataset.view==="training"&&currentUser&&currentRole!=="coach")loadClientTrainingDashboard();
   if(btn.dataset.view==="progress"&&currentUser&&currentRole!=="coach"){$("measurementDate").value=$("measurementDate").value||localDateString();$("progressPhotoDate").value=$("progressPhotoDate").value||localDateString();loadClientProgressDashboard();loadBodyMeasurements();loadProgressPhotos();}
   if(btn.dataset.view==="checkins"&&currentUser&&currentRole!=="coach"){$("checkinWeek").value=$("checkinWeek").value||localDateString();loadClientCheckins();}
