@@ -468,6 +468,55 @@ export default {
       }
     }
 
+    if (request.method === "POST" && url.pathname === "/send-user-notification") {
+      try {
+        const authorization = request.headers.get("Authorization") || "";
+        if (!authorization.startsWith("Bearer ")) return response({ error: "Sign in is required." }, 401);
+        const uid = await verifyFirebaseUser(authorization.slice(7));
+        const body = await request.json();
+        const recipientUid = typeof body.recipientUid === "string" ? body.recipientUid : "";
+        const title = typeof body.title === "string" ? body.title.trim().slice(0, 100) : "";
+        const messageBody = typeof body.body === "string" ? body.body.trim().slice(0, 500) : "";
+        const type = typeof body.type === "string" ? body.type.trim().slice(0, 60) : "coaching-update";
+        if (!recipientUid || recipientUid.length > 128 || !title || !messageBody) {
+          return response({ error: "A recipient, title and message are required." }, 400);
+        }
+        const serviceAccount = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT_JSON || "{}");
+        if (serviceAccount.project_id !== PROJECT_ID || !serviceAccount.client_email || !serviceAccount.private_key) {
+          return response({ error: "The Firebase service-account secret is missing or belongs to the wrong project." }, 500);
+        }
+        const accessToken = await getGoogleAccessToken(serviceAccount);
+        const [coachDoc, clientDoc] = await Promise.all([
+          getFirestoreDocument("/users/" + encodeURIComponent(uid), accessToken),
+          getFirestoreDocument("/users/" + encodeURIComponent(recipientUid), accessToken)
+        ]);
+        if (coachDoc?.fields?.role?.stringValue !== "coach") {
+          return response({ error: "Only a coach account can send client notifications." }, 403);
+        }
+        if (clientDoc?.fields?.role?.stringValue !== "client") {
+          return response({ error: "The notification recipient is not a client account." }, 404);
+        }
+        const tokenDocs = await listFirestoreDocuments("/users/" + encodeURIComponent(recipientUid) + "/pushTokens", accessToken);
+        const tokens = [...new Set(tokenDocs.map(item => decodeURIComponent(item.name?.split("/").pop() || "")).filter(Boolean))];
+        if (!tokens.length) return response({ success: true, sent: 0, message: "No registered client devices; the in-app notification was saved." });
+        let sent = 0;
+        const errors = [];
+        for (const token of tokens) {
+          try {
+            await sendPushNotification(token, accessToken, { title, body: messageBody, type });
+            sent++;
+          } catch (error) {
+            errors.push(error.message);
+            console.error("Client notification delivery failed:", error.message);
+          }
+        }
+        return response({ success: sent > 0, sent, failed: errors.length, errors: errors.slice(0, 3) }, sent > 0 ? 200 : 502);
+      } catch (error) {
+        console.error("Client push notification failed:", error);
+        return response({ error: error.message || "Could not send client notification." }, 500);
+      }
+    }
+
     if (request.method !== "POST" || url.pathname !== "/send-test") {
       return response({ error: "Not found." }, 404);
     }
