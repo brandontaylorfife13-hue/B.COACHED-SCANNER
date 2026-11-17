@@ -631,11 +631,6 @@ async function loadCoachReviewDashboard(clients){
    const latestCheck=checkRows[0];
    const checkTime=latestCheck?.submittedAt?.toMillis?latestCheck.submittedAt.toMillis():(latestCheck?.weekEnding?new Date(latestCheck.weekEnding+"T23:59:59").getTime():0);
    const weightRows=weights.docs.map(d=>({date:d.id,...d.data()})).filter(x=>Number(x.weightKg??x.weight)>0).sort((a,b)=>a.date.localeCompare(b.date));
-  coachProgressTimelineItems=[];
-  weightRows.forEach(x=>coachProgressTimelineItems.push({date:x.date,kind:"WEIGHT",detail:Number(x.weightKg??x.weight).toFixed(1)+" kg"}));
-  measurements.docs.forEach(d=>{const x={date:d.id,...d.data()};const vals=[["Chest",x.chest],["Waist",x.waist],["Hips",x.hips],["Arm",x.arm],["Thigh",x.thigh],["Calf",x.calf]].filter(v=>v[1]!==undefined&&v[1]!==null&&v[1]!=="").map(v=>v[0]+" "+v[1]+" cm");if(vals.length)coachProgressTimelineItems.push({date:x.date,kind:"MEASUREMENTS",detail:vals.join(" · ")});});
-  checkins.docs.forEach(d=>{const x=d.data(),date=x.weekEnding||d.id;coachProgressTimelineItems.push({date,kind:"WEEKLY CHECK-IN",detail:"Nutrition "+(x.adherence||"not recorded")+" · Training "+(x.trainingSessions??"not recorded")+" sessions"});});
-
    const latestWeight=weightRows[weightRows.length-1];
    const weightTime=latestWeight?.date?new Date(latestWeight.date+"T23:59:59").getTime():0;
    const sessionRows=sessions.docs.map(d=>({id:d.id,...d.data()}));
