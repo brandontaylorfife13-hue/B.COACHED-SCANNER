@@ -1631,18 +1631,75 @@ function renderTrainingProgressChart(logs,name){
  const vals=points.map(x=>x.weight),min=Math.min(...vals),max=Math.max(...vals),range=Math.max(max-min,1),coords=points.map((x,i)=>({x:24+i*252/Math.max(points.length-1,1),y:130-(x.weight-min)/range*100}));
  const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");svg.setAttribute("viewBox","0 0 300 160");svg.setAttribute("class","training-chart");const line=document.createElementNS("http://www.w3.org/2000/svg","polyline");line.setAttribute("points",coords.map(p=>p.x+","+p.y).join(" "));line.setAttribute("fill","none");line.setAttribute("stroke","#c6ff00");line.setAttribute("stroke-width","3");line.setAttribute("stroke-linecap","round");svg.append(line);coords.forEach(p=>{const c=document.createElementNS("http://www.w3.org/2000/svg","circle");c.setAttribute("cx",p.x);c.setAttribute("cy",p.y);c.setAttribute("r","4");c.setAttribute("fill","#c6ff00");svg.append(c);});host.append(svg);const caption=document.createElement("div");caption.className="muted";caption.textContent=name+" · Best logged weight "+max+" kg · "+points.length+" session(s)";host.append(caption);
 }
+let trainingAutosaveTimer=null,trainingAutosaveQueue=Promise.resolve(),trainingAutosaveVersion=0;
+function readTrainingDraft(){
+ const index=$("trainingWorkoutSelect").value,date=$("trainingWorkoutDate").value;
+ if(index===""||!date||!currentUser)return null;
+ const w=clientTrainingProgram.workouts[Number(index)];if(!w)return null;
+ const exercises=(w.exercises||[]).map((e,ei)=>({name:e.name,muscleGroup:e.muscleGroup,sets:Array.from({length:Number(e.sets||0)},(_,si)=>{
+  const weight=document.querySelector('[data-training-weight="'+ei+":"+si+'"]')?.value??"";
+  const reps=document.querySelector('[data-training-reps="'+ei+":"+si+'"]')?.value??"";
+  const rir=document.querySelector('[data-training-rir="'+ei+":"+si+'"]')?.value??"";
+  return {weight:weight===""?null:Number(weight),reps:reps===""?null:Number(reps),rir:rir===""?null:Number(rir)};
+ })}));
+ return {index:Number(index),date,workoutName:w.name,exercises};
+}
+function restoreTrainingDraft(index,date){
+ const saved=clientTrainingLogs.find(log=>log.id===date+"_"+index);
+ if(!saved)return;
+ (saved.exercises||[]).forEach((exercise,ei)=>(exercise.sets||[]).forEach((set,si)=>{
+  const weight=document.querySelector('[data-training-weight="'+ei+":"+si+'"]');
+  const reps=document.querySelector('[data-training-reps="'+ei+":"+si+'"]');
+  const rir=document.querySelector('[data-training-rir="'+ei+":"+si+'"]');
+  if(weight&&set.weight!=null)weight.value=set.weight;
+  if(reps&&set.reps!=null)reps.value=set.reps;
+  if(rir&&set.rir!=null)rir.value=set.rir;
+ }));
+ $("trainingLogStatus").textContent="Previous entries restored for this workout.";
+}
+function queueTrainingAutosave(){
+ if(trainingAutosaveTimer)clearTimeout(trainingAutosaveTimer);
+ const version=++trainingAutosaveVersion;
+ $("trainingLogStatus").textContent="Unsaved changes…";
+ trainingAutosaveTimer=setTimeout(()=>{
+  const draft=readTrainingDraft();if(!draft)return;
+  trainingAutosaveQueue=trainingAutosaveQueue.then(async()=>{
+   if(version!==trainingAutosaveVersion)return;
+   $("trainingLogStatus").textContent="Saving…";
+   const ref=doc(db,"users",currentUser.uid,"trainingSessions",draft.date+"_"+draft.index);
+   await setDoc(ref,{date:draft.date,workoutIndex:draft.index,workoutName:draft.workoutName,exercises:draft.exercises,updatedAt:serverTimestamp(),autoSaved:true},{merge:true});
+   const snap=await getDoc(ref);
+   const saved={id:snap.id,...snap.data()};
+   clientTrainingLogs=clientTrainingLogs.filter(x=>x.id!==saved.id).concat(saved).sort((a,b)=>(a.date||"").localeCompare(b.date||""));
+   if(version===trainingAutosaveVersion)$("trainingLogStatus").textContent="Saved automatically ✓";
+  }).catch(error=>{$("trainingLogStatus").textContent="Auto-save failed: "+error.message+" · Keep the app open and try again.";});
+ },500);
+}
 $("trainingWorkoutSelect").addEventListener("change",()=>{
  const index=$("trainingWorkoutSelect").value,host=$("clientWorkoutLogger");host.replaceChildren();if(index==="")return;const w=clientTrainingProgram.workouts[Number(index)];if(!w)return;
  (w.exercises||[]).forEach((e,ei)=>{const card=document.createElement("div");card.className="training-exercise";const title=document.createElement("strong");title.textContent=e.name;const note=document.createElement("div");note.className="muted";note.textContent=(e.muscleGroup||"")+" · Target "+e.sets+" sets × "+e.reps;card.append(title,note);const selectedDate=$("trainingWorkoutDate").value;const previous=clientTrainingLogs.filter(log=>(!selectedDate||!log.date||log.date<selectedDate)).slice().reverse().flatMap(log=>(log.exercises||[]).filter(x=>x.name===e.name).map(x=>({date:log.date,sets:x.sets||[]})))[0];const previousNote=document.createElement("div");previousNote.className="muted";previousNote.style.color="#c6ff00";previousNote.style.marginTop="5px";previousNote.textContent=previous?"Last time ("+new Date(previous.date+"T12:00:00").toLocaleDateString()+"): "+previous.sets.filter(z=>Number(z.weight)>0&&Number(z.reps)>0).map(z=>z.weight+" kg × "+z.reps).join(" · "):"No previous performance logged yet.";card.append(previousNote);
-  for(let si=0;si<Number(e.sets||0);si++){const row=document.createElement("div");row.className="training-set-row";const lab=document.createElement("span");lab.className="muted";lab.textContent="Set "+(si+1);const weight=document.createElement("input");weight.type="number";weight.min="0";weight.step="0.5";weight.placeholder="Weight kg";weight.dataset.trainingWeight=ei+":"+si;const reps=document.createElement("input");reps.type="number";reps.min="0";reps.step="1";reps.placeholder="Reps";reps.dataset.trainingReps=ei+":"+si;const rir=document.createElement("input");rir.type="number";rir.min="0";rir.max="10";rir.step="0.5";rir.placeholder="RIR";rir.title="Reps in reserve (optional)";rir.dataset.trainingRir=ei+":"+si;row.append(lab,weight,reps,rir);card.append(row);}host.append(card);});
+  for(let si=0;si<Number(e.sets||0);si++){const row=document.createElement("div");row.className="training-set-row";const lab=document.createElement("span");lab.className="muted";lab.textContent="Set "+(si+1);const weight=document.createElement("input");weight.type="number";weight.min="0";weight.step="0.5";weight.placeholder="Weight kg";weight.dataset.trainingWeight=ei+":"+si;const reps=document.createElement("input");reps.type="number";reps.min="0";reps.step="1";reps.placeholder="Reps";reps.dataset.trainingReps=ei+":"+si;const rir=document.createElement("input");rir.type="number";rir.min="0";rir.max="10";rir.step="0.5";rir.placeholder="RIR";rir.title="Reps in reserve (optional)";rir.dataset.trainingRir=ei+":"+si;
+   [weight,reps,rir].forEach(input=>input.addEventListener("input",queueTrainingAutosave));
+   row.append(lab,weight,reps,rir);card.append(row);}host.append(card);});
+ restoreTrainingDraft(Number(index),$("trainingWorkoutDate").value);
  const save=document.createElement("button");save.id="saveTrainingSession";save.textContent="SAVE COMPLETED WORKOUT";save.style.width="100%";save.style.marginTop="12px";save.onclick=saveClientTrainingSession;host.append(save);
 });
+$("trainingWorkoutDate").addEventListener("change",()=>{
+ const index=$("trainingWorkoutSelect").value;if(index!=="")$("trainingWorkoutSelect").dispatchEvent(new Event("change"));
+});
 async function saveClientTrainingSession(){
- const index=$("trainingWorkoutSelect").value,date=$("trainingWorkoutDate").value;if(index===""||!date){$("trainingLogStatus").textContent="Choose a workout and date.";return;}
- const w=clientTrainingProgram.workouts[Number(index)];const exercises=(w.exercises||[]).map((e,ei)=>({name:e.name,muscleGroup:e.muscleGroup,sets:Array.from({length:Number(e.sets||0)},(_,si)=>({weight:Number(document.querySelector('[data-training-weight="'+ei+":"+si+'"]')?.value||0),reps:Number(document.querySelector('[data-training-reps="'+ei+":"+si+'"]')?.value||0),rir:document.querySelector('[data-training-rir="'+ei+":"+si+'"]')?.value===""?null:Number(document.querySelector('[data-training-rir="'+ei+":"+si+'"]')?.value)}))}));
+ const draft=readTrainingDraft();if(!draft){$("trainingLogStatus").textContent="Choose a workout and date.";return;}
+ if(trainingAutosaveTimer){clearTimeout(trainingAutosaveTimer);trainingAutosaveTimer=null;}
+ const exercises=draft.exercises.map(e=>({...e,sets:e.sets.map(z=>({weight:Number(z.weight)||0,reps:Number(z.reps)||0,rir:z.rir}))}));
  if(!exercises.some(e=>e.sets.some(z=>z.weight>0&&z.reps>0))){$("trainingLogStatus").textContent="Enter at least one set with both weight and reps.";return;}
- $("trainingLogStatus").textContent="Saving workout…";try{await setDoc(doc(db,"users",currentUser.uid,"trainingSessions",date+"_"+index),{date,workoutIndex:Number(index),workoutName:w.name,exercises,completedAt:serverTimestamp()});$("trainingLogStatus").textContent="Workout saved. Your history and charts have been updated.";await loadClientTrainingDashboard();$("trainingWorkoutSelect").value=String(index);$("trainingWorkoutSelect").dispatchEvent(new Event("change"));}
- catch(e){$("trainingLogStatus").textContent="Could not save workout: "+e.message;}
+ $("trainingLogStatus").textContent="Saving completed workout…";
+ try{
+  const ref=doc(db,"users",currentUser.uid,"trainingSessions",draft.date+"_"+draft.index);
+  await setDoc(ref,{date:draft.date,workoutIndex:draft.index,workoutName:draft.workoutName,exercises,completedAt:serverTimestamp(),autoSaved:false},{merge:true});
+  const check=await getDoc(ref);if(!check.exists())throw new Error("Save could not be verified.");
+  const saved={id:check.id,...check.data()};clientTrainingLogs=clientTrainingLogs.filter(x=>x.id!==saved.id).concat(saved);
+  $("trainingLogStatus").textContent="Workout saved and completed ✓";await loadClientTrainingDashboard();$("trainingWorkoutSelect").value=String(draft.index);$("trainingWorkoutSelect").dispatchEvent(new Event("change"));
+ }catch(e){$("trainingLogStatus").textContent="Could not save workout: "+e.message;}
 }
 $("trainingExerciseSelect").addEventListener("change",async()=>{try{const snap=await getDocs(collection(db,"users",currentUser.uid,"trainingSessions"));renderTrainingProgressChart(snap.docs.map(x=>({id:x.id,...x.data()})),$("trainingExerciseSelect").value);}catch(e){$("trainingProgressChart").textContent="Could not load exercise history: "+e.message;}});
 
