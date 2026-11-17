@@ -1024,22 +1024,55 @@ async function loadCoachCheckinInbox(){
     return {client,rows};
    }catch(error){return {client,rows:[],error};}
   }));
-  const entries=groups.flatMap(g=>g.rows.map((row,index)=>({client:g.client,row,previous:g.rows[index+1]||null}))).sort((a,b)=>(b.row.weekEnding||b.row.id).localeCompare(a.row.weekEnding||a.row.id));
+  const entries=groups.flatMap(g=>g.rows.map((row,index)=>({client:g.client,row,previous:g.rows[index+1]||null})));
+  const statusOf=row=>row.coachReviewStatus==="reviewed"?"completed":row.coachReviewStatus==="in_progress"?"in_progress":"todo";
+  entries.sort((a,b)=>{
+   const rank={todo:0,in_progress:1,completed:2};
+   return rank[statusOf(a.row)]-rank[statusOf(b.row)]||(b.row.weekEnding||b.row.id).localeCompare(a.row.weekEnding||a.row.id);
+  });
   host.replaceChildren();
   if(!entries.length){host.textContent="No submitted check-ins found.";return;}
-  const pending=entries.filter(x=>x.row.coachReviewStatus!=="reviewed").length;
-  const summary=document.createElement("div");summary.className="tile";summary.style.cssText="min-height:0;margin:8px 0";summary.textContent=entries.length+" submitted check-ins · "+pending+" awaiting review";host.append(summary);
+  const pending=entries.filter(x=>statusOf(x.row)!=="completed").length;
+  const inProgress=entries.filter(x=>statusOf(x.row)==="in_progress").length;
+  const summary=document.createElement("div");summary.className="tile";summary.style.cssText="min-height:0;margin:8px 0";
+  summary.textContent=entries.length+" submitted check-ins · "+pending+" outstanding · "+inProgress+" in progress";
+  host.append(summary);
   entries.slice(0,60).forEach(item=>{
    const card=document.createElement("div");card.className="tile";card.style.cssText="min-height:0;margin:8px 0;padding:12px";
-   const head=document.createElement("div");head.style.cssText="display:flex;justify-content:space-between;gap:8px;align-items:center";
+   const head=document.createElement("div");head.style.cssText="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap";
    const name=document.createElement("strong");name.textContent=item.client.displayName||item.client.email||"Client";
-   const status=document.createElement("span");status.className="pill";status.textContent=item.row.coachReviewStatus==="reviewed"?"Reviewed":"Awaiting review";head.append(name,status);card.append(head);
+   const currentStatus=statusOf(item.row);
+   const status=document.createElement("span");status.className="pill";status.textContent=currentStatus==="completed"?"Completed":currentStatus==="in_progress"?"In progress":"To do";head.append(name,status);card.append(head);
    const date=document.createElement("div");date.className="muted";date.style.marginTop="6px";date.textContent="Week ending "+(item.row.weekEnding?new Date(item.row.weekEnding+"T12:00:00").toLocaleDateString():"Date unavailable");card.append(date);
    const summaryLine=document.createElement("div");summaryLine.className="muted";summaryLine.style.marginTop="7px";summaryLine.textContent="Nutrition: "+(item.row.adherence||"Not recorded")+" · Training: "+(item.row.trainingSessions??"Not recorded")+" sessions"+(item.row.averageWeight!=null?" · Average weight: "+item.row.averageWeight+" kg":"");card.append(summaryLine);
    if(item.previous){
     const prior=document.createElement("div");prior.className="muted";prior.style.marginTop="6px";prior.textContent="Previous check-in: "+(item.previous.adherence||"Nutrition not recorded")+" · "+(item.previous.trainingSessions??"—")+" training sessions"+(item.previous.averageWeight!=null?" · "+item.previous.averageWeight+" kg":"");card.append(prior);
    }
-   const open=document.createElement("button");open.className="secondary";open.style.cssText="width:100%;margin-top:10px";open.textContent="OPEN CHECK-IN & GIVE FEEDBACK";open.onclick=async()=>{await showClientProfile(item.client);document.getElementById("profile-weekly-checkins")?.scrollIntoView({behavior:"smooth",block:"start"});};card.append(open);host.append(card);
+   const workflowLabel=document.createElement("label");workflowLabel.textContent="Review status";workflowLabel.style.marginTop="12px";card.append(workflowLabel);
+   const workflow=document.createElement("select");workflow.className="training-select";workflow.style.marginTop="5px";
+   [["todo","To do"],["in_progress","In progress"],["completed","Completed"]].forEach(([value,label])=>{const option=document.createElement("option");option.value=value;option.textContent=label;workflow.append(option);});
+   workflow.value=currentStatus;card.append(workflow);
+   const feedbackLabel=document.createElement("label");feedbackLabel.textContent="Coach feedback for this check-in";feedbackLabel.style.marginTop="12px";card.append(feedbackLabel);
+   const feedback=document.createElement("textarea");feedback.rows=3;feedback.style.cssText="width:100%;padding:12px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit;resize:vertical";feedback.placeholder="Write feedback for this specific weekly check-in…";feedback.value=item.row.coachFeedback||"";card.append(feedback);
+   if(item.row.coachReviewedAt){
+    const reviewed=document.createElement("div");reviewed.className="muted";reviewed.style.marginTop="7px";
+    const reviewedDate=item.row.coachReviewedAt.toDate?item.row.coachReviewedAt.toDate():new Date(item.row.coachReviewedAt);
+    reviewed.textContent="Last reviewed: "+(Number.isNaN(reviewedDate.getTime())?"Date recorded":reviewedDate.toLocaleString());card.append(reviewed);
+   }
+   const save=document.createElement("button");save.style.cssText="width:100%;margin-top:10px";save.textContent="SAVE REVIEW & FEEDBACK";
+   save.onclick=async()=>{
+    save.disabled=true;save.textContent="SAVING…";
+    try{
+     const nextStatus=workflow.value,nowFields=nextStatus==="completed"?{coachReviewedAt:serverTimestamp(),coachReviewedBy:currentUser.uid}:{coachReviewedAt:null,coachReviewedBy:null};
+     await setDoc(doc(db,"users",item.client.uid,"weeklyCheckins",item.row.id),{coachFeedback:feedback.value.trim(),feedbackUpdatedAt:serverTimestamp(),feedbackBy:currentUser.uid,coachReviewStatus:nextStatus==="completed"?"reviewed":nextStatus,...nowFields},{merge:true});
+     item.row.coachFeedback=feedback.value.trim();item.row.coachReviewStatus=nextStatus==="completed"?"reviewed":nextStatus;
+     save.textContent="SAVED ✓";await loadCoachCheckinInbox();await loadCoachReviewDashboard(clients);
+    }catch(e){save.textContent="SAVE FAILED";const error=document.createElement("div");error.className="status bad";error.textContent="Could not save review: "+(e.message||e);card.append(error);}
+    finally{save.disabled=false;}
+   };
+   card.append(save);
+   const open=document.createElement("button");open.className="secondary";open.style.cssText="width:100%;margin-top:8px";open.textContent="OPEN FULL CLIENT PROFILE";open.onclick=async()=>{await showClientProfile(item.client);document.getElementById("profile-weekly-checkins")?.scrollIntoView({behavior:"smooth",block:"start"});};card.append(open);
+   host.append(card);
   });
   if(entries.length>60){const more=document.createElement("div");more.className="muted";more.textContent="Showing the latest 60 check-ins.";host.append(more);}
   groups.filter(g=>g.error).forEach(g=>{const warning=document.createElement("div");warning.className="muted";warning.textContent="Could not read check-ins for "+(g.client.displayName||g.client.email||"a client")+". ";host.append(warning);});
