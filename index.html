@@ -296,7 +296,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <div class="section-title profile-anchor" id="profile-training-program" style="margin-top:28px">Training programme builder</div><p class="muted">Create the client's weekly split and prescribe exercises, target sets, rep ranges and muscle groups. Clients log their working weights and reps against this plan.</p>
   <div class="tile" style="margin:12px 0"><div class="eyebrow">READY-MADE TEMPLATES</div><strong style="font-size:16px;color:#f5f7f1">Torso / Limb Split</strong><p class="muted">Load the four-session torso/limb programme into this client’s editor.</p><button type="button" id="applyTorsoLimbTemplate" style="width:100%">LOAD TORSO / LIMB TEMPLATE</button><div id="trainingTemplateStatus" class="status"></div></div></div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
-  <div><label for="coachWorkoutName">Workout name</label><input id="coachWorkoutName" placeholder="e.g. Push A"></div><div><label for="coachExerciseMuscle">Body part / muscle group</label><select id="coachExerciseMuscle" class="training-select"><option value="">Choose body part</option><option>Chest</option><option>Lats</option><option>Upper back</option><option>Back</option><option>Shoulders</option><option>Biceps</option><option>Triceps</option><option>Quadriceps</option><option>Hamstrings</option><option>Glutes</option><option>Calves</option><option>Abdominals</option><option>Adductors</option><option>Abductors</option></select></div><div><label for="coachExerciseLibrary">Choose exercise</label><select id="coachExerciseLibrary" class="training-select"><option value="">Choose body part first</option></select></div><div><label for="coachExerciseName">Exercise name (or custom)</label><input id="coachExerciseName" placeholder="Choose above or type a custom exercise"></div><div><label for="coachExerciseSets">Working sets</label><input id="coachExerciseSets" type="number" min="1" max="20" value="3"></div><div><label for="coachExerciseReps">Rep target</label><input id="coachExerciseReps" value="8–12" placeholder="e.g. 8–12"></div></div>
+  <div><label for="coachWorkoutName">Workout name</label><input id="coachWorkoutName" placeholder="e.g. Push A"></div><div><label for="coachExerciseMuscle">Body part / muscle group</label><select id="coachExerciseMuscle" class="training-select"><option value="">Choose body part</option><option>Chest</option><option>Lats</option><option>Upper back</option><option>Back</option><option>Shoulders</option><option>Biceps</option><option>Triceps</option><option>Quadriceps</option><option>Hamstrings</option><option>Glutes</option><option>Calves</option><option>Abdominals</option><option>Adductors</option><option>Abductors</option></select></div><div><label for="coachExerciseEquipment">Equipment filter</label><select id="coachExerciseEquipment" class="training-select"><option value="all">All equipment</option><option value="machine">Machines</option><option value="cable">Cables</option><option value="dumbbell">Dumbbells</option><option value="barbell">Barbells</option><option value="smith">Smith machine</option><option value="bodyweight">Bodyweight</option><option value="other">Other / mixed</option></select></div><div><label for="coachExerciseLibrary">Choose exercise</label><select id="coachExerciseLibrary" class="training-select"><option value="">Choose body part first</option></select></div><div><label for="coachExerciseName">Exercise name (or custom)</label><input id="coachExerciseName" placeholder="Choose above or type a custom exercise"></div><div><label for="coachExerciseFavouriteOnly">Exercise list</label><select id="coachExerciseFavouriteOnly" class="training-select"><option value="all">All exercises</option><option value="favourites">My favourites</option></select></div><div><button type="button" class="secondary" id="toggleCoachExerciseFavourite" style="width:100%;margin-top:22px">☆ SAVE SELECTED AS FAVOURITE</button></div><div><label for="coachExerciseSets">Working sets</label><input id="coachExerciseSets" type="number" min="1" max="20" value="3"></div><div><label for="coachExerciseReps">Rep target</label><input id="coachExerciseReps" value="8–12" placeholder="e.g. 8–12"></div></div>
   <div class="actions"><button type="button" id="addCoachExercise">ADD EXERCISE TO WORKOUT</button><button type="button" class="secondary" id="addCoachWorkout">ADD WORKOUT DAY</button></div><div id="coachTrainingEditor" style="margin-top:14px"></div><button id="saveTrainingProgram" style="width:100%;margin-top:12px">SAVE TRAINING PROGRAMME</button><div id="coachTrainingStatus" class="status" role="status"></div>
   <div class="section-title" style="margin-top:24px">Training Performance Centre</div>
   <p class="muted">Strength bests, weekly working-set volume, effort and assisted-set history for this client.</p>
@@ -1451,6 +1451,7 @@ $("inviteBtn").addEventListener("click",async()=>{
 let selectedClient=null;
 async function showClientProfile(client){
  selectedClient=client;
+ await loadCoachExerciseSettings();
  coachProgressTimelineItems=[];coachProgressPhotoRows=[];
  $("clientsView").classList.add("hidden");
  $("overviewView").classList.add("hidden");
@@ -2124,9 +2125,37 @@ const exerciseLibrary={
  "Adductors":["Adduction","Adductor Machine","Cable Hip Adduction"],
  "Abductors":["Abduction","Abductor Machine","Cable Hip Abduction"]
 };
-function fillExerciseLibrarySelect(select,muscleGroup){
+let coachExerciseFavourites=[],coachExerciseSettingsLoaded=false;
+function exerciseEquipment(name){
+ const n=String(name||"").toLowerCase();
+ if(/smith/.test(n))return "smith";
+ if(/cable|pulldown|pushdown|pec deck cable|bayesian/.test(n))return "cable";
+ if(/dumbbell|db /.test(n))return "dumbbell";
+ if(/barbell|ez-bar|ez bar|olympic/.test(n))return "barbell";
+ if(/bodyweight|push-up|pull-up|pull up|dip|nordic|hanging|ab wheel/.test(n))return "bodyweight";
+ if(/machine|hack squat|leg press|pendulum|belt squat|preacher|adductor|abductor|calf raise|hamstring curl|leg extension|chest press|reverse pec|rear-delt/.test(n))return "machine";
+ return "other";
+}
+function fillExerciseLibrarySelect(select,muscleGroup,equipment="all",favouritesOnly=false){
  select.replaceChildren();const blank=document.createElement("option");blank.value="";blank.textContent=muscleGroup?"Choose an exercise":"Choose body part first";select.append(blank);
- (exerciseLibrary[muscleGroup]||[]).forEach(name=>{const option=document.createElement("option");option.value=name;option.textContent=name;select.append(option);});
+ let names=(exerciseLibrary[muscleGroup]||[]).slice();
+ if(favouritesOnly)names=names.filter(name=>coachExerciseFavourites.includes(name));
+ if(equipment!=="all")names=names.filter(name=>exerciseEquipment(name)===equipment);
+ coachExerciseFavourites.filter(name=>!names.includes(name)&&!(exerciseLibrary[muscleGroup]||[]).includes(name)).forEach(name=>{if(favouritesOnly&&equipment==="all")names.push(name);});
+ names.forEach(name=>{const option=document.createElement("option");option.value=name;option.textContent=(coachExerciseFavourites.includes(name)?"★ ":"")+name;select.append(option);});
+}
+async function loadCoachExerciseSettings(){
+ if(coachExerciseSettingsLoaded||!currentUser?.uid)return;
+ try{const snap=await getDoc(doc(db,"users",currentUser.uid,"coachSettings","exerciseLibrary"));coachExerciseFavourites=snap.exists()&&Array.isArray(snap.data().favourites)?snap.data().favourites:[];coachExerciseSettingsLoaded=true;}
+ catch(e){console.warn("Could not load saved exercise favourites",e);}
+}
+async function saveCoachExerciseFavourites(){
+ await setDoc(doc(db,"users",currentUser.uid,"coachSettings","exerciseLibrary"),{favourites:coachExerciseFavourites,updatedAt:serverTimestamp()},{merge:true});
+}
+function refreshCoachExerciseOptions(){
+ fillExerciseLibrarySelect($("coachExerciseLibrary"),$("coachExerciseMuscle").value,$("coachExerciseEquipment").value,$("coachExerciseFavouriteOnly").value==="favourites");
+ const selected=$("coachExerciseLibrary").value;
+ $("toggleCoachExerciseFavourite").textContent=selected&&coachExerciseFavourites.includes(selected)?"★ REMOVE FROM FAVOURITES":"☆ SAVE SELECTED AS FAVOURITE";
 }
 
 let coachTrainingProgram={workouts:[]},clientTrainingProgram={workouts:[]},clientTrainingLogs=[],activeClientWorkoutExercises=[];
@@ -2220,15 +2249,25 @@ $("addCoachWorkout").addEventListener("click",()=>{
  const name=$("coachWorkoutName").value.trim();if(!name){$("coachTrainingStatus").textContent="Enter a workout name first.";return;}
  coachTrainingProgram.workouts.push({name,exercises:[]});$("coachWorkoutName").value="";renderCoachTrainingProgram();$("coachTrainingStatus").textContent="Workout day added. Now add its exercises.";
 });
-$("coachExerciseMuscle").addEventListener("change",()=>fillExerciseLibrarySelect($("coachExerciseLibrary"),$("coachExerciseMuscle").value));
-$("coachExerciseLibrary").addEventListener("change",()=>{const value=$("coachExerciseLibrary").value;if(value)$("coachExerciseName").value=value;});
+$("coachExerciseMuscle").addEventListener("change",refreshCoachExerciseOptions);
+$("coachExerciseEquipment").addEventListener("change",refreshCoachExerciseOptions);
+$("coachExerciseFavouriteOnly").addEventListener("change",refreshCoachExerciseOptions);
+$("coachExerciseLibrary").addEventListener("change",()=>{const value=$("coachExerciseLibrary").value;if(value)$("coachExerciseName").value=value;refreshCoachExerciseOptions();$("coachExerciseLibrary").value=value;});
+$("toggleCoachExerciseFavourite").addEventListener("click",async()=>{
+ const name=$("coachExerciseLibrary").value||$("coachExerciseName").value.trim();
+ if(!name){$("coachTrainingStatus").textContent="Choose or enter an exercise first.";return;}
+ const wasFavourite=coachExerciseFavourites.includes(name);
+ coachExerciseFavourites=wasFavourite?coachExerciseFavourites.filter(x=>x!==name):[...coachExerciseFavourites,name];
+ try{await saveCoachExerciseFavourites();refreshCoachExerciseOptions();$("coachExerciseName").value=name;$("coachTrainingStatus").textContent=wasFavourite?"Removed "+name+" from favourites.":"Saved "+name+" to your favourites.";}
+ catch(e){coachExerciseFavourites=wasFavourite?[...coachExerciseFavourites,name]:coachExerciseFavourites.filter(x=>x!==name);$("coachTrainingStatus").textContent="Could not save favourite: "+e.message;}
+});
 $("addCoachExercise").addEventListener("click",()=>{
  const name=$("coachExerciseName").value.trim(),muscleGroup=$("coachExerciseMuscle").value.trim(),sets=Number($("coachExerciseSets").value),reps=$("coachExerciseReps").value.trim();
  if(!name||!muscleGroup||!reps||!Number.isInteger(sets)||sets<1||sets>20){$("coachTrainingStatus").textContent="Enter an exercise, muscle group, valid set count and rep target.";return;}
  if(!coachTrainingProgram.workouts.length){$("coachTrainingStatus").textContent="Add a workout day before adding exercises.";return;}
  const target=$("coachWorkoutName").value.trim();const workout=target?coachTrainingProgram.workouts.find(w=>w.name.toLowerCase()===target.toLowerCase()):coachTrainingProgram.workouts[coachTrainingProgram.workouts.length-1];
  if(!workout){$("coachTrainingStatus").textContent="That workout name isn't in the programme. Add it as a workout day first.";return;}
- workout.exercises.push({name,muscleGroup,sets,reps});$("coachExerciseName").value="";$("coachExerciseMuscle").value="";$("coachExerciseReps").value="";renderCoachTrainingProgram();$("coachTrainingStatus").textContent="Exercise added to "+workout.name+".";
+ workout.exercises.push({name,muscleGroup,sets,reps});$("coachExerciseName").value="";$("coachExerciseMuscle").value="";$("coachExerciseReps").value="";refreshCoachExerciseOptions();renderCoachTrainingProgram();$("coachTrainingStatus").textContent="Exercise added to "+workout.name+".";
 });
 $("saveTrainingProgram").addEventListener("click",async()=>{
  if(!selectedClient?.uid||!coachTrainingProgram.workouts.length){$("coachTrainingStatus").textContent="Add at least one workout day before saving.";return;}
@@ -2409,9 +2448,13 @@ function renderClientWorkoutLogger(){
  const muscleLabel=document.createElement("label");muscleLabel.textContent="Body part";controls.append(muscleLabel);
  const muscle=document.createElement("select");muscle.className="training-select";const muscleBlank=document.createElement("option");muscleBlank.value="";muscleBlank.textContent="Choose body part";muscle.append(muscleBlank);
  Object.keys(exerciseLibrary).forEach(group=>{const o=document.createElement("option");o.value=group;o.textContent=group;muscle.append(o);});controls.append(muscle);
+ const equipmentLabel=document.createElement("label");equipmentLabel.textContent="Equipment filter";controls.append(equipmentLabel);
+ const equipment=document.createElement("select");equipment.className="training-select";
+ [["all","All equipment"],["machine","Machines"],["cable","Cables"],["dumbbell","Dumbbells"],["barbell","Barbells"],["smith","Smith machine"],["bodyweight","Bodyweight"],["other","Other / mixed"]].forEach(([v,t])=>{const o=document.createElement("option");o.value=v;o.textContent=t;equipment.append(o);});controls.append(equipment);
  const exerciseLabel=document.createElement("label");exerciseLabel.textContent="Exercise";controls.append(exerciseLabel);
  const exercise=document.createElement("select");exercise.className="training-select";fillExerciseLibrarySelect(exercise,"");controls.append(exercise);
- muscle.addEventListener("change",()=>fillExerciseLibrarySelect(exercise,muscle.value));
+ const updateExerciseOptions=()=>fillExerciseLibrarySelect(exercise,muscle.value,equipment.value,false);
+ muscle.addEventListener("change",updateExerciseOptions);equipment.addEventListener("change",updateExerciseOptions);
  const add=document.createElement("button");add.type="button";add.style.width="100%";add.style.marginTop="9px";add.textContent="ADD EXERCISE TO THIS SESSION";
  add.onclick=()=>{const name=exercise.value,group=muscle.value;if(!name||!group)return;if(activeClientWorkoutExercises.some(x=>x.name===name)){$("trainingLogStatus").textContent="That exercise is already in this workout.";return;}activeClientWorkoutExercises.push({name,muscleGroup:group,sets:3,reps:"8–12"});renderClientWorkoutLogger();$("trainingLogStatus").textContent=name+" added to this session. Your log will autosave.";queueTrainingAutosave();};controls.append(add);host.append(controls);
  if(!activeClientWorkoutExercises.length){const empty=document.createElement("div");empty.className="muted";empty.textContent="No exercises in this workout. Choose a body part and add an exercise to get started.";host.append(empty);}
