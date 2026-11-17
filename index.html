@@ -631,10 +631,6 @@ async function loadCoachReviewDashboard(clients){
    const latestCheck=checkRows[0];
    const checkTime=latestCheck?.submittedAt?.toMillis?latestCheck.submittedAt.toMillis():(latestCheck?.weekEnding?new Date(latestCheck.weekEnding+"T23:59:59").getTime():0);
    const weightRows=weights.docs.map(d=>({date:d.id,...d.data()})).filter(x=>Number(x.weightKg??x.weight)>0).sort((a,b)=>a.date.localeCompare(b.date));
-  weightRows.forEach(x=>{if(x.date)coachProgressTimelineItems.push({date:x.date,kind:"WEIGH-IN",detail:Number(x.weightKg??x.weight).toFixed(1)+" kg"});});
-  const timelineMeasurements=measurements.docs.map(d=>({date:d.id,...d.data()}));
-  timelineMeasurements.forEach(x=>{if(x.date){const vals=[["Chest",x.chest],["Waist",x.waist],["Hips",x.hips],["Arm",x.arm],["Thigh",x.thigh],["Calf",x.calf]].filter(v=>v[1]!==undefined&&v[1]!==null&&v[1]!=="");coachProgressTimelineItems.push({date:x.date,kind:"MEASUREMENTS",detail:vals.length?vals.map(v=>v[0]+" "+v[1]+" cm").join(" · "):"Measurement entry saved"});}});
-  checkins.docs.forEach(d=>{const x=d.data(),date=x.weekEnding||x.date||d.id;if(/^\d{4}-\d{2}-\d{2}$/.test(date))coachProgressTimelineItems.push({date,kind:"WEEKLY CHECK-IN",detail:"Check-in submitted"+(x.averageWeightKg?" · Average weight "+x.averageWeightKg+" kg":"")});});
    const latestWeight=weightRows[weightRows.length-1];
    const weightTime=latestWeight?.date?new Date(latestWeight.date+"T23:59:59").getTime():0;
    const sessionRows=sessions.docs.map(d=>({id:d.id,...d.data()}));
@@ -2009,6 +2005,10 @@ async function loadCoachProgressOverview(){
    getDoc(doc(db,"users",uid,"profile","details"))
   ]);
   const weightRows=weights.docs.map(d=>({date:d.id,...d.data()})).filter(x=>Number(x.weightKg??x.weight)>0).sort((a,b)=>a.date.localeCompare(b.date));
+  weightRows.forEach(x=>{if(x.date)coachProgressTimelineItems.push({date:x.date,kind:"WEIGH-IN",detail:Number(x.weightKg??x.weight).toFixed(1)+" kg"});});
+  const timelineMeasurements=measurements.docs.map(d=>({date:d.id,...d.data()}));
+  timelineMeasurements.forEach(x=>{if(x.date){const vals=[["Chest",x.chest],["Waist",x.waist],["Hips",x.hips],["Arm",x.arm],["Thigh",x.thigh],["Calf",x.calf]].filter(v=>v[1]!==undefined&&v[1]!==null&&v[1]!=="");coachProgressTimelineItems.push({date:x.date,kind:"MEASUREMENTS",detail:vals.length?vals.map(v=>v[0]+" "+v[1]+" cm").join(" · "):"Measurement entry saved"});}});
+  checkins.docs.forEach(d=>{const x=d.data(),date=x.weekEnding||x.date||d.id;if(/^\d{4}-\d{2}-\d{2}$/.test(date))coachProgressTimelineItems.push({date,kind:"WEEKLY CHECK-IN",detail:"Check-in submitted"+(x.averageWeightKg?" · Average weight "+x.averageWeightKg+" kg":"")});});
   const latest=weightRows[weightRows.length-1];$("coachProgressWeight").textContent=latest?Number(latest.weightKg??latest.weight).toFixed(1)+" kg":"—";
   $("coachProgressWeightDate").textContent=latest?latest.date:"No weigh-ins recorded";
   const savedDetails=detailsSnap.exists()?detailsSnap.data():{};
