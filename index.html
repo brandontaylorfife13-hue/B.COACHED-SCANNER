@@ -347,6 +347,10 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
    <div class="tile">LOW ADHERENCE<strong id="intelligenceAdherenceCount">—</strong><span>Latest self-report at 75% or below</span></div>
   </div>
   <div id="coachingIntelligenceList" class="muted">Preparing coaching insights…</div>
+  <div class="section-title" style="margin-top:28px">Weekly Coaching Reports</div>
+  <p class="muted">Copy-ready weekly summaries of each client’s check-in, weight, training, food logging and daily habits. Missing information is labelled rather than guessed.</p>
+  <div class="actions"><button id="refreshWeeklyReports" class="secondary" type="button">REFRESH WEEKLY REPORTS</button></div>
+  <div id="weeklyCoachingReports" class="muted">Preparing weekly coaching reports…</div>
   <div class="section-title" style="margin-top:24px">Weekly check-in review inbox</div>
   <p class="muted">Submitted check-ins across your active clients. Open a client to compare submissions, add feedback and mark each week reviewed.</p>
   <div id="coachCheckinInbox" class="muted">Loading submitted check-ins…</div>
@@ -1041,6 +1045,95 @@ async function loadCoachCheckinInbox(){
   groups.filter(g=>g.error).forEach(g=>{const warning=document.createElement("div");warning.className="muted";warning.textContent="Could not read check-ins for "+(g.client.displayName||g.client.email||"a client")+". ";host.append(warning);});
  }catch(e){host.textContent="Could not load check-in inbox: "+e.message;}
 }
+async function loadWeeklyCoachingReports(){
+ const host=$("weeklyCoachingReports");if(!host)return;host.textContent="Building weekly coaching reports…";
+ try{
+  const result=await getDocs(query(collection(db,"users"),where("role","==","client")));
+  const clients=result.docs.map(d=>({uid:d.id,...d.data()})).filter(c=>c.accountStatus!=="inactive"&&c.accountStatus!=="archived");
+  const today=new Date();today.setHours(0,0,0,0);
+  const dates=Array.from({length:7},(_,i)=>{const d=new Date(today);d.setDate(d.getDate()-(6-i));return d;});
+  const key=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
+  const parse=value=>{if(!value)return null;const d=new Date(String(value).slice(0,10)+"T12:00:00");return Number.isNaN(d.getTime())?null:d;};
+  const fmt=d=>d?d.toLocaleDateString(undefined,{day:"numeric",month:"short"}):"Not recorded";
+  const safe=async work=>{try{return await work();}catch(error){return {docs:[],error};}};
+  const reports=await Promise.all(clients.map(async client=>{
+   const [checksSnap,weightsSnap,sessionsSnap,dailySnap,foodSnaps]=await Promise.all([
+    safe(()=>getDocs(collection(db,"users",client.uid,"weeklyCheckins"))),
+    safe(()=>getDocs(collection(db,"users",client.uid,"weights"))),
+    safe(()=>getDocs(collection(db,"users",client.uid,"trainingSessions"))),
+    safe(()=>getDocs(collection(db,"users",client.uid,"dailyLogs"))),
+    Promise.all(dates.map(d=>safe(()=>getDocs(collection(db,"users",client.uid,"foodLogs",key(d),"entries")))))
+   ]);
+   const checks=(checksSnap.docs||[]).map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.weekEnding||b.id).localeCompare(a.weekEnding||a.id));
+   const check=checks[0]||null;
+   const weights=(weightsSnap.docs||[]).map(d=>({date:d.id,...d.data(),value:Number(d.data().weightKg??d.data().weight)})).filter(x=>parse(x.date)&&Number.isFinite(x.value)&&x.value>0).sort((a,b)=>a.date.localeCompare(b.date));
+   const weekWeights=weights.filter(x=>parse(x.date)>=dates[0]&&parse(x.date)<=today);
+   const latestWeight=weights[weights.length-1]||null;
+   const weightChange=weekWeights.length>=2?weekWeights[weekWeights.length-1].value-weekWeights[0].value:null;
+   const sessions=(sessionsSnap.docs||[]).map(d=>({id:d.id,...d.data()})).filter(x=>!!x.completedAt||x.autoSaved===false||x.status==="completed");
+   const recentSessions=sessions.filter(x=>{const d=parse(x.date||x.id?.slice(0,10));return d&&d>=dates[0]&&d<=today;});
+   const daily=(dailySnap.docs||[]).map(d=>({id:d.id,...d.data()}));
+   const recentDaily=daily.filter(x=>{const d=parse(x.date||x.id);return d&&d>=dates[0]&&d<=today;});
+   const average=field=>{const values=recentDaily.map(x=>Number(x[field])).filter(x=>Number.isFinite(x)&&x>0);return values.length?values.reduce((a,b)=>a+b,0)/values.length:null;};
+   const avgSteps=average("steps"),avgWater=average("waterLitres"),avgSleep=average("sleepHours");
+   const diaryDays=foodSnaps.filter(x=>!x.error&&(x.docs||[]).length>0).length;
+   const diaryErrors=foodSnaps.some(x=>x.error);
+   const lines=[
+    "B.COACHED · WEEKLY CLIENT REVIEW",
+    "Client: "+(client.displayName||client.email||"Client"),
+    "Period: "+fmt(dates[0])+" – "+fmt(today),
+    "",
+    "CHECK-IN",
+    "Latest submission: "+(check?fmt(parse(check.weekEnding||check.id)):"No weekly check-in submitted"),
+    "Nutrition adherence: "+(check?.adherence||"Not reported"),
+    "Training sessions reported: "+(check?.trainingSessions??"Not reported"),
+    "",
+    "WEIGHT",
+    "Latest recorded weight: "+(latestWeight?latestWeight.value.toFixed(1)+" kg ("+fmt(parse(latestWeight.date))+")":"No weigh-in recorded"),
+    "Change across weigh-ins this week: "+(weightChange===null?"Not enough weigh-ins to calculate":(weightChange>0?"+":"")+weightChange.toFixed(1)+" kg ("+weekWeights.length+" entries)"),
+    "",
+    "TRAINING & NUTRITION TRACKING",
+    "Completed workouts logged: "+recentSessions.length,
+    "Food diary: "+diaryDays+"/7 days with at least one entry"+(diaryErrors?" (some records could not be read)":""),
+    "Daily logs: "+recentDaily.length+"/7 days",
+    "",
+    "DAILY HABITS",
+    "Average steps on logged days: "+(avgSteps===null?"Not recorded":Math.round(avgSteps).toLocaleString()),
+    "Average water on logged days: "+(avgWater===null?"Not recorded":avgWater.toFixed(1)+" L"),
+    "Average sleep on logged days: "+(avgSleep===null?"Not recorded":avgSleep.toFixed(1)+" hours"),
+    "",
+    "CLIENT FEEDBACK",
+    "Wins: "+(check?.wins?.trim()||"Not provided"),
+    "Challenges: "+(check?.challenges?.trim()||"Not provided"),
+    "Support requested: "+(check?.support?.trim()||"Not provided"),
+    "",
+    "COACH REVIEW",
+    "Review adherence, consistency, weight trend and the client’s feedback together. Agree any plan changes with the client; do not adjust targets from one data point alone."
+   ];
+   return {client,lines,latestWeight,weightChange,weekWeights,recentSessions,diaryDays,errors:[checksSnap,weightsSnap,sessionsSnap,dailySnap,...foodSnaps].filter(x=>x.error).length};
+  }));
+  host.replaceChildren();
+  if(!reports.length){host.textContent="No active client accounts found.";return;}
+  reports.sort((a,b)=>(a.client.displayName||a.client.email||"").localeCompare(b.client.displayName||b.client.email||""));
+  reports.forEach(report=>{
+   const card=document.createElement("div");card.className="tile";card.style.cssText="min-height:0;margin:10px 0;padding:13px";
+   const heading=document.createElement("strong");heading.style.fontSize="16px";heading.textContent=report.client.displayName||report.client.email||"Client";card.append(heading);
+   const stats=document.createElement("div");stats.className="muted";stats.style.cssText="margin-top:7px;line-height:1.6";
+   stats.textContent=report.recentSessions.length+" workouts · "+report.diaryDays+"/7 food diary days · "+(report.latestWeight?report.latestWeight.value.toFixed(1)+" kg latest weigh-in":"no weigh-in")+(report.weightChange===null?"":" · "+(report.weightChange>0?"+":"")+report.weightChange.toFixed(1)+" kg this week");card.append(stats);
+   const details=document.createElement("details");details.style.marginTop="10px";
+   const summary=document.createElement("summary");summary.textContent="VIEW WEEKLY REPORT";summary.style.cursor="pointer";
+   const pre=document.createElement("pre");pre.textContent=report.lines.join("\n");pre.style.cssText="white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:12px;line-height:1.55;background:#10140d;padding:12px;border-radius:9px;margin-top:10px";
+   details.append(summary,pre);card.append(details);
+   const actions=document.createElement("div");actions.className="actions";actions.style.marginTop="10px";
+   const copy=document.createElement("button");copy.type="button";copy.className="secondary";copy.textContent="COPY WEEKLY REPORT";
+   copy.onclick=async()=>{try{await navigator.clipboard.writeText(report.lines.join("\n"));copy.textContent="COPIED ✓";}catch(error){copy.textContent="COPY UNAVAILABLE";}};
+   actions.append(copy);card.append(actions);
+   if(report.errors){const warning=document.createElement("div");warning.className="muted";warning.style.marginTop="8px";warning.textContent="Some records could not be read; this report may be incomplete.";card.append(warning);}
+   host.append(card);
+  });
+ }catch(error){host.textContent="Could not build weekly coaching reports: "+error.message;}
+}
+
 async function loadCoachingIntelligence(){
  const host=$("coachingIntelligenceList");
  if(!host)return;
@@ -1230,6 +1323,7 @@ $("refreshAnalytics")?.addEventListener("click",loadTrainingPerformanceCentre);
 $("refreshAnalytics")?.addEventListener("click",loadCoachConsistencyDashboard);
 $("refreshAnalytics")?.addEventListener("click",loadCoachCheckinInbox);
 $("refreshAnalytics")?.addEventListener("click",loadCoachingIntelligence);
+$("refreshWeeklyReports")?.addEventListener("click",loadWeeklyCoachingReports);
 async function loadClients(){
  const list=$("clientList");list.textContent="Loading clients…";
  try{
@@ -2881,7 +2975,7 @@ document.querySelectorAll("#nav button").forEach(btn=>btn.addEventListener("clic
  document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b===btn));
  ["overview","clients","analytics","nutrition","foodDiary","training","progress","checkins","messages","updates"].forEach(v=>$(v+"View").classList.toggle("hidden",v!==btn.dataset.view));
  if(btn.dataset.view==="clients")loadClients();
- if(btn.dataset.view==="analytics"&&currentUser&&currentRole==="coach"){loadPerformanceAnalytics();loadTrainingPerformanceCentre();loadCoachConsistencyDashboard();loadCoachCheckinInbox();loadCoachingIntelligence();}
+ if(btn.dataset.view==="analytics"&&currentUser&&currentRole==="coach"){loadPerformanceAnalytics();loadTrainingPerformanceCentre();loadCoachConsistencyDashboard();loadCoachCheckinInbox();loadCoachingIntelligence();loadWeeklyCoachingReports();}
  if(btn.dataset.view==="nutrition"&&currentUser)loadNutritionTargets(false);
  if(btn.dataset.view==="foodDiary"&&currentUser){$("foodDate").value=$("foodDate").value||localDateString();loadFoodDiary();}
  if(btn.dataset.view==="overview"&&currentUser&&currentRole!=="coach")loadClientFourWeekReview();
