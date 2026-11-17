@@ -557,15 +557,17 @@ onAuthStateChanged(auth,async user=>{
    snap=await getDoc(doc(db,"users",user.uid));
   }
   const profile=snap.data();
-  // Client details are collected by the coach and entered manually.
-  // Never block a client from accessing their dashboard with a questionnaire.
-  $("clientOnboardingCard").classList.add("hidden");
-  $("nav").classList.remove("hidden");
+   currentRole=profile.role||"client";
+   const onboardingRequired=currentRole!=="coach"&&profile.onboardingComplete!==true;
+   $("clientOnboardingCard").classList.toggle("hidden",!onboardingRequired);
+   $("onboardName").value=profile.displayName||user.displayName||"";
+   $("onboardingStatus").textContent=onboardingRequired?"Complete your starting profile so your coach has the information needed to personalise your plan.":"";
+   $("onboardingStatus").className="status";
+   $("nav").classList.remove("hidden");
 
-  $("authCard").classList.add("hidden");$("app").classList.remove("hidden");
-  $("welcome").textContent="Welcome, "+(profile.displayName||"there");
-  currentRole=profile.role||"client";
-  const coach=currentRole==="coach";
+   $("authCard").classList.add("hidden");$("app").classList.remove("hidden");
+   $("welcome").textContent="Welcome, "+(profile.displayName||"there");
+   const coach=currentRole==="coach";
   $("clientOverviewMetrics").classList.toggle("hidden",coach);
   $("coachOverviewPanel").classList.toggle("hidden",!coach);
   $("overviewHeading").textContent=coach?"Coach overview":"Your daily overview";
@@ -634,6 +636,25 @@ $("completeOnboardingBtn").addEventListener("click",async()=>{
    onboardingComplete:true,
    onboardingCompletedAt:serverTimestamp()
   },{merge:true});
+  await setDoc(doc(db,"users",currentUser.uid,"profile","details"),{
+   dateOfBirth:onboarding.dateOfBirth,
+   heightCm:height,
+   startingWeightKg:weight,
+   currentWeightKg:weight,
+   primaryGoal:goal,
+   trainingDaysPerWeek:onboarding.trainingDaysPerWeek,
+   trainingExperience:experience,
+   dailyActivity:activity,
+   foodPreferences:onboarding.preferences,
+   updatedAt:serverTimestamp(),
+   updatedBy:currentUser.uid
+  },{merge:true});
+  const today=localDateString();
+  const initialWeightRef=doc(db,"users",currentUser.uid,"weights",today);
+  const existingInitialWeight=await getDoc(initialWeightRef);
+  if(!existingInitialWeight.exists()){
+   await setDoc(initialWeightRef,{date:today,weightKg:weight,createdAt:serverTimestamp(),recordedBy:currentUser.uid});
+  }
   $("welcome").textContent="Welcome, "+name;
   $("clientOnboardingCard").classList.add("hidden");
   $("nav").classList.remove("hidden");
