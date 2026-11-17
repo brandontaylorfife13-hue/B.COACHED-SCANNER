@@ -846,8 +846,9 @@ function summariseTrainingPerformance(program,sessions,now=new Date()){
   const repBests=[...repRecords.entries()].map(([weight,reps])=>({weight:Number(weight),reps})).sort((a,b)=>b.reps-a.reps);
   let repImproved=false,loadImproved=false,e1rmImproved=false;
   if(previous){
-   const prevAtSameLoad=previous.sets.filter(s=>Math.abs(s.weight-latest.bestSet.weight)<0.001).reduce((m,s)=>Math.max(m,s.reps),0);
-   repImproved=prevAtSameLoad>0&&latest.bestSet.reps>prevAtSameLoad;
+   const repGains=latest.sets.map(set=>{const priorReps=previous.sets.filter(s=>Math.abs(s.weight-set.weight)<0.001).reduce((m,s)=>Math.max(m,s.reps),0);return {weight:set.weight,reps:set.reps,priorReps,gain:set.reps-priorReps};}).filter(x=>x.priorReps>0&&x.gain>0).sort((a,b)=>b.gain-a.gain);
+   item.repGain=repGains[0]||null;
+   repImproved=repGains.length>0;
    loadImproved=latest.bestSet.weight>previous.bestSet.weight;
    e1rmImproved=latest.bestSet.e1rm>previous.bestSet.e1rm+0.01;
   }
@@ -879,7 +880,7 @@ function renderTrainingPerformance(host,summary,showDetail=true){
   if(x.previous){
    const prior=document.createElement("div");prior.className="muted";prior.textContent="Previous ("+x.previous.date+"): "+x.previous.bestSet.weight+" kg × "+x.previous.bestSet.reps+" reps · e1RM "+x.previous.bestSet.e1rm.toFixed(1)+" kg";card.append(prior);
    const changes=[];
-   if(x.repImproved)changes.push("More reps at the same load");
+   if(x.repImproved)changes.push("+"+x.repGain.gain+" reps at "+x.repGain.weight+" kg");
    if(x.loadImproved)changes.push("Heavier load");
    if(x.e1rmImproved&&!x.repImproved&&!x.loadImproved)changes.push("Estimated strength improved");
    const verdict=document.createElement("strong");verdict.style.cssText="display:block;margin-top:6px;color:"+(x.improved?"#c6ff00":"var(--muted)");verdict.textContent=x.improved?"↑ Progress: "+changes.join(" · "):"No increase in top-set performance versus previous session";card.append(verdict);
