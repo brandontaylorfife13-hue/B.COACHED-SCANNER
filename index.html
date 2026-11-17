@@ -87,6 +87,18 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
  <section class="card" id="overviewView">
   <div class="eyebrow" id="roleLabel">CLIENT DASHBOARD</div><div class="heading" id="overviewHeading">Your daily overview</div>
   <p class="muted">Welcome to your B.COACHED space. Your personal targets and coaching plan will appear here as we build each section.</p>
+  <div id="clientNotificationGuide" class="tile hidden" style="margin:14px 0 18px;border-color:#829e22;min-height:0">
+   <div class="eyebrow">STAY ON TRACK</div>
+   <div class="section-title" style="margin-top:7px">Turn on your phone notifications</div>
+   <p class="muted">Get reminders for your daily weigh-in, weekly check-in and important coaching updates.</p>
+   <ol class="muted" style="padding-left:20px;line-height:1.7">
+    <li><b>On iPhone:</b> open this page in Safari, tap Share, then choose <b>Add to Home Screen</b>. Open B.COACHED using the new Home Screen icon.</li>
+    <li><b>On Android:</b> open B.COACHED in Chrome, use the menu to install or add it to your Home Screen, then open the installed app.</li>
+    <li>Go to the <b>Updates</b> tab and tap <b>ENABLE PHONE NOTIFICATIONS</b>. When your phone asks, choose <b>Allow</b>.</li>
+    <li>Use <b>SEND TEST NOTIFICATION</b> to check that it works. You can switch daily weigh-in and weekly check-in reminders on or off in the same section.</li>
+   </ol>
+   <button id="openNotificationSettings" class="secondary" style="width:100%">OPEN NOTIFICATION SETTINGS</button>
+  </div>
   <div class="grid" id="clientOverviewMetrics">
    <div class="tile">DAILY STEPS<strong id="overviewSteps">—</strong><span>Today's total</span></div>
    <div class="tile">WATER<strong id="overviewWater">—</strong><span>Litres today</span></div>
@@ -522,6 +534,7 @@ onAuthStateChanged(auth,async user=>{
    btn.classList.toggle("hidden",hideForRole);
   });
   $("dashboardMacros").classList.toggle("hidden",coach);
+  $("clientNotificationGuide").classList.toggle("hidden",coach);
   const overviewIntro=document.querySelector("#overviewView > p.muted");
   if(overviewIntro) overviewIntro.textContent=coach
    ?"Manage your clients, build their nutrition plans and review their progress from the Clients area."
@@ -1969,6 +1982,7 @@ async function sendTestPushNotification(){
  }finally{button.disabled=false;}
 }
 $("sendTestPush")?.addEventListener("click",sendTestPushNotification);
+$("openNotificationSettings")?.addEventListener("click",()=>{document.querySelector('#nav button[data-view="updates"]')?.click();$("notificationPreferences")?.scrollIntoView({behavior:"smooth",block:"start"});});
 window.clientReminderPreferences={weight:true,checkin:true};
 async function loadNotificationPreferences(){
  if(!currentUser||currentRole==="coach")return;
