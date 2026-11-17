@@ -1747,6 +1747,7 @@ async function saveCoachMealPlan(){
   if(!check.exists())throw new Error("The saved meal plan could not be verified.");
   const saved=check.data();
   coachMealPlan={highDay:Array.isArray(saved.highDay)?saved.highDay:[],lowDay:Array.isArray(saved.lowDay)?saved.lowDay:[]};
+  await createClientNotification(selectedClient.uid,"meal_plan","Your meal plan has been updated","Your coach has updated your tailored high- and low-day meal plans. Open Food Diary to view the latest version.");
   $("mealPlanCoachStatus").textContent="Meal plan saved and verified. The client will see the correct high- or low-day plan in Food Diary.";
   renderCoachMealPlan();refreshCoachPlanInputs();
  }catch(e){$("mealPlanCoachStatus").textContent="Could not save meal plan: "+e.message;}
@@ -2149,6 +2150,7 @@ $("saveNutritionTargets").addEventListener("click",async()=>{
   },{merge:true});
   const verifyTargets=await getDoc(doc(db,"users",selectedClient.uid,"nutrition","targets"));
   const savedHighDays=verifyTargets.exists()&&Array.isArray(verifyTargets.data().highDays)?verifyTargets.data().highDays:[];
+  await createClientNotification(selectedClient.uid,"nutrition_targets","Your nutrition targets have been updated","Your coach has updated your calorie and macro targets. Open Nutrition to review your latest targets.");
   document.querySelectorAll(".highDayCheckbox").forEach(cb=>cb.checked=savedHighDays.includes(cb.value));
   $("nutritionTargetStatus").textContent="Saved and verified for "+(selectedClient?.displayName||"client")+" · High days: "+(savedHighDays.length?savedHighDays.join(", "):"none selected; all days are low days.")+" · ID "+selectedClient.uid;
  }catch(e){$("nutritionTargetStatus").textContent="Could not save nutrition targets: "+e.message;}
@@ -2366,7 +2368,7 @@ $("saveTrainingProgram").addEventListener("click",async()=>{
  if(!selectedClient?.uid||!coachTrainingProgram.workouts.length){$("coachTrainingStatus").textContent="Add at least one workout day before saving.";return;}
  syncCoachWorkoutNames();
  $("saveTrainingProgram").disabled=true;$("coachTrainingStatus").textContent="Saving training programme…";
- try{await setDoc(doc(db,"users",selectedClient.uid,"training","program"),{workouts:coachTrainingProgram.workouts,updatedAt:serverTimestamp(),updatedBy:currentUser.uid});const check=await getDoc(doc(db,"users",selectedClient.uid,"training","program"));if(!check.exists())throw new Error("Could not verify the saved programme.");coachTrainingProgram={workouts:check.data().workouts||[]};renderCoachTrainingProgram();$("coachTrainingStatus").textContent="Training programme saved and verified for "+(selectedClient.displayName||"this client")+".";
+ try{await setDoc(doc(db,"users",selectedClient.uid,"training","program"),{workouts:coachTrainingProgram.workouts,updatedAt:serverTimestamp(),updatedBy:currentUser.uid});const check=await getDoc(doc(db,"users",selectedClient.uid,"training","program"));if(!check.exists())throw new Error("Could not verify the saved programme.");coachTrainingProgram={workouts:check.data().workouts||[]};renderCoachTrainingProgram();await createClientNotification(selectedClient.uid,"training_program","Your training programme has been updated","Your coach has updated your training programme. Open Training to see your latest workouts and exercise targets.");$("coachTrainingStatus").textContent="Training programme saved and verified for "+(selectedClient.displayName||"this client")+".";
  }catch(e){$("coachTrainingStatus").textContent="Could not save training programme: "+e.message;}finally{$("saveTrainingProgram").disabled=false;}
 });
 const personalTorsoLimbProgram={
@@ -2651,7 +2653,8 @@ async function loadUpdates(){
    }
    $("updatesHeading").textContent="Client activity";$("updatesIntro").textContent="Recent messages and weekly check-ins from your clients.";
   }else{
-   const [messages,checks]=await Promise.all([getDocs(collection(db,"users",currentUser.uid,"messages")),getDocs(collection(db,"users",currentUser.uid,"weeklyCheckins"))]);
+   const [messages,checks,notifications]=await Promise.all([getDocs(collection(db,"users",currentUser.uid,"messages")),getDocs(collection(db,"users",currentUser.uid,"weeklyCheckins")),getDocs(collection(db,"users",currentUser.uid,"notifications"))]);
+   notifications.docs.forEach(d=>{const n=d.data();items.push({kind:n.title||"Coaching notification",text:n.body||"",time:n.createdAt?.toMillis?n.createdAt.toMillis():0,unread:n.read!==true,notificationId:d.id});});
    messages.docs.forEach(d=>{const m=d.data();if(m.senderRole==="coach")items.push({kind:"Coach message",text:m.text||"",time:m.createdAt?.toMillis?m.createdAt.toMillis():0});});
    checks.docs.forEach(d=>{const x=d.data();if(x.coachFeedback)items.push({kind:"Coach feedback",text:x.coachFeedback+" · Week ending "+(x.weekEnding||d.id),time:x.updatedAt?.toMillis?x.updatedAt.toMillis():0});});
    $("updatesHeading").textContent="Your updates";$("updatesIntro").textContent="Messages and feedback from your coach appear here.";
@@ -2659,6 +2662,7 @@ async function loadUpdates(){
   items.sort((a,b)=>b.time-a.time);host.replaceChildren();
   if(!items.length){host.textContent="You're all caught up. No updates yet.";return;}
   items.slice(0,60).forEach(item=>{const card=document.createElement("div");card.className="tile";card.style.minHeight="0";card.style.margin="9px 0";const heading=document.createElement("strong");heading.textContent=item.kind+(item.client?" · "+(item.client.displayName||item.client.email||"Client"):"");const body=document.createElement("p");body.style.whiteSpace="pre-wrap";body.style.margin="7px 0";body.textContent=item.text;const date=document.createElement("div");date.className="muted";date.textContent=item.time?new Date(item.time).toLocaleString():"Date unavailable";card.append(heading,body,date);
+   if(item.notificationId&&item.unread){const mark=document.createElement("button");mark.className="secondary";mark.textContent="MARK AS READ";mark.style.width="100%";mark.style.marginTop="9px";mark.onclick=async()=>{mark.disabled=true;try{await setDoc(doc(db,"users",currentUser.uid,"notifications",item.notificationId),{read:true,readAt:serverTimestamp()},{merge:true});item.unread=false;mark.textContent="READ ✓";}catch(e){mark.disabled=false;mark.textContent="COULD NOT UPDATE";}};card.append(mark);}
    if(item.client){const open=document.createElement("button");open.className="secondary";open.textContent="OPEN CLIENT";open.style.width="100%";open.style.marginTop="9px";open.onclick=()=>showClientProfile(item.client);card.append(open);}host.append(card);
   });
  }catch(e){host.textContent="Could not load updates: "+e.message;}
@@ -2686,10 +2690,15 @@ async function renderMessageThread(uid,hostId){
  rows.forEach(m=>{const card=document.createElement("div");card.className="tile";card.style.minHeight="0";card.style.margin="8px 0";const who=document.createElement("strong");who.style.fontSize="13px";who.textContent=m.senderRole==="coach"?"Your coach":"You";const body=document.createElement("p");body.style.margin="7px 0 0";body.style.whiteSpace="pre-wrap";body.textContent=m.text||"";const date=document.createElement("div");date.className="muted";date.style.marginTop="6px";date.textContent=m.createdAt?.toDate?m.createdAt.toDate().toLocaleString():"Just now";card.append(who,body,date);host.append(card);});
  }catch(e){host.textContent="Could not load messages: "+e.message;}
 }
+async function createClientNotification(uid,type,title,body){
+ if(!uid)return;
+ const ref=doc(collection(db,"users",uid,"notifications"));
+ await setDoc(ref,{type,title,body,read:false,createdAt:serverTimestamp(),createdBy:currentUser?.uid||null});
+}
 async function sendMessage(uid,inputId,statusId,role,historyId){
  const input=$(inputId),statusEl=$(statusId),message=input.value.trim();if(!message){statusEl.textContent="Write a message first.";return;}
  const buttonId=role==="coach"?"sendCoachMessage":"sendClientMessage",button=$(buttonId);button.disabled=true;statusEl.textContent="Sending…";
- try{const messageRef=doc(collection(db,"users",uid,"messages"));await setDoc(messageRef,{text:message,senderUid:currentUser.uid,senderRole:role,createdAt:serverTimestamp()});input.value="";statusEl.textContent="Message sent.";await renderMessageThread(uid,historyId);}
+ try{const messageRef=doc(collection(db,"users",uid,"messages"));await setDoc(messageRef,{text:message,senderUid:currentUser.uid,senderRole:role,createdAt:serverTimestamp()});if(role==="coach")await createClientNotification(uid,"message","New message from your coach",message.length>150?message.slice(0,147)+"…":message);input.value="";statusEl.textContent="Message sent.";await renderMessageThread(uid,historyId);}
  catch(e){statusEl.textContent="Could not send message: "+e.message;}finally{button.disabled=false;}
 }
 $("sendClientMessage").addEventListener("click",()=>{if(currentUser&&currentRole!=="coach")sendMessage(currentUser.uid,"clientMessageInput","clientMessageStatus","client","clientMessageHistory");});
