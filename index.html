@@ -2425,10 +2425,10 @@ function restoreTrainingDraft(index,date){
    if(reps&&set.reps!=null)reps.value=set.reps;
    if(rir&&set.rir!=null)rir.value=set.rir;
    if(assisted&&set.assistanceAmount!=null)assisted.value=set.assistanceAmount;
+   // Older logs stored assisted as a yes/no flag; leave the numeric field blank for those entries.
   });
   const noteInput=document.querySelector('[data-training-exercise-note="'+ei+'"]');
   if(noteInput)noteInput.value=savedExercise?.notes||exercise.notes||"";
-  });
  });
  $("trainingLogStatus").textContent="Previous entries restored for this workout.";
 }
