@@ -2485,6 +2485,7 @@ function renderClientWorkoutLogger(){
  const add=document.createElement("button");add.type="button";add.style.width="100%";add.style.marginTop="9px";add.textContent="ADD EXERCISE TO THIS SESSION";
  add.onclick=()=>{const name=exercise.value,group=muscle.value;if(!name||!group)return;if(activeClientWorkoutExercises.some(x=>x.name===name)){$("trainingLogStatus").textContent="That exercise is already in this workout.";return;}activeClientWorkoutExercises.push({name,muscleGroup:group,sets:3,reps:"8–12"});renderClientWorkoutLogger();$("trainingLogStatus").textContent=name+" added to this session. Your log will autosave.";queueTrainingAutosave();};controls.append(add);host.append(controls);
  if(!activeClientWorkoutExercises.length){const empty=document.createElement("div");empty.className="muted";empty.textContent="No exercises in this workout. Choose a body part and add an exercise to get started.";host.append(empty);}
+ const progressionRefreshers=[];
  activeClientWorkoutExercises.forEach((e,ei)=>{
   const card=document.createElement("div");card.className="training-exercise";
   const title=document.createElement("strong");title.textContent=e.name;
@@ -2495,6 +2496,25 @@ function renderClientWorkoutLogger(){
   const selectedDate=$("trainingWorkoutDate").value;
   const previous=clientTrainingLogs.filter(log=>(!selectedDate||!log.date||log.date<selectedDate)).slice().reverse().flatMap(log=>(log.exercises||[]).filter(x=>x.name===e.name).map(x=>({date:log.date,sets:x.sets||[]})))[0];
   const previousNote=document.createElement("div");previousNote.className="muted";previousNote.style.color="#c6ff00";previousNote.style.marginTop="5px";previousNote.textContent=previous?"Last time ("+new Date(previous.date+"T12:00:00").toLocaleDateString()+"): "+previous.sets.filter(z=>Number(z.weight)>0&&Number(z.reps)>0).map(z=>z.weight+" kg × "+z.reps).join(" · "):"No previous performance logged yet.";card.append(previousNote);
+  const historyRows=clientTrainingLogs.filter(log=>(!selectedDate||!log.date||log.date<selectedDate)).flatMap(log=>(log.exercises||[]).filter(x=>x.name===e.name).flatMap(x=>(x.sets||[]).filter(z=>Number(z.weight)>0&&Number(z.reps)>0).map(z=>({weight:Number(z.weight),reps:Number(z.reps),e1rm:Number(z.weight)*(1+Number(z.reps)/30),date:log.date||""}))));
+  const bestHistorical=historyRows.reduce((best,row)=>!best||row.e1rm>best.e1rm?row:best,null);
+  const progressionStatus=document.createElement("div");progressionStatus.className="muted";progressionStatus.style.cssText="margin:7px 0;color:#c6ff00;font-weight:700";progressionStatus.textContent=bestHistorical?"ALL-TIME BEST: "+bestHistorical.weight+" kg × "+bestHistorical.reps+" reps (estimated 1RM "+bestHistorical.e1rm.toFixed(1)+" kg)":"Personal best will appear after your first completed session.";card.append(progressionStatus);
+  const refreshProgression=()=>{
+   let currentBest=null;
+   for(let si=0;si<Number(e.sets||0);si++){
+    const weight=Number(document.querySelector('[data-training-weight="'+ei+":"+si+'"]')?.value||0);
+    const reps=Number(document.querySelector('[data-training-reps="'+ei+":"+si+'"]')?.value||0);
+    if(weight>0&&reps>0){const e1rm=weight*(1+reps/30);if(!currentBest||e1rm>currentBest.e1rm)currentBest={weight,reps,e1rm};}
+   }
+   if(currentBest&&(!bestHistorical||currentBest.e1rm>bestHistorical.e1rm+0.0001)){
+    progressionStatus.textContent="★ NEW PERSONAL BEST · "+currentBest.weight+" kg × "+currentBest.reps+" reps · estimated 1RM "+currentBest.e1rm.toFixed(1)+" kg";
+    progressionStatus.style.color="#c6ff00";
+   }else if(bestHistorical){
+    progressionStatus.textContent="ALL-TIME BEST: "+bestHistorical.weight+" kg × "+bestHistorical.reps+" reps · estimated 1RM "+bestHistorical.e1rm.toFixed(1)+" kg";
+    progressionStatus.style.color="#c6ff00";
+   }
+  };
+  progressionRefreshers.push(refreshProgression);
   for(let si=0;si<Number(e.sets||0);si++){
    const row=document.createElement("div");row.className="training-set-row";const lab=document.createElement("span");lab.className="muted";lab.textContent="Set "+(si+1);
    const weight=document.createElement("input");weight.type="number";weight.min="0";weight.step="0.5";weight.placeholder="Weight kg";weight.dataset.trainingWeight=ei+":"+si;
@@ -2502,6 +2522,7 @@ function renderClientWorkoutLogger(){
    const rir=document.createElement("input");rir.type="number";rir.min="0";rir.max="10";rir.step="0.5";rir.placeholder="RIR";rir.title="Reps in reserve (optional)";rir.dataset.trainingRir=ei+":"+si;
    const assisted=document.createElement("input");assisted.type="number";assisted.min="0";assisted.step="0.5";assisted.placeholder="ASS";assisted.title="Assistance amount (enter a number)";assisted.setAttribute("aria-label","Assistance amount for set "+(si+1));assisted.dataset.trainingAss=ei+":"+si;
    [weight,reps,rir,assisted].forEach(input=>input.addEventListener("input",queueTrainingAutosave));
+   [weight,reps].forEach(input=>input.addEventListener("input",refreshProgression));
    row.append(lab,weight,reps,rir,assisted);card.append(row);
   }
   const exerciseNotesLabel=document.createElement("label");exerciseNotesLabel.textContent="Exercise notes";exerciseNotesLabel.style.display="block";exerciseNotesLabel.style.marginTop="10px";
@@ -2510,6 +2531,7 @@ function renderClientWorkoutLogger(){
   host.append(card);
  });
  restoreTrainingDraft(Number(index),$("trainingWorkoutDate").value);
+ progressionRefreshers.forEach(refresh=>refresh());
  const save=document.createElement("button");save.id="saveTrainingSession";save.textContent="SAVE COMPLETED WORKOUT";save.style.width="100%";save.style.marginTop="12px";save.onclick=saveClientTrainingSession;host.append(save);
 }
 $("trainingWorkoutSelect").addEventListener("change",()=>{
