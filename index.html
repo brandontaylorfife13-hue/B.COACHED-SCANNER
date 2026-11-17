@@ -283,6 +283,9 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
   <div><label for="coachWorkoutName">Workout name</label><input id="coachWorkoutName" placeholder="e.g. Push A"></div><div><label for="coachExerciseName">Exercise name</label><input id="coachExerciseName" placeholder="e.g. Incline dumbbell press"></div><div><label for="coachExerciseMuscle">Muscle group</label><input id="coachExerciseMuscle" placeholder="e.g. Chest"></div><div><label for="coachExerciseSets">Working sets</label><input id="coachExerciseSets" type="number" min="1" max="20" value="3"></div><div><label for="coachExerciseReps">Rep target</label><input id="coachExerciseReps" placeholder="e.g. 8–12"></div></div>
   <div class="actions"><button type="button" id="addCoachExercise">ADD EXERCISE TO WORKOUT</button><button type="button" class="secondary" id="addCoachWorkout">ADD WORKOUT DAY</button></div><div id="coachTrainingEditor" style="margin-top:14px"></div><button id="saveTrainingProgram" style="width:100%;margin-top:12px">SAVE TRAINING PROGRAMME</button><div id="coachTrainingStatus" class="status" role="status"></div>
+  <div class="section-title" style="margin-top:24px">Training Performance Centre</div>
+  <p class="muted">Strength bests, weekly working-set volume, effort and assisted-set history for this client.</p>
+  <div id="coachClientTrainingAnalytics" class="muted">Loading training performance…</div>
   <div class="section-title" style="margin-top:24px">Workout reviews</div><p class="muted">Review completed sessions, check the client's logged sets and leave coaching feedback.</p><div id="coachWorkoutReviews" class="muted">Loading workout history…</div>
   <div class="section-title" style="margin-top:26px">Progress photo comparison</div><p class="muted">Review the client's private progress photos and compare two dates side by side.</p><div id="coachProgressPhotoStatus" class="muted">Loading progress photos…</div><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-top:12px"><div><label for="coachPhotoCompareA">Earlier photo</label><select id="coachPhotoCompareA" class="training-select"><option value="">Choose photo</option></select></div><div><label for="coachPhotoCompareB">Later photo</label><select id="coachPhotoCompareB" class="training-select"><option value="">Choose photo</option></select></div></div><button id="compareCoachPhotos" class="secondary" style="width:100%;margin-top:10px">COMPARE PHOTOS</button><div id="coachPhotoComparison" style="margin-top:12px"></div><div class="section-title" style="margin-top:18px">All progress photos</div><div id="coachProgressPhotoGallery" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr))"></div>
   <div class="section-title" style="margin-top:24px">Client meal choices</div><p class="muted">Review the options selected by this client for a chosen date.</p>
@@ -327,6 +330,18 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <div class="tile" style="min-height:0"><div id="analyticsWeightChart" class="muted">Loading weight trends…</div></div>
   <div class="section-title" style="margin-top:24px">Client performance table</div>
   <div id="analyticsClientTable" class="muted">Loading client performance…</div>
+  <div class="section-title" style="margin-top:28px">Training Performance Centre</div>
+  <p class="muted">Completed sessions only. Compare strength records, working-set volume, effort and consistency using the programme and workout logs clients have saved.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(135px,1fr));margin-top:12px">
+   <div class="tile">COMPLETED WORKOUTS<strong id="trainingAnalyticsSessions">—</strong><span>Last 7 days</span></div>
+   <div class="tile">EXERCISE BESTS<strong id="trainingAnalyticsBests">—</strong><span>All-time best loads</span></div>
+   <div class="tile">ASSISTED SETS<strong id="trainingAnalyticsAssisted">—</strong><span>Last 7 days</span></div>
+   <div class="tile">AVERAGE RIR<strong id="trainingAnalyticsRir">—</strong><span>Last 7 days · recorded sets</span></div>
+  </div>
+  <div class="section-title" style="margin-top:20px">Weekly muscle-group volume</div>
+  <div class="tile" style="min-height:0"><div id="trainingAnalyticsMuscles" class="muted">Loading training volume…</div></div>
+  <div class="section-title" style="margin-top:20px">Client training performance</div>
+  <div id="trainingAnalyticsTable" class="muted">Loading training performance…</div>
   <div class="actions"><button id="refreshAnalytics" class="secondary" type="button">REFRESH ANALYTICS</button></div>
   <div id="analyticsUpdated" class="muted" style="margin-top:8px"></div>
  </section>
@@ -706,6 +721,92 @@ async function loadCoachReviewDashboard(clients){
   });
  }catch(e){host.textContent="Could not load the review dashboard: "+e.message;actionHost.textContent="Could not load action items: "+e.message;}
 }
+function summariseTrainingPerformance(program,sessions,now=new Date()){
+ const dayStart=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+ const cutoff7=new Date(dayStart.getTime()-6*86400000),cutoff56=new Date(dayStart.getTime()-55*86400000);
+ const dateFor=x=>{const raw=x.date||x.id?.slice(0,10)||"";const d=new Date(raw+"T12:00:00");return Number.isNaN(d.getTime())?null:d;};
+ const muscleMap=new Map();
+ (program?.workouts||[]).forEach(w=>(w.exercises||[]).forEach(e=>{if(e.name&&e.muscleGroup)muscleMap.set(String(e.name).toLowerCase(),e.muscleGroup);}));
+ const completed=(sessions||[]).filter(x=>!!x.completedAt||x.autoSaved===false).map(x=>({...x,parsedDate:dateFor(x)})).filter(x=>x.parsedDate).sort((a,b)=>a.parsedDate-b.parsedDate);
+ const recent=completed.filter(x=>x.parsedDate>=cutoff7&&x.parsedDate<=now);
+ const exerciseMap=new Map(),muscles=new Map();let rirTotal=0,rirCount=0,assisted=0,workingSets=0,totalVolume=0;
+ completed.forEach(session=>{
+  (session.exercises||[]).forEach(ex=>{
+   const name=String(ex.name||"Exercise"),key=name.toLowerCase(),group=ex.muscleGroup||muscleMap.get(key)||"Uncategorised";
+   const valid=(ex.sets||[]).filter(z=>Number(z.weight)>0&&Number(z.reps)>0);
+   if(!exerciseMap.has(key))exerciseMap.set(key,{name,bestWeight:0,bestReps:0,bestE1rm:0,bestDate:"",sessions:0,lastDate:""});
+   const stat=exerciseMap.get(key);if(valid.length)stat.sessions++;
+   valid.forEach(set=>{
+    const weight=Number(set.weight),reps=Number(set.reps),e1rm=weight*(1+reps/30);
+    if(weight>stat.bestWeight){stat.bestWeight=weight;stat.bestReps=reps;stat.bestDate=session.date||session.id?.slice(0,10)||"";}
+    stat.bestE1rm=Math.max(stat.bestE1rm,e1rm);
+    totalVolume+=weight*reps;workingSets++;
+    if(set.rir!==null&&set.rir!==undefined&&set.rir!==""&&Number.isFinite(Number(set.rir))){rirTotal+=Number(set.rir);rirCount++;}
+    if(set.assisted)assisted++;
+   });
+   if(recent.some(x=>x.id===session.id)&&valid.length)muscles.set(group,(muscles.get(group)||0)+valid.length);
+   if(session.date)stat.lastDate=session.date;
+  });
+ });
+ const bests=[...exerciseMap.values()].filter(x=>x.bestWeight>0).sort((a,b)=>b.bestWeight-a.bestWeight);
+ const recentSessions=recent.length;
+ const recentAssisted=recent.reduce((n,x)=>n+(x.exercises||[]).reduce((a,e)=>a+(e.sets||[]).filter(z=>Number(z.weight)>0&&Number(z.reps)>0&&z.assisted).length,0),0);
+ const recentRirs=recent.flatMap(x=>(x.exercises||[]).flatMap(e=>(e.sets||[]).filter(z=>Number(z.weight)>0&&Number(z.reps)>0&&z.rir!==null&&z.rir!==undefined&&z.rir!=="").map(z=>Number(z.rir)))).filter(Number.isFinite);
+ const recentSets=recent.reduce((n,x)=>n+(x.exercises||[]).reduce((a,e)=>a+(e.sets||[]).filter(z=>Number(z.weight)>0&&Number(z.reps)>0).length,0),0);
+ const recentVolume=recent.reduce((n,x)=>n+(x.exercises||[]).reduce((a,e)=>a+(e.sets||[]).reduce((b,z)=>b+(Number(z.weight)>0&&Number(z.reps)>0?Number(z.weight)*Number(z.reps):0),0),0),0);
+ const bestsRecent=bests.filter(x=>x.bestDate&&new Date(x.bestDate+"T12:00:00")>=cutoff56).length;
+ return {completed,recent,bests,muscles:[...muscles.entries()].sort((a,b)=>b[1]-a[1]),recentSessions,recentAssisted,recentRir:recentRirs.length?recentRirs.reduce((a,b)=>a+b,0)/recentRirs.length:null,recentRirCount:recentRirs.length,recentSets,recentVolume,bestsRecent,allTimeSets:workingSets,allTimeVolume:totalVolume,exerciseMap,plannedDays:(program?.workouts||[]).length};
+}
+function renderTrainingPerformance(host,summary,showDetail=true){
+ host.replaceChildren();
+ const metrics=document.createElement("div");metrics.className="grid";metrics.style.cssText="grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px";
+ const items=[["WORKOUTS · 7 DAYS",summary.recentSessions],["WORKING SETS · 7 DAYS",summary.recentSets],["VOLUME · 7 DAYS",Math.round(summary.recentVolume).toLocaleString()+" kg"],["ASSISTED · 7 DAYS",summary.recentAssisted]];
+ items.forEach(([label,value])=>{const tile=document.createElement("div");tile.className="tile";tile.style.minHeight="0";const l=document.createElement("div");l.className="eyebrow";l.textContent=label;const v=document.createElement("strong");v.textContent=String(value);tile.append(l,v);metrics.append(tile);});
+ host.append(metrics);
+ const muscleTitle=document.createElement("div");muscleTitle.className="eyebrow";muscleTitle.style.marginTop="14px";muscleTitle.textContent="WORKING SETS BY MUSCLE · LAST 7 DAYS";host.append(muscleTitle);
+ if(!summary.muscles.length){const empty=document.createElement("div");empty.className="muted";empty.textContent="No completed working sets with a recorded muscle group in the last 7 days.";host.append(empty);}
+ summary.muscles.forEach(([group,count])=>{const line=document.createElement("div");line.style.cssText="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #30372a";const label=document.createElement("span");label.textContent=group;const value=document.createElement("strong");value.textContent=count+" sets";line.append(label,value);host.append(line);});
+ const rir=document.createElement("div");rir.className="muted";rir.style.marginTop="10px";rir.textContent="Average RIR: "+(summary.recentRir===null?"Not recorded":summary.recentRir.toFixed(1)+" across "+summary.recentRirCount+" sets")+" · Exercise bests set in last 8 weeks: "+summary.bestsRecent;host.append(rir);
+ if(!showDetail)return;
+ const title=document.createElement("div");title.className="eyebrow";title.style.marginTop="16px";title.textContent="ALL-TIME EXERCISE BEST LOADS";host.append(title);
+ if(!summary.bests.length){const empty=document.createElement("div");empty.className="muted";empty.textContent="No completed weighted sets recorded yet.";host.append(empty);return;}
+ const table=document.createElement("div");
+ summary.bests.forEach(x=>{const line=document.createElement("div");line.style.cssText="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #30372a";const label=document.createElement("span");label.textContent=x.name+" · "+(x.bestDate||"Date unknown");const value=document.createElement("strong");value.textContent=x.bestWeight+" kg × "+x.bestReps;line.append(label,value);table.append(line);});
+ host.append(table);
+}
+async function loadCoachClientTrainingAnalytics(){
+ if(!selectedClient?.uid)return;
+ const host=$("coachClientTrainingAnalytics");if(!host)return;host.textContent="Loading training performance…";
+ try{
+  const [programSnap,sessionsSnap]=await Promise.all([getDoc(doc(db,"users",selectedClient.uid,"training","program")),getDocs(collection(db,"users",selectedClient.uid,"trainingSessions"))]);
+  const program=programSnap.exists()?programSnap.data():{};
+  const sessions=sessionsSnap.docs.map(d=>({id:d.id,...d.data()}));
+  renderTrainingPerformance(host,summariseTrainingPerformance(program,sessions),true);
+ }catch(e){host.textContent="Could not load training performance: "+e.message;}
+}
+async function loadTrainingPerformanceCentre(){
+ const sessionsEl=$("trainingAnalyticsSessions"),bestsEl=$("trainingAnalyticsBests"),assistedEl=$("trainingAnalyticsAssisted"),rirEl=$("trainingAnalyticsRir"),muscleHost=$("trainingAnalyticsMuscles"),table=$("trainingAnalyticsTable");
+ [sessionsEl,bestsEl,assistedEl,rirEl].forEach(x=>x.textContent="—");muscleHost.textContent="Loading training volume…";table.textContent="Loading client training performance…";
+ try{
+  const result=await getDocs(query(collection(db,"users"),where("role","==","client")));
+  const clients=result.docs.map(d=>({uid:d.id,...d.data()})).filter(x=>x.accountStatus!=="inactive"&&x.accountStatus!=="archived");
+  const rows=await Promise.all(clients.map(async client=>{
+   const [p,logs]=await Promise.all([getDoc(doc(db,"users",client.uid,"training","program")),getDocs(collection(db,"users",client.uid,"trainingSessions"))]);
+   const summary=summariseTrainingPerformance(p.exists()?p.data():{},logs.docs.map(d=>({id:d.id,...d.data()})));
+   return {client,summary};
+  }));
+  const totals=rows.reduce((a,x)=>({sessions:a.sessions+x.summary.recentSessions,bests:a.bests+x.summary.bestsRecent,assisted:a.assisted+x.summary.recentAssisted,rirSum:a.rirSum+(x.summary.recentRir===null?0:x.summary.recentRir*x.summary.recentRirCount),rirCount:a.rirCount+x.summary.recentRirCount}),{sessions:0,bests:0,assisted:0,rirSum:0,rirCount:0});
+  sessionsEl.textContent=String(totals.sessions);bestsEl.textContent=String(totals.bests);assistedEl.textContent=String(totals.assisted);rirEl.textContent=totals.rirCount?(totals.rirSum/totals.rirCount).toFixed(1):"—";
+  const muscles=new Map();rows.forEach(x=>x.summary.muscles.forEach(([g,n])=>muscles.set(g,(muscles.get(g)||0)+n)));
+  muscleHost.replaceChildren();
+  if(!muscles.size)muscleHost.textContent="No completed working sets recorded in the last 7 days.";
+  [...muscles.entries()].sort((a,b)=>b[1]-a[1]).forEach(([g,n])=>{const line=document.createElement("div");line.style.cssText="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #30372a";const label=document.createElement("span");label.textContent=g;const val=document.createElement("strong");val.textContent=n+" sets";line.append(label,val);muscleHost.append(line);});
+  table.replaceChildren();
+  if(!rows.length){table.textContent="No active client accounts found.";return;}
+  rows.sort((a,b)=>b.summary.recentSessions-a.summary.recentSessions||(a.client.displayName||"").localeCompare(b.client.displayName||""));
+  rows.forEach(x=>{const card=document.createElement("div");card.className="tile";card.style.cssText="min-height:0;margin:9px 0";const name=document.createElement("strong");name.textContent=x.client.displayName||x.client.email||"Client";const details=document.createElement("div");details.className="muted";details.style.marginTop="7px";details.textContent=x.summary.recentSessions+" completed workouts · "+x.summary.recentSets+" working sets · "+x.summary.bests.length+" exercise bests · "+x.summary.recentAssisted+" assisted sets · "+(x.summary.recentRir===null?"RIR not logged":"Avg RIR "+x.summary.recentRir.toFixed(1))+" · "+(x.summary.plannedDays||"No")+" programme workout days";const open=document.createElement("button");open.className="secondary";open.style.width="100%";open.style.marginTop="9px";open.textContent="OPEN TRAINING PERFORMANCE";open.onclick=()=>showClientProfile(x.client);card.append(name,details,open);table.append(card);});
+ }catch(e){muscleHost.textContent="Could not load training volume: "+e.message;table.textContent="Could not load client training performance: "+e.message;}
+}
 async function loadPerformanceAnalytics(){
  const countEl=$("analyticsClientCount"),rateEl=$("analyticsCheckinRate"),trackedEl=$("analyticsWeightTracked"),sessionsEl=$("analyticsSessions");
  const checkChart=$("analyticsCheckinChart"),weightChart=$("analyticsWeightChart"),table=$("analyticsClientTable");
@@ -798,6 +899,7 @@ async function loadPerformanceAnalytics(){
  }
 }
 $("refreshAnalytics")?.addEventListener("click",loadPerformanceAnalytics);
+$("refreshAnalytics")?.addEventListener("click",loadTrainingPerformanceCentre);
 async function loadClients(){
  const list=$("clientList");list.textContent="Loading clients…";
  try{
@@ -915,6 +1017,7 @@ async function showClientProfile(client){
   await loadCoachMealPlan();
   await loadCoachTrainingProgram();
   await loadCoachWorkoutReviews();
+  await loadCoachClientTrainingAnalytics();
   await loadCoachProgressPhotos();
  }catch(e){$("clientDetailsStatus").textContent="Could not load saved details: "+e.message;}
 }
@@ -2337,7 +2440,7 @@ document.querySelectorAll("#nav button").forEach(btn=>btn.addEventListener("clic
  document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b===btn));
  ["overview","clients","analytics","nutrition","foodDiary","training","progress","checkins","messages","updates"].forEach(v=>$(v+"View").classList.toggle("hidden",v!==btn.dataset.view));
  if(btn.dataset.view==="clients")loadClients();
- if(btn.dataset.view==="analytics"&&currentUser&&currentRole==="coach")loadPerformanceAnalytics();
+ if(btn.dataset.view==="analytics"&&currentUser&&currentRole==="coach"){loadPerformanceAnalytics();loadTrainingPerformanceCentre();}
  if(btn.dataset.view==="nutrition"&&currentUser)loadNutritionTargets(false);
  if(btn.dataset.view==="foodDiary"&&currentUser){$("foodDate").value=$("foodDate").value||localDateString();loadFoodDiary();}
  if(btn.dataset.view==="training"&&currentUser&&currentRole!=="coach")loadClientTrainingDashboard();
