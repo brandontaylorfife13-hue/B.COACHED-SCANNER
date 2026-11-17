@@ -2405,9 +2405,10 @@ function readTrainingDraft(){
   const weight=document.querySelector('[data-training-weight="'+ei+":"+si+'"]')?.value??"";
   const reps=document.querySelector('[data-training-reps="'+ei+":"+si+'"]')?.value??"";
   const rir=document.querySelector('[data-training-rir="'+ei+":"+si+'"]')?.value??"";
-  const assisted=document.querySelector('[data-training-ass="'+ei+":"+si+'"]')?.classList.contains("active")||false;
-  return {weight:weight===""?null:Number(weight),reps:reps===""?null:Number(reps),rir:rir===""?null:Number(rir),assisted};
- })}));
+  const assistedInput=document.querySelector('[data-training-ass="'+ei+":"+si+'"]');
+  const assistanceAmount=assistedInput?.value===""||!assistedInput?null:Number(assistedInput.value);
+  return {weight:weight===""?null:Number(weight),reps:reps===""?null:Number(reps),rir:rir===""?null:Number(rir),assisted:assistanceAmount!==null&&assistanceAmount>0,assistanceAmount};
+ }),notes:document.querySelector('[data-training-exercise-note="'+ei+'"]')?.value?.trim()||e.notes||""}));
  return {index:Number(index),date,workoutName:w.name,exercises};
 }
 function restoreTrainingDraft(index,date){
@@ -2423,7 +2424,10 @@ function restoreTrainingDraft(index,date){
    if(weight&&set.weight!=null)weight.value=set.weight;
    if(reps&&set.reps!=null)reps.value=set.reps;
    if(rir&&set.rir!=null)rir.value=set.rir;
-   if(assisted&&set.assisted){assisted.classList.add("active");assisted.setAttribute("aria-pressed","true");}
+   if(assisted&&set.assistanceAmount!=null)assisted.value=set.assistanceAmount;
+  });
+  const noteInput=document.querySelector('[data-training-exercise-note="'+ei+'"]');
+  if(noteInput)noteInput.value=savedExercise?.notes||exercise.notes||"";
   });
  });
  $("trainingLogStatus").textContent="Previous entries restored for this workout.";
@@ -2496,11 +2500,13 @@ function renderClientWorkoutLogger(){
    const weight=document.createElement("input");weight.type="number";weight.min="0";weight.step="0.5";weight.placeholder="Weight kg";weight.dataset.trainingWeight=ei+":"+si;
    const reps=document.createElement("input");reps.type="number";reps.min="0";reps.step="1";reps.placeholder="Reps";reps.dataset.trainingReps=ei+":"+si;
    const rir=document.createElement("input");rir.type="number";rir.min="0";rir.max="10";rir.step="0.5";rir.placeholder="RIR";rir.title="Reps in reserve (optional)";rir.dataset.trainingRir=ei+":"+si;
-   const assisted=document.createElement("button");assisted.type="button";assisted.className="training-ass-btn";assisted.textContent="ASS";assisted.title="Mark this set as assisted";assisted.dataset.trainingAss=ei+":"+si;assisted.setAttribute("aria-pressed","false");
-   assisted.addEventListener("click",()=>{const active=assisted.classList.toggle("active");assisted.setAttribute("aria-pressed",String(active));queueTrainingAutosave();});
-   [weight,reps,rir].forEach(input=>input.addEventListener("input",queueTrainingAutosave));
+   const assisted=document.createElement("input");assisted.type="number";assisted.min="0";assisted.step="0.5";assisted.placeholder="ASS";assisted.title="Assistance amount (enter a number)";assisted.setAttribute("aria-label","Assistance amount for set "+(si+1));assisted.dataset.trainingAss=ei+":"+si;
+   [weight,reps,rir,assisted].forEach(input=>input.addEventListener("input",queueTrainingAutosave));
    row.append(lab,weight,reps,rir,assisted);card.append(row);
   }
+  const exerciseNotesLabel=document.createElement("label");exerciseNotesLabel.textContent="Exercise notes";exerciseNotesLabel.style.display="block";exerciseNotesLabel.style.marginTop="10px";
+  const exerciseNotes=document.createElement("textarea");exerciseNotes.rows=2;exerciseNotes.placeholder="Technique, form, cues or coach feedback…";exerciseNotes.style.cssText="width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1px solid var(--line);border-radius:9px;background:#10140d;color:var(--white);font:inherit";exerciseNotes.dataset.trainingExerciseNote=ei;exerciseNotes.value=e.notes||"";exerciseNotes.addEventListener("input",queueTrainingAutosave);
+  card.append(exerciseNotesLabel,exerciseNotes);
   host.append(card);
  });
  restoreTrainingDraft(Number(index),$("trainingWorkoutDate").value);
@@ -2512,7 +2518,7 @@ $("trainingWorkoutSelect").addEventListener("change",()=>{
  const w=clientTrainingProgram.workouts[Number(index)];if(!w)return;
  const selectedDate=$("trainingWorkoutDate").value;
  const saved=clientTrainingLogs.find(log=>log.id===selectedDate+"_"+index);
- activeClientWorkoutExercises=saved?.exercises?.length?saved.exercises.map(ex=>({name:ex.name,muscleGroup:ex.muscleGroup||"",sets:(ex.sets||[]).length||3,reps:(w.exercises||[]).find(e=>e.name===ex.name)?.reps||"8–12"})):(w.exercises||[]).map(e=>({...e}));
+ activeClientWorkoutExercises=saved?.exercises?.length?saved.exercises.map(ex=>({name:ex.name,muscleGroup:ex.muscleGroup||"",notes:ex.notes||"",sets:(ex.sets||[]).length||3,reps:(w.exercises||[]).find(e=>e.name===ex.name)?.reps||"8–12"})):(w.exercises||[]).map(e=>({...e,notes:e.notes||""}));
  renderClientWorkoutLogger();
 });
 $("trainingWorkoutDate").addEventListener("change",()=>{
