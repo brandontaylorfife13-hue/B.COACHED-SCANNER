@@ -338,6 +338,9 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
    <div class="tile">WEIGHT TRACKING<strong id="analyticsWeightTracked">—</strong><span>Clients with 2+ weigh-ins</span></div>
    <div class="tile">TRAINING THIS WEEK<strong id="analyticsSessions">—</strong><span>Logged sessions in the last 7 days</span></div>
   </div>
+  <div class="section-title" style="margin-top:24px">Weekly check-in review inbox</div>
+  <p class="muted">Submitted check-ins across your active clients. Open a client to compare submissions, add feedback and mark each week reviewed.</p>
+  <div id="coachCheckinInbox" class="muted">Loading submitted check-ins…</div>
   <div class="section-title" style="margin-top:24px">Weekly check-in activity</div>
   <div class="tile" style="min-height:0"><div id="analyticsCheckinChart" aria-live="polite" class="muted">Loading check-in activity…</div></div>
   <div class="section-title" style="margin-top:24px">Client progress snapshot</div>
@@ -975,6 +978,39 @@ async function loadCoachConsistencyDashboard(){
   });
  }catch(e){host.textContent="Could not load client consistency: "+e.message;}
 }
+async function loadCoachCheckinInbox(){
+ const host=$("coachCheckinInbox");if(!host)return;host.textContent="Loading submitted check-ins…";
+ try{
+  const result=await getDocs(query(collection(db,"users"),where("role","==","client")));
+  const clients=result.docs.map(d=>({uid:d.id,...d.data()})).filter(c=>c.accountStatus!=="inactive"&&c.accountStatus!=="archived");
+  const groups=await Promise.all(clients.map(async client=>{
+   try{
+    const snap=await getDocs(collection(db,"users",client.uid,"weeklyCheckins"));
+    const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.weekEnding||b.id).localeCompare(a.weekEnding||a.id));
+    return {client,rows};
+   }catch(error){return {client,rows:[],error};}
+  }));
+  const entries=groups.flatMap(g=>g.rows.map((row,index)=>({client:g.client,row,previous:g.rows[index+1]||null}))).sort((a,b)=>(b.row.weekEnding||b.row.id).localeCompare(a.row.weekEnding||a.row.id));
+  host.replaceChildren();
+  if(!entries.length){host.textContent="No submitted check-ins found.";return;}
+  const pending=entries.filter(x=>x.row.coachReviewStatus!=="reviewed").length;
+  const summary=document.createElement("div");summary.className="tile";summary.style.cssText="min-height:0;margin:8px 0";summary.textContent=entries.length+" submitted check-ins · "+pending+" awaiting review";host.append(summary);
+  entries.slice(0,60).forEach(item=>{
+   const card=document.createElement("div");card.className="tile";card.style.cssText="min-height:0;margin:8px 0;padding:12px";
+   const head=document.createElement("div");head.style.cssText="display:flex;justify-content:space-between;gap:8px;align-items:center";
+   const name=document.createElement("strong");name.textContent=item.client.displayName||item.client.email||"Client";
+   const status=document.createElement("span");status.className="pill";status.textContent=item.row.coachReviewStatus==="reviewed"?"Reviewed":"Awaiting review";head.append(name,status);card.append(head);
+   const date=document.createElement("div");date.className="muted";date.style.marginTop="6px";date.textContent="Week ending "+(item.row.weekEnding?new Date(item.row.weekEnding+"T12:00:00").toLocaleDateString():"Date unavailable");card.append(date);
+   const summaryLine=document.createElement("div");summaryLine.className="muted";summaryLine.style.marginTop="7px";summaryLine.textContent="Nutrition: "+(item.row.adherence||"Not recorded")+" · Training: "+(item.row.trainingSessions??"Not recorded")+" sessions"+(item.row.averageWeight!=null?" · Average weight: "+item.row.averageWeight+" kg":"");card.append(summaryLine);
+   if(item.previous){
+    const prior=document.createElement("div");prior.className="muted";prior.style.marginTop="6px";prior.textContent="Previous check-in: "+(item.previous.adherence||"Nutrition not recorded")+" · "+(item.previous.trainingSessions??"—")+" training sessions"+(item.previous.averageWeight!=null?" · "+item.previous.averageWeight+" kg":"");card.append(prior);
+   }
+   const open=document.createElement("button");open.className="secondary";open.style.cssText="width:100%;margin-top:10px";open.textContent="OPEN CHECK-IN & GIVE FEEDBACK";open.onclick=async()=>{await showClientProfile(item.client);document.getElementById("profile-weekly-checkins")?.scrollIntoView({behavior:"smooth",block:"start"});};card.append(open);host.append(card);
+  });
+  if(entries.length>60){const more=document.createElement("div");more.className="muted";more.textContent="Showing the latest 60 check-ins.";host.append(more);}
+  groups.filter(g=>g.error).forEach(g=>{const warning=document.createElement("div");warning.className="muted";warning.textContent="Could not read check-ins for "+(g.client.displayName||g.client.email||"a client")+". ";host.append(warning);});
+ }catch(e){host.textContent="Could not load check-in inbox: "+e.message;}
+}
 async function loadPerformanceAnalytics(){
  const countEl=$("analyticsClientCount"),rateEl=$("analyticsCheckinRate"),trackedEl=$("analyticsWeightTracked"),sessionsEl=$("analyticsSessions");
  const checkChart=$("analyticsCheckinChart"),weightChart=$("analyticsWeightChart"),table=$("analyticsClientTable");
@@ -1069,6 +1105,7 @@ async function loadPerformanceAnalytics(){
 $("refreshAnalytics")?.addEventListener("click",loadPerformanceAnalytics);
 $("refreshAnalytics")?.addEventListener("click",loadTrainingPerformanceCentre);
 $("refreshAnalytics")?.addEventListener("click",loadCoachConsistencyDashboard);
+$("refreshAnalytics")?.addEventListener("click",loadCoachCheckinInbox);
 async function loadClients(){
  const list=$("clientList");list.textContent="Loading clients…";
  try{
@@ -2720,7 +2757,7 @@ document.querySelectorAll("#nav button").forEach(btn=>btn.addEventListener("clic
  document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b===btn));
  ["overview","clients","analytics","nutrition","foodDiary","training","progress","checkins","messages","updates"].forEach(v=>$(v+"View").classList.toggle("hidden",v!==btn.dataset.view));
  if(btn.dataset.view==="clients")loadClients();
- if(btn.dataset.view==="analytics"&&currentUser&&currentRole==="coach"){loadPerformanceAnalytics();loadTrainingPerformanceCentre();loadCoachConsistencyDashboard();}
+ if(btn.dataset.view==="analytics"&&currentUser&&currentRole==="coach"){loadPerformanceAnalytics();loadTrainingPerformanceCentre();loadCoachConsistencyDashboard();loadCoachCheckinInbox();}
  if(btn.dataset.view==="nutrition"&&currentUser)loadNutritionTargets(false);
  if(btn.dataset.view==="foodDiary"&&currentUser){$("foodDate").value=$("foodDate").value||localDateString();loadFoodDiary();}
  if(btn.dataset.view==="overview"&&currentUser&&currentRole!=="coach")loadClientFourWeekReview();
