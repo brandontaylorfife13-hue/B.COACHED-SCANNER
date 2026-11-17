@@ -1135,7 +1135,7 @@ async function loadWeeklyCoachingReports(){
     "",
     ...decisionLines
    ];
-   return {client,lines,latestWeight,weightChange,weekWeights,recentSessions,diaryDays,errors:[checksSnap,weightsSnap,sessionsSnap,dailySnap,...foodSnaps,targetsSnap,profileSnap].filter(x=>x.error).length};
+   return {client,lines,latestWeight,weightChange,weekWeights,recentSessions,diaryDays,decisionSuggestions,errors:[checksSnap,weightsSnap,sessionsSnap,dailySnap,...foodSnaps,targetsSnap,profileSnap].filter(x=>x.error).length};
   }));
   host.replaceChildren();
   if(!reports.length){host.textContent="No active client accounts found.";return;}
@@ -1145,6 +1145,7 @@ async function loadWeeklyCoachingReports(){
    const heading=document.createElement("strong");heading.style.fontSize="16px";heading.textContent=report.client.displayName||report.client.email||"Client";card.append(heading);
    const stats=document.createElement("div");stats.className="muted";stats.style.cssText="margin-top:7px;line-height:1.6";
    stats.textContent=report.recentSessions.length+" workouts · "+report.diaryDays+"/7 food diary days · "+(report.latestWeight?report.latestWeight.value.toFixed(1)+" kg latest weigh-in":"no weigh-in")+(report.weightChange===null?"":" · "+(report.weightChange>0?"+":"")+report.weightChange.toFixed(1)+" kg this week");card.append(stats);
+   const prompt=document.createElement("div");prompt.className="muted";prompt.style.cssText="margin-top:9px;padding:10px;background:#10140d;border:1px solid #343b2c;border-radius:9px;line-height:1.5";prompt.textContent="COACHING PROMPT · "+report.decisionSuggestions[0];card.append(prompt);
    const details=document.createElement("details");details.style.marginTop="10px";
    const summary=document.createElement("summary");summary.textContent="VIEW WEEKLY REPORT";summary.style.cursor="pointer";
    const pre=document.createElement("pre");pre.textContent=report.lines.join("\n");pre.style.cssText="white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:12px;line-height:1.55;background:#10140d;padding:12px;border-radius:9px;margin-top:10px";
