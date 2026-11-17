@@ -804,8 +804,9 @@ async function loadCoachClientNutritionAnalytics(){
  if(!selectedClient?.uid)return;
  const host=$("coachClientNutritionAnalytics");if(!host)return;host.textContent="Loading nutrition adherence…";
  try{
-  const targetSnap=await getDoc(doc(db,"users",selectedClient.uid,"nutrition","targets"));
+  const [targetSnap,planSnap]=await Promise.all([getDoc(doc(db,"users",selectedClient.uid,"nutrition","targets")),getDoc(doc(db,"users",selectedClient.uid,"nutrition","mealPlan"))]);
   const targets=targetSnap.exists()?targetSnap.data():{};
+  const mealPlan=planSnap.exists()?planSnap.data():{};
   const highDays=Array.isArray(targets.highDays)?targets.highDays:[];
   const today=new Date();today.setHours(0,0,0,0);
   const dates=Array.from({length:7},(_,i)=>{const d=new Date(today);d.setDate(d.getDate()-(6-i));return d;});
@@ -822,7 +823,7 @@ async function loadCoachClientNutritionAnalytics(){
    const selection=selectionSnap.exists()?selectionSnap.data():{};
    const eaten=selection.eatenMeals&&typeof selection.eatenMeals==="object"?Object.values(selection.eatenMeals).filter(Boolean).length:0;
    const planned=selection.eatenMeals&&typeof selection.eatenMeals==="object"?Object.keys(selection.eatenMeals).length:0;
-   return {key,date,dayName,entries:entries.length,totals,high,target,eaten,planned,hasSelection:selectionSnap.exists()};
+   return {key,date,dayName,entries:entries.length,entryItems:entries,totals,high,target,eaten,planned,hasSelection:selectionSnap.exists(),selection};
   }));
   host.replaceChildren();
   const logged=days.filter(x=>x.entries>0);
@@ -842,6 +843,40 @@ async function loadCoachClientNutritionAnalytics(){
     const vals=[["Calories",day.totals.calories,day.target.calories,"kcal"],["Protein",day.totals.protein,day.target.proteinG,"g"],["Carbs",day.totals.carbs,day.target.carbsG,"g"],["Fats",day.totals.fats,day.target.fatsG,"g"]];
     vals.forEach(([label,actual,target,unit])=>{const line=document.createElement("div");line.style.cssText="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid #30372a";const l=document.createElement("span");l.textContent=label;const v=document.createElement("strong");v.textContent=target==null?Math.round(actual*10)/10+unit+" · target not set":Math.round(actual*10)/10+" / "+target+unit;line.append(l,v);card.append(line);});
    }else{const empty=document.createElement("div");empty.className="muted";empty.style.marginTop="7px";empty.textContent="No intake recorded. This is missing data, not zero intake.";card.append(empty);}
+   host.append(card);
+  });
+  const detailTitle=document.createElement("div");detailTitle.className="eyebrow";detailTitle.style.marginTop="20px";detailTitle.textContent="FOOD DIARY · ACTUAL FOODS LOGGED";host.append(detailTitle);
+  days.slice().reverse().forEach(day=>{
+   const card=document.createElement("div");card.className="tile";card.style.cssText="min-height:0;margin:8px 0;padding:12px";
+   const heading=document.createElement("strong");heading.textContent=day.date.toLocaleDateString("en-US",{weekday:"long",day:"numeric",month:"short"});card.append(heading);
+   if(!day.entryItems.length){const empty=document.createElement("div");empty.className="muted";empty.style.marginTop="6px";empty.textContent="No individual food entries recorded.";card.append(empty);}
+   day.entryItems.forEach(item=>{
+    const line=document.createElement("div");line.style.cssText="padding:8px 0;border-bottom:1px solid #30372a";
+    const name=document.createElement("strong");name.textContent=(item.meal?item.meal+" · ":"")+(item.name||"Food item");
+    const portion=document.createElement("div");portion.className="muted";const amount=item.grams??item.quantity??item.amount??item.portion;portion.textContent=(amount!=null?String(amount)+(item.unit||" g")+" · ":"")+Math.round(Number(item.calories)||0)+" kcal · P "+(Number(item.proteinG)||0)+"g · C "+(Number(item.carbsG)||0)+"g · F "+(Number(item.fatsG)||0)+"g";
+    line.append(name,portion);card.append(line);
+   });
+   host.append(card);
+  });
+  const planTitle=document.createElement("div");planTitle.className="eyebrow";planTitle.style.marginTop="20px";planTitle.textContent="TAILORED MEAL PLAN · CLIENT'S CHOICES";host.append(planTitle);
+  days.slice().reverse().forEach(day=>{
+   const selection=day.selection||{},type=selection.dayType==="highDay"?"highDay":selection.dayType==="lowDay"?"lowDay":day.high?"highDay":"lowDay";
+   const plan=Array.isArray(mealPlan[type])?mealPlan[type]:[];
+   const card=document.createElement("div");card.className="tile";card.style.cssText="min-height:0;margin:8px 0;padding:12px";
+   const heading=document.createElement("strong");heading.textContent=day.date.toLocaleDateString("en-US",{weekday:"long",day:"numeric",month:"short"})+" · "+(type==="highDay"?"HIGH DAY":"LOW DAY");card.append(heading);
+   if(!day.hasSelection){const empty=document.createElement("div");empty.className="muted";empty.style.marginTop="6px";empty.textContent="No meal-plan choices saved for this date.";card.append(empty);}
+   else if(!plan.length){const empty=document.createElement("div");empty.className="muted";empty.style.marginTop="6px";empty.textContent="A meal-plan selection exists, but no matching saved plan was found.";card.append(empty);}
+   else{
+    plan.forEach((meal,mi)=>{
+     const oi=Number((selection.selectionMap||{})[mi]??0),option=(meal.options||[])[oi];if(!option)return;
+     const custom=(selection.customFoods||{})[String(mi)],foods=custom&&Number(custom.optionIndex)===oi&&Array.isArray(custom.foods)?custom.foods:(option.foods||[]);
+     const block=document.createElement("div");block.style.cssText="padding:8px 0;border-bottom:1px solid #30372a";
+     const mealName=document.createElement("strong");mealName.textContent=(meal.name||"Meal "+(mi+1))+" · "+(option.name||"Option "+(oi+1))+(selection.eatenMeals?.[String(mi)]?" · MARKED EATEN":"");block.append(mealName);
+     foods.forEach(food=>{const item=document.createElement("div");item.className="muted";item.textContent=(food.name||"Food item")+" · "+(Number(food.grams)||0)+" g";block.append(item);});
+     if(!foods.length){const none=document.createElement("div");none.className="muted";none.textContent="No foods listed in this meal.";block.append(none);}
+     card.append(block);
+    });
+   }
    host.append(card);
   });
  }catch(e){host.textContent="Could not load nutrition adherence: "+e.message;}
