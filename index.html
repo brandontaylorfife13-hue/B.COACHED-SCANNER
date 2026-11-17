@@ -642,7 +642,7 @@ async function loadCoachReviewDashboard(clients){
   $("overviewMessageCount").textContent=String(rows.filter(x=>x.awaitingReply).length);
   $("overviewCheckinReviewCount").textContent=String(rows.filter(x=>x.needsCheckinReview).length);
   const overviewHost=$("overviewActionList");overviewHost.replaceChildren();
-  const overviewRows=rows.filter(x=>x.awaitingReply||x.inactive||x.goalNeedsReview||x.milestoneDue||x.overdue)
+  const overviewRows=rows.filter(x=>x.awaitingReply||x.inactive||x.goalNeedsReview||x.milestoneDue||x.overdue||x.needsCheckinReview||x.lowAdherence)
    .sort((a,b)=>(Number(b.awaitingReply)-Number(a.awaitingReply))||(Number(b.needsCheckinReview)-Number(a.needsCheckinReview))||(Number(b.overdue)-Number(a.overdue))||(Number(b.lowAdherence)-Number(a.lowAdherence))||(a.client.displayName||"").localeCompare(b.client.displayName||"")).slice(0,5);
   if(!overviewRows.length){
    const clear=document.createElement("div");clear.className="tile";clear.style.minHeight="0";clear.textContent=clients.length?"All clear — no clients currently need attention based on the latest activity.":"Your client action list will appear here once clients have joined.";overviewHost.append(clear);
