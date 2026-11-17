@@ -87,6 +87,15 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
  <section class="card" id="overviewView">
   <div class="eyebrow" id="roleLabel">CLIENT DASHBOARD</div><div class="heading" id="overviewHeading">Your daily overview</div>
   <p class="muted">Welcome to your B.COACHED space. Your personal targets and coaching plan will appear here as we build each section.</p>
+  <section id="clientSetupCard" class="tile hidden" style="margin:14px 0 18px;min-height:0;padding:15px;border-color:#829e22">
+   <div class="eyebrow">YOUR COACHING JOURNEY</div>
+   <div class="section-title" style="margin-top:6px">Your setup checklist</div>
+   <p class="muted" style="margin:6px 0 12px">See what is ready and what is still being prepared by your coach.</p>
+   <div style="height:7px;background:#30372a;border-radius:99px;overflow:hidden"><div id="clientSetupProgressBar" style="height:100%;width:0%;background:var(--lime);border-radius:99px;transition:width .2s"></div></div>
+   <div id="clientSetupProgressText" class="muted" style="margin:7px 0 10px">Checking your setup…</div>
+   <div id="clientSetupList"></div>
+   <div id="clientSetupUpdated" class="muted" style="margin-top:9px"></div>
+  </section>
   <div id="clientNotificationGuide" class="tile hidden" style="margin:14px 0 18px;border-color:#829e22;min-height:0">
    <div class="eyebrow">STAY ON TRACK</div>
    <div class="section-title" style="margin-top:7px">Turn on your phone notifications</div>
@@ -543,6 +552,55 @@ $("primaryBtn").onclick=async()=>{
 $("resetBtn").onclick=async()=>{const email=$("email").value.trim();if(!email){status("Enter your email address first.","bad");return;}try{await sendPasswordResetEmail(auth,email);status("Password reset email sent. Check your inbox.","good");}catch(e){status(friendly(e),"bad");}};
 $("logoutBtn").onclick=()=>signOut(auth);
 function friendly(e){const m=e?.message||"Something went wrong.";if(m.includes("auth/invalid-credential"))return"Email or password is incorrect.";if(m.includes("auth/email-already-in-use"))return"An account already exists with this email. Try logging in.";if(m.includes("auth/weak-password"))return"Choose a stronger password with at least 6 characters.";if(m.includes("auth/invalid-email"))return"Please enter a valid email address.";return m;}
+async function loadClientSetupChecklist(){
+ const card=$("clientSetupCard");
+ if(!card||!currentUser||currentRole==="coach")return;
+ card.classList.remove("hidden");
+ const host=$("clientSetupList");
+ host.textContent="Checking your setup…";
+ try{
+  const [profileSnap,targetsSnap,mealSnap,programSnap,checkinsSnap]=await Promise.all([
+   getDoc(doc(db,"users",currentUser.uid)),
+   getDoc(doc(db,"users",currentUser.uid,"nutrition","targets")),
+   getDoc(doc(db,"users",currentUser.uid,"nutrition","mealPlan")),
+   getDoc(doc(db,"users",currentUser.uid,"training","program")),
+   getDocs(collection(db,"users",currentUser.uid,"weeklyCheckins"))
+  ]);
+  const profile=profileSnap.exists()?profileSnap.data():{};
+  const items=[
+   {label:"Coaching profile",done:profile.onboardingComplete===true,detail:"Your starting details have been saved.",view:null},
+   {label:"Nutrition targets",done:targetsSnap.exists(),detail:targetsSnap.exists()?"Your calorie and macro targets are ready.":"Your coach has not added your targets yet.",view:"nutrition"},
+   {label:"Meal plan",done:mealSnap.exists(),detail:mealSnap.exists()?"Your meal plan is available in Food Diary.":"Your coach is still preparing your meal plan.",view:"foodDiary"},
+   {label:"Training programme",done:programSnap.exists(),detail:programSnap.exists()?"Your training programme is ready to view.":"Your coach is still preparing your training programme.",view:"training"},
+   {label:"First weekly check-in",done:checkinsSnap.size>0,detail:checkinsSnap.size>0?"Your first check-in has been submitted.":"Your first check-in will be ready when your coach sets your check-in schedule.",view:"checkins"}
+  ];
+  const complete=items.filter(x=>x.done).length;
+  $("clientSetupProgressBar").style.width=Math.round(complete/items.length*100)+"%";
+  $("clientSetupProgressText").textContent=complete+" of "+items.length+" steps complete";
+  host.replaceChildren();
+  items.forEach(item=>{
+   const row=document.createElement("div");
+   row.style.cssText="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid #343b2c";
+   const mark=document.createElement("span");
+   mark.textContent=item.done?"✓":"○";
+   mark.style.cssText="flex:0 0 24px;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-weight:900;color:"+(item.done?"#c6ff00":"#a5ad9b")+";background:"+(item.done?"#293416":"#24291f");
+   const copy=document.createElement("div");copy.style.cssText="flex:1;min-width:0";
+   const title=document.createElement("strong");title.style.cssText="display:block;font-size:13px";title.textContent=item.label;
+   const detail=document.createElement("div");detail.className="muted";detail.style.cssText="font-size:12px;margin-top:3px";detail.textContent=item.detail;
+   copy.append(title,detail);row.append(mark,copy);
+   if(item.view&&!item.done){
+    const open=document.createElement("button");open.className="secondary";open.textContent="VIEW";open.style.cssText="padding:7px 10px;font-size:11px;min-height:34px";
+    open.addEventListener("click",()=>document.querySelector('#nav button[data-view="'+item.view+'"]')?.click());
+    row.append(open);
+   }
+   host.append(row);
+  });
+  $("clientSetupUpdated").textContent="This checklist updates as your coach adds your plans and you complete check-ins.";
+ }catch(error){
+  console.error("Client setup checklist failed",error);
+  host.textContent="We could not load your setup checklist just now. Your saved plans and progress have not been changed.";
+ }
+}
 onAuthStateChanged(auth,async user=>{
  currentUser=user;
  if(!user){currentRole=null;selectedClient=null;$("authCard").classList.remove("hidden");$("app").classList.add("hidden");return;}
@@ -600,7 +658,7 @@ onAuthStateChanged(auth,async user=>{
   const overviewIntro=document.querySelector("#overviewView > p.muted");
   if(overviewIntro) overviewIntro.textContent=coach
    ?"Manage your clients, build their nutrition plans and review their progress from the Clients area."
-   :"Welcome to your B.COACHED space. Your personal targets and coaching plan will appear here as we build each section.";
+   :"Your coaching hub: check your targets, follow your plans and keep your progress up to date.";
   await loadNutritionTargets(false);
   $("dailyHabits").classList.toggle("hidden",coach);
   $("clientWeightTracker").classList.toggle("hidden",coach);
@@ -610,6 +668,7 @@ onAuthStateChanged(auth,async user=>{
   if(coach)await ensurePersonalTrainingProgram();
   await loadClientTrainingDashboard();
   if(!coach)await loadClientGoalDashboard();
+  if(!coach&&profile.onboardingComplete===true)await loadClientSetupChecklist();
   if(coach)loadClients();
  }catch(e){
   status(friendly(e),"bad");
@@ -673,6 +732,7 @@ $("completeOnboardingBtn").addEventListener("click",async()=>{
   $("nav").classList.remove("hidden");
   $("onboardingStatus").textContent="Your profile is saved. Welcome to B.COACHED!";
   $("onboardingStatus").className="status good";
+  await loadClientSetupChecklist();
  }catch(e){
   $("onboardingStatus").textContent="Could not save your profile: "+e.message;
   $("onboardingStatus").className="status bad";
