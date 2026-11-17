@@ -28,9 +28,11 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 .training-exercise{padding:9px 11px;margin:7px 0;border-radius:10px}
 .training-exercise>strong{font-size:14px;display:block}
 .training-exercise .muted{font-size:11px;margin-top:2px}
-.training-set-row{grid-template-columns:42px 1fr 1fr;gap:6px;margin:5px 0}
+.training-set-row{grid-template-columns:34px repeat(4,minmax(0,1fr));gap:5px;margin:5px 0}
 .training-set-row .muted{font-size:11px}
-.training-set-row input{padding:7px 8px;font-size:13px;border-radius:8px}
+.training-set-row input{padding:7px 6px;font-size:12px;border-radius:8px}
+.training-ass-btn{padding:7px 4px;min-width:0;border-radius:8px;background:#252c1e;border:1px solid #586344;color:#c4c9ce;font-size:11px;font-weight:900;letter-spacing:.3px}
+.training-ass-btn.active{background:var(--lime);border-color:var(--lime);color:#11160a}
 .client-meal-food-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #343b2c;font-size:13px}
 .client-food-remove{padding:5px 9px;font-size:11px;min-width:65px}
 .client-add-food{margin-top:9px;padding:8px 10px;background:#10140d;border:1px solid var(--line);border-radius:9px}
@@ -1640,7 +1642,8 @@ function readTrainingDraft(){
   const weight=document.querySelector('[data-training-weight="'+ei+":"+si+'"]')?.value??"";
   const reps=document.querySelector('[data-training-reps="'+ei+":"+si+'"]')?.value??"";
   const rir=document.querySelector('[data-training-rir="'+ei+":"+si+'"]')?.value??"";
-  return {weight:weight===""?null:Number(weight),reps:reps===""?null:Number(reps),rir:rir===""?null:Number(rir)};
+  const assisted=document.querySelector('[data-training-ass="'+ei+":"+si+'"]')?.classList.contains("active")||false;
+  return {weight:weight===""?null:Number(weight),reps:reps===""?null:Number(reps),rir:rir===""?null:Number(rir),assisted};
  })}));
  return {index:Number(index),date,workoutName:w.name,exercises};
 }
@@ -1651,9 +1654,11 @@ function restoreTrainingDraft(index,date){
   const weight=document.querySelector('[data-training-weight="'+ei+":"+si+'"]');
   const reps=document.querySelector('[data-training-reps="'+ei+":"+si+'"]');
   const rir=document.querySelector('[data-training-rir="'+ei+":"+si+'"]');
+  const assisted=document.querySelector('[data-training-ass="'+ei+":"+si+'"]');
   if(weight&&set.weight!=null)weight.value=set.weight;
   if(reps&&set.reps!=null)reps.value=set.reps;
   if(rir&&set.rir!=null)rir.value=set.rir;
+  if(assisted&&set.assisted){assisted.classList.add("active");assisted.setAttribute("aria-pressed","true");}
  }));
  $("trainingLogStatus").textContent="Previous entries restored for this workout.";
 }
@@ -1694,8 +1699,9 @@ $("trainingWorkoutSelect").addEventListener("change",()=>{
  const index=$("trainingWorkoutSelect").value,host=$("clientWorkoutLogger");host.replaceChildren();if(index==="")return;const w=clientTrainingProgram.workouts[Number(index)];if(!w)return;
  (w.exercises||[]).forEach((e,ei)=>{const card=document.createElement("div");card.className="training-exercise";const title=document.createElement("strong");title.textContent=e.name;const note=document.createElement("div");note.className="muted";note.textContent=(e.muscleGroup||"")+" · Target "+e.sets+" sets × "+e.reps;card.append(title,note);const selectedDate=$("trainingWorkoutDate").value;const previous=clientTrainingLogs.filter(log=>(!selectedDate||!log.date||log.date<selectedDate)).slice().reverse().flatMap(log=>(log.exercises||[]).filter(x=>x.name===e.name).map(x=>({date:log.date,sets:x.sets||[]})))[0];const previousNote=document.createElement("div");previousNote.className="muted";previousNote.style.color="#c6ff00";previousNote.style.marginTop="5px";previousNote.textContent=previous?"Last time ("+new Date(previous.date+"T12:00:00").toLocaleDateString()+"): "+previous.sets.filter(z=>Number(z.weight)>0&&Number(z.reps)>0).map(z=>z.weight+" kg × "+z.reps).join(" · "):"No previous performance logged yet.";card.append(previousNote);
   for(let si=0;si<Number(e.sets||0);si++){const row=document.createElement("div");row.className="training-set-row";const lab=document.createElement("span");lab.className="muted";lab.textContent="Set "+(si+1);const weight=document.createElement("input");weight.type="number";weight.min="0";weight.step="0.5";weight.placeholder="Weight kg";weight.dataset.trainingWeight=ei+":"+si;const reps=document.createElement("input");reps.type="number";reps.min="0";reps.step="1";reps.placeholder="Reps";reps.dataset.trainingReps=ei+":"+si;const rir=document.createElement("input");rir.type="number";rir.min="0";rir.max="10";rir.step="0.5";rir.placeholder="RIR";rir.title="Reps in reserve (optional)";rir.dataset.trainingRir=ei+":"+si;
+   const assisted=document.createElement("button");assisted.type="button";assisted.className="training-ass-btn";assisted.textContent="ASS";assisted.title="Mark this set as assisted";assisted.dataset.trainingAss=ei+":"+si;assisted.setAttribute("aria-pressed","false");assisted.addEventListener("click",()=>{const active=assisted.classList.toggle("active");assisted.setAttribute("aria-pressed",String(active));queueTrainingAutosave();});
    [weight,reps,rir].forEach(input=>input.addEventListener("input",queueTrainingAutosave));
-   row.append(lab,weight,reps,rir);card.append(row);}host.append(card);});
+   row.append(lab,weight,reps,rir,assisted);card.append(row);}host.append(card);});
  restoreTrainingDraft(Number(index),$("trainingWorkoutDate").value);
  const save=document.createElement("button");save.id="saveTrainingSession";save.textContent="SAVE COMPLETED WORKOUT";save.style.width="100%";save.style.marginTop="12px";save.onclick=saveClientTrainingSession;host.append(save);
 });
