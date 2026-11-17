@@ -2159,6 +2159,12 @@ function refreshCoachExerciseOptions(){
 }
 
 let coachTrainingProgram={workouts:[]},clientTrainingProgram={workouts:[]},clientTrainingLogs=[],activeClientWorkoutExercises=[];
+function syncCoachWorkoutNames(){
+ $("coachTrainingEditor").querySelectorAll("[data-training-workout-name]").forEach(el=>{
+  const workout=coachTrainingProgram.workouts[Number(el.dataset.trainingWorkoutName)];
+  if(workout)workout.name=el.value.trim()||workout.name;
+ });
+}
 function renderCoachTrainingProgram(){
  const host=$("coachTrainingEditor");host.replaceChildren();
  if(!coachTrainingProgram.workouts.length){host.textContent="No workout days added yet.";return;}
@@ -2166,7 +2172,24 @@ function renderCoachTrainingProgram(){
   const card=document.createElement("div");card.className="meal-plan-block";
   const label=document.createElement("div");label.className="eyebrow";label.textContent="WORKOUT "+(wi+1);
   const name=document.createElement("input");name.value=w.name||"";name.dataset.trainingWorkoutName=wi;name.placeholder="Workout name";card.append(label,name);
-  (w.exercises||[]).forEach((e,ei)=>{const row=document.createElement("div");row.className="training-exercise";const title=document.createElement("strong");title.textContent=e.name;const meta=document.createElement("div");meta.className="muted";meta.textContent=e.muscleGroup+" · "+e.sets+" sets · "+e.reps+" reps";const del=document.createElement("button");del.type="button";del.className="secondary";del.textContent="REMOVE EXERCISE";del.onclick=()=>{w.exercises.splice(ei,1);renderCoachTrainingProgram();};row.append(title,meta,del);card.append(row);});
+  const dayActions=document.createElement("div");dayActions.className="actions";dayActions.style.margin="8px 0";
+  const duplicate=document.createElement("button");duplicate.type="button";duplicate.className="secondary";duplicate.textContent="DUPLICATE WORKOUT DAY";duplicate.onclick=()=>{syncCoachWorkoutNames();const copy=JSON.parse(JSON.stringify(coachTrainingProgram.workouts[wi]));copy.name=(copy.name||"Workout")+" (Copy)";coachTrainingProgram.workouts.splice(wi+1,0,copy);renderCoachTrainingProgram();$("coachTrainingStatus").textContent="Workout day duplicated. Rename it and save the programme.";};
+  const moveDayUp=document.createElement("button");moveDayUp.type="button";moveDayUp.className="secondary";moveDayUp.textContent="MOVE DAY UP";moveDayUp.disabled=wi===0;moveDayUp.onclick=()=>{syncCoachWorkoutNames();[coachTrainingProgram.workouts[wi-1],coachTrainingProgram.workouts[wi]]=[coachTrainingProgram.workouts[wi],coachTrainingProgram.workouts[wi-1]];renderCoachTrainingProgram();};
+  const moveDayDown=document.createElement("button");moveDayDown.type="button";moveDayDown.className="secondary";moveDayDown.textContent="MOVE DAY DOWN";moveDayDown.disabled=wi===coachTrainingProgram.workouts.length-1;moveDayDown.onclick=()=>{syncCoachWorkoutNames();[coachTrainingProgram.workouts[wi+1],coachTrainingProgram.workouts[wi]]=[coachTrainingProgram.workouts[wi],coachTrainingProgram.workouts[wi+1]];renderCoachTrainingProgram();};
+  dayActions.append(duplicate,moveDayUp,moveDayDown);card.append(dayActions);
+  (w.exercises||[]).forEach((e,ei)=>{
+   const row=document.createElement("div");row.className="training-exercise";row.style.display="flex";row.style.flexWrap="wrap";row.style.alignItems="center";row.style.gap="8px";
+   const details=document.createElement("div");details.style.flex="1 1 150px";
+   const title=document.createElement("strong");title.textContent=e.name;
+   const meta=document.createElement("div");meta.className="muted";meta.textContent=e.muscleGroup+" · "+e.sets+" sets · "+e.reps+" reps";details.append(title,meta);
+   const controls=document.createElement("div");controls.style.display="flex";controls.style.flexWrap="wrap";controls.style.gap="6px";
+   const up=document.createElement("button");up.type="button";up.className="secondary";up.textContent="↑";up.title="Move exercise up";up.setAttribute("aria-label","Move "+e.name+" up");up.disabled=ei===0;up.onclick=()=>{[w.exercises[ei-1],w.exercises[ei]]=[w.exercises[ei],w.exercises[ei-1]];renderCoachTrainingProgram();};
+   const down=document.createElement("button");down.type="button";down.className="secondary";down.textContent="↓";down.title="Move exercise down";down.setAttribute("aria-label","Move "+e.name+" down");down.disabled=ei===w.exercises.length-1;down.onclick=()=>{[w.exercises[ei+1],w.exercises[ei]]=[w.exercises[ei],w.exercises[ei+1]];renderCoachTrainingProgram();};
+   const destination=document.createElement("select");destination.className="training-select";destination.setAttribute("aria-label","Copy "+e.name+" to workout");coachTrainingProgram.workouts.forEach((target,ti)=>{if(ti===wi)return;const option=document.createElement("option");option.value=String(ti);option.textContent="Copy to "+(target.name||"Workout "+(ti+1));destination.append(option);});
+   const copy=document.createElement("button");copy.type="button";copy.className="secondary";copy.textContent="COPY";copy.disabled=destination.options.length===0;copy.onclick=()=>{const target=coachTrainingProgram.workouts[Number(destination.value)];if(!target)return;target.exercises=target.exercises||[];target.exercises.push(JSON.parse(JSON.stringify(e)));renderCoachTrainingProgram();$("coachTrainingStatus").textContent=e.name+" copied to "+target.name+".";};
+   const del=document.createElement("button");del.type="button";del.className="secondary";del.textContent="REMOVE";del.onclick=()=>{w.exercises.splice(ei,1);renderCoachTrainingProgram();};
+   controls.append(up,down,destination,copy,del);row.append(details,controls);card.append(row);
+  });
   const delDay=document.createElement("button");delDay.type="button";delDay.className="secondary";delDay.textContent="REMOVE WORKOUT DAY";delDay.style.width="100%";delDay.onclick=()=>{coachTrainingProgram.workouts.splice(wi,1);renderCoachTrainingProgram();};card.append(delDay);host.append(card);
  });
 }
@@ -2271,7 +2294,7 @@ $("addCoachExercise").addEventListener("click",()=>{
 });
 $("saveTrainingProgram").addEventListener("click",async()=>{
  if(!selectedClient?.uid||!coachTrainingProgram.workouts.length){$("coachTrainingStatus").textContent="Add at least one workout day before saving.";return;}
- $("coachTrainingEditor").querySelectorAll("[data-training-workout-name]").forEach(el=>{const w=coachTrainingProgram.workouts[Number(el.dataset.trainingWorkoutName)];if(w)w.name=el.value.trim()||w.name;});
+ syncCoachWorkoutNames();
  $("saveTrainingProgram").disabled=true;$("coachTrainingStatus").textContent="Saving training programme…";
  try{await setDoc(doc(db,"users",selectedClient.uid,"training","program"),{workouts:coachTrainingProgram.workouts,updatedAt:serverTimestamp(),updatedBy:currentUser.uid});const check=await getDoc(doc(db,"users",selectedClient.uid,"training","program"));if(!check.exists())throw new Error("Could not verify the saved programme.");coachTrainingProgram={workouts:check.data().workouts||[]};renderCoachTrainingProgram();$("coachTrainingStatus").textContent="Training programme saved and verified for "+(selectedClient.displayName||"this client")+".";
  }catch(e){$("coachTrainingStatus").textContent="Could not save training programme: "+e.message;}finally{$("saveTrainingProgram").disabled=false;}
