@@ -653,7 +653,7 @@ onAuthStateChanged(auth,async user=>{
 
    $("authCard").classList.add("hidden");$("app").classList.remove("hidden");
    $("welcome").textContent="Welcome, "+(profile.displayName||"there");
-  if(currentRole!=="coach"){$("clientWelcomeCard").classList.remove("hidden");const firstName=(profile.displayName||user.displayName||"there").trim().split(/\\s+/)[0];$("clientWelcomeHeading").textContent="Welcome"+(firstName&&firstName!=="there"?", "+firstName:"")+". Let’s get started.";}else{$("clientWelcomeCard").classList.add("hidden");}
+  if(currentRole!=="coach"){$("clientWelcomeCard").classList.remove("hidden");const firstName=(profile.displayName||user.displayName||"there").trim().split(/\s+/)[0];$("clientWelcomeHeading").textContent="Welcome"+(firstName&&firstName!=="there"?", "+firstName:"")+". Let’s get started.";}else{$("clientWelcomeCard").classList.add("hidden");}
    const coach=currentRole==="coach";
   $("clientOverviewMetrics").classList.toggle("hidden",coach);
   $("coachOverviewPanel").classList.toggle("hidden",!coach);
