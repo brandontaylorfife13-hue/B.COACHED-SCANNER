@@ -2351,16 +2351,19 @@ function readTrainingDraft(){
 function restoreTrainingDraft(index,date){
  const saved=clientTrainingLogs.find(log=>log.id===date+"_"+index);
  if(!saved)return;
- (saved.exercises||[]).forEach((exercise,ei)=>(exercise.sets||[]).forEach((set,si)=>{
-  const weight=document.querySelector('[data-training-weight="'+ei+":"+si+'"]');
-  const reps=document.querySelector('[data-training-reps="'+ei+":"+si+'"]');
-  const rir=document.querySelector('[data-training-rir="'+ei+":"+si+'"]');
-  const assisted=document.querySelector('[data-training-ass="'+ei+":"+si+'"]');
-  if(weight&&set.weight!=null)weight.value=set.weight;
-  if(reps&&set.reps!=null)reps.value=set.reps;
-  if(rir&&set.rir!=null)rir.value=set.rir;
-  if(assisted&&set.assisted){assisted.classList.add("active");assisted.setAttribute("aria-pressed","true");}
- }));
+ activeClientWorkoutExercises.forEach((exercise,ei)=>{
+  const savedExercise=(saved.exercises||[]).find(x=>x.name===exercise.name);
+  (savedExercise?.sets||[]).forEach((set,si)=>{
+   const weight=document.querySelector('[data-training-weight="'+ei+":"+si+'"]');
+   const reps=document.querySelector('[data-training-reps="'+ei+":"+si+'"]');
+   const rir=document.querySelector('[data-training-rir="'+ei+":"+si+'"]');
+   const assisted=document.querySelector('[data-training-ass="'+ei+":"+si+'"]');
+   if(weight&&set.weight!=null)weight.value=set.weight;
+   if(reps&&set.reps!=null)reps.value=set.reps;
+   if(rir&&set.rir!=null)rir.value=set.rir;
+   if(assisted&&set.assisted){assisted.classList.add("active");assisted.setAttribute("aria-pressed","true");}
+  });
+ });
  $("trainingLogStatus").textContent="Previous entries restored for this workout.";
 }
 function flushTrainingAutosave(){
@@ -2441,7 +2444,9 @@ $("trainingWorkoutSelect").addEventListener("change",()=>{
  const index=$("trainingWorkoutSelect").value;$("clientWorkoutLogger").replaceChildren();
  if(index===""){activeClientWorkoutExercises=[];return;}
  const w=clientTrainingProgram.workouts[Number(index)];if(!w)return;
- activeClientWorkoutExercises=(w.exercises||[]).map(e=>({...e}));
+ const selectedDate=$("trainingWorkoutDate").value;
+ const saved=clientTrainingLogs.find(log=>log.id===selectedDate+"_"+index);
+ activeClientWorkoutExercises=saved?.exercises?.length?saved.exercises.map(ex=>({name:ex.name,muscleGroup:ex.muscleGroup||"",sets:(ex.sets||[]).length||3,reps:(w.exercises||[]).find(e=>e.name===ex.name)?.reps||"8–12"})):(w.exercises||[]).map(e=>({...e}));
  renderClientWorkoutLogger();
 });
 $("trainingWorkoutDate").addEventListener("change",()=>{
