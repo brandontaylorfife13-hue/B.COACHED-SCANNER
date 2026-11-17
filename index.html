@@ -2317,6 +2317,7 @@ async function loadCoachWorkoutReviews(){
     const line=document.createElement("div");line.className="muted";line.style.marginTop="8px";
     const sets=(ex.sets||[]).map((set,i)=>"Set "+(i+1)+": "+(set.weight||0)+" kg × "+(set.reps||0)+" reps"+(set.rir===null||set.rir===undefined?"":" · RIR "+set.rir)).join(" | ");
     line.textContent=(ex.name||"Exercise")+(sets?" — "+sets:" — no sets recorded");card.append(line);
+    if(ex.clientFeedback){const clientNote=document.createElement("div");clientNote.style.cssText="margin:6px 0 10px;padding:9px 11px;border-left:3px solid #c6ff00;border-radius:6px;background:rgba(198,255,0,.07);white-space:pre-wrap";const label=document.createElement("strong");label.textContent="CLIENT FEEDBACK";label.style.cssText="display:block;margin-bottom:4px;font-size:11px";const body=document.createElement("span");body.textContent=ex.clientFeedback;clientNote.append(label,body);card.append(clientNote);}
    });
    const feedbackLabel=document.createElement("label");feedbackLabel.textContent="Coach feedback";feedbackLabel.style.display="block";feedbackLabel.style.marginTop="12px";
    const feedback=document.createElement("textarea");feedback.rows=3;feedback.style.cssText="width:100%;padding:12px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit;resize:vertical";feedback.placeholder="Comment on performance, technique, progression or next session…";feedback.value=session.coachFeedback||"";card.append(feedbackLabel,feedback);
@@ -2471,7 +2472,7 @@ function readTrainingDraft(){
   const assistedInput=document.querySelector('[data-training-ass="'+ei+":"+si+'"]');
   const assistanceAmount=assistedInput?.value===""||!assistedInput?null:Number(assistedInput.value);
   return {weight:weight===""?null:Number(weight),reps:reps===""?null:Number(reps),rir:rir===""?null:Number(rir),assisted:assistanceAmount!==null&&assistanceAmount>0,assistanceAmount};
- }),notes:document.querySelector('[data-training-exercise-note="'+ei+'"]')?.value?.trim()||e.notes||""}));
+ }),notes:document.querySelector('[data-training-exercise-note="'+ei+'"]')?.value?.trim()||e.notes||"",clientFeedback:document.querySelector('[data-training-exercise-feedback="'+ei+'"]')?.value?.trim()||e.clientFeedback||""}));
  return {index:Number(index),date,workoutName:w.name,exercises};
 }
 function restoreTrainingDraft(index,date){
@@ -2492,6 +2493,8 @@ function restoreTrainingDraft(index,date){
   });
   const noteInput=document.querySelector('[data-training-exercise-note="'+ei+'"]');
   if(noteInput)noteInput.value=savedExercise?.notes||exercise.notes||"";
+  const feedbackInput=document.querySelector('[data-training-exercise-feedback="'+ei+'"]');
+  if(feedbackInput)feedbackInput.value=savedExercise?.clientFeedback||exercise.clientFeedback||"";
  });
  $("trainingLogStatus").textContent="Previous entries restored for this workout.";
 }
@@ -2590,8 +2593,11 @@ function renderClientWorkoutLogger(){
    row.append(lab,weight,reps,rir,assisted);card.append(row);
   }
   const exerciseNotesLabel=document.createElement("label");exerciseNotesLabel.textContent="Exercise notes";exerciseNotesLabel.style.display="block";exerciseNotesLabel.style.marginTop="10px";
-  const exerciseNotes=document.createElement("textarea");exerciseNotes.rows=2;exerciseNotes.placeholder="Technique, form, cues or coach feedback…";exerciseNotes.style.cssText="width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1px solid var(--line);border-radius:9px;background:#10140d;color:var(--white);font:inherit";exerciseNotes.dataset.trainingExerciseNote=ei;exerciseNotes.value=e.notes||"";exerciseNotes.addEventListener("input",queueTrainingAutosave);
+  const exerciseNotes=document.createElement("textarea");exerciseNotes.rows=2;exerciseNotes.placeholder="Your private training notes…";exerciseNotes.style.cssText="width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1px solid var(--line);border-radius:9px;background:#10140d;color:var(--white);font:inherit";exerciseNotes.dataset.trainingExerciseNote=ei;exerciseNotes.value=e.notes||"";exerciseNotes.addEventListener("input",queueTrainingAutosave);
   card.append(exerciseNotesLabel,exerciseNotes);
+  const feedbackLabel=document.createElement("label");feedbackLabel.textContent="How did this exercise feel?";feedbackLabel.style.cssText="display:block;margin-top:10px;font-weight:700";
+  const feedbackInput=document.createElement("textarea");feedbackInput.rows=2;feedbackInput.placeholder="e.g. Strong today, struggled with the last reps, felt discomfort, machine setup felt awkward…";feedbackInput.style.cssText="width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1px solid var(--line);border-radius:9px;background:#10140d;color:var(--white);font:inherit";feedbackInput.dataset.trainingExerciseFeedback=ei;feedbackInput.value=e.clientFeedback||"";feedbackInput.addEventListener("input",queueTrainingAutosave);
+  card.append(feedbackLabel,feedbackInput);
   host.append(card);
  });
  restoreTrainingDraft(Number(index),$("trainingWorkoutDate").value);
@@ -2604,7 +2610,7 @@ $("trainingWorkoutSelect").addEventListener("change",()=>{
  const w=clientTrainingProgram.workouts[Number(index)];if(!w)return;
  const selectedDate=$("trainingWorkoutDate").value;
  const saved=clientTrainingLogs.find(log=>log.id===selectedDate+"_"+index);
- activeClientWorkoutExercises=saved?.exercises?.length?saved.exercises.map(ex=>({name:ex.name,muscleGroup:ex.muscleGroup||"",notes:ex.notes||"",sets:(ex.sets||[]).length||3,reps:(w.exercises||[]).find(e=>e.name===ex.name)?.reps||"8–12"})):(w.exercises||[]).map(e=>({...e,notes:e.notes||""}));
+ activeClientWorkoutExercises=saved?.exercises?.length?saved.exercises.map(ex=>({name:ex.name,muscleGroup:ex.muscleGroup||"",notes:ex.notes||"",clientFeedback:ex.clientFeedback||"",sets:(ex.sets||[]).length||3,reps:(w.exercises||[]).find(e=>e.name===ex.name)?.reps||"8–12"})):(w.exercises||[]).map(e=>({...e,notes:e.notes||""}));
  renderClientWorkoutLogger();
 });
 $("trainingWorkoutDate").addEventListener("change",()=>{
