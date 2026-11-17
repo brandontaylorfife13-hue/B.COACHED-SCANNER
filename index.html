@@ -846,19 +846,23 @@ async function loadCoachClientNutritionAnalytics(){
     const vals=[["Calories",day.totals.calories,day.target.calories,"kcal"],["Protein",day.totals.protein,day.target.proteinG,"g"],["Carbs",day.totals.carbs,day.target.carbsG,"g"],["Fats",day.totals.fats,day.target.fatsG,"g"]];
     vals.forEach(([label,actual,target,unit])=>{const line=document.createElement("div");line.style.cssText="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid #30372a";const l=document.createElement("span");l.textContent=label;const v=document.createElement("strong");v.textContent=target==null?Math.round(actual*10)/10+unit+" · target not set":Math.round(actual*10)/10+" / "+target+unit;line.append(l,v);card.append(line);});
    }else{const empty=document.createElement("div");empty.className="muted";empty.style.marginTop="7px";empty.textContent="No intake recorded. This is missing data, not zero intake.";card.append(empty);}
-   host.append(card);
-  });
-  const detailTitle=document.createElement("div");detailTitle.className="eyebrow";detailTitle.style.marginTop="20px";detailTitle.textContent="FOOD DIARY · ACTUAL FOODS LOGGED";host.append(detailTitle);
-  days.slice().reverse().forEach(day=>{
-   const card=document.createElement("div");card.className="tile";card.style.cssText="min-height:0;margin:8px 0;padding:12px";
-   const heading=document.createElement("strong");heading.textContent=day.date.toLocaleDateString("en-US",{weekday:"long",day:"numeric",month:"short"});card.append(heading);
-   if(!day.entryItems.length){const empty=document.createElement("div");empty.className="muted";empty.style.marginTop="6px";empty.textContent="No individual food entries recorded.";card.append(empty);}
-   day.entryItems.forEach(item=>{
-    const line=document.createElement("div");line.style.cssText="padding:8px 0;border-bottom:1px solid #30372a";
-    const name=document.createElement("strong");name.textContent=(item.meal?item.meal+" · ":"")+(item.name||"Food item");
-    const portion=document.createElement("div");portion.className="muted";const amount=item.grams??item.quantity??item.amount??item.portion;portion.textContent=(amount!=null?String(amount)+(item.unit||" g")+" · ":"")+Math.round(Number(item.calories)||0)+" kcal · P "+(Number(item.proteinG)||0)+"g · C "+(Number(item.carbsG)||0)+"g · F "+(Number(item.fatsG)||0)+"g";
-    line.append(name,portion);card.append(line);
-   });
+   if(day.entryItems.length){
+    const dropdown=document.createElement("details");dropdown.style.cssText="margin-top:12px;border-top:1px solid #30372a;padding-top:10px";
+    const summary=document.createElement("summary");summary.style.cssText="cursor:pointer;color:var(--lime);font-weight:700;padding:5px 0";summary.textContent="VIEW "+day.entryItems.length+" FOOD ENTRIES BY MEAL";dropdown.append(summary);
+    const groups=new Map();day.entryItems.forEach(item=>{const meal=String(item.meal||"Other / unassigned");if(!groups.has(meal))groups.set(meal,[]);groups.get(meal).push(item);});
+    groups.forEach((items,meal)=>{
+     const group=document.createElement("div");group.style.cssText="padding:9px 0;border-bottom:1px solid #30372a";
+     const groupName=document.createElement("strong");groupName.textContent=meal;group.append(groupName);
+     items.forEach(item=>{
+      const line=document.createElement("div");line.style.cssText="padding:6px 0 2px 10px";
+      const name=document.createElement("div");name.textContent=item.name||"Food item";
+      const portion=document.createElement("div");portion.className="muted";const amount=item.grams??item.quantity??item.amount??item.portion;portion.textContent=(amount!=null?String(amount)+(item.unit||" g")+" · ":"")+Math.round(Number(item.calories)||0)+" kcal · P "+(Number(item.proteinG)||0)+"g · C "+(Number(item.carbsG)||0)+"g · F "+(Number(item.fatsG)||0)+"g";
+      line.append(name,portion);group.append(line);
+     });
+     dropdown.append(group);
+    });
+    card.append(dropdown);
+   }
    host.append(card);
   });
   const planTitle=document.createElement("div");planTitle.className="eyebrow";planTitle.style.marginTop="20px";planTitle.textContent="TAILORED MEAL PLAN · CLIENT'S CHOICES";host.append(planTitle);
