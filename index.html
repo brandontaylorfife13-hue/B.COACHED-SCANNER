@@ -968,7 +968,14 @@ async function loadClients(){
    card.append(name,email,state,open);list.append(card);
   });
   await loadInvitations();
- }catch(e){list.textContent="Unable to load clients. Check Firestore permissions and try refreshing.";}
+ }catch(e){
+  console.error("B.COACHED coach overview failed to load clients:",e);
+  const message=e?.message||String(e||"Unknown error");
+  list.textContent="Unable to load clients: "+message;
+  ["overviewClientCount","overviewActionCount","overviewOverdueCount","overviewMessageCount","overviewCheckinReviewCount"].forEach(id=>{const el=$(id);if(el)el.textContent="!";});
+  const overviewHost=$("overviewActionList");
+  if(overviewHost)overviewHost.textContent="Dashboard data could not load: "+message+". Check your connection and Firestore access, then refresh.";
+ }
 }
 async function loadInvitations(){
  const list=$("inviteList");list.textContent="Loading invitations…";
