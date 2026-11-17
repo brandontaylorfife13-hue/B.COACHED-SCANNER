@@ -2313,14 +2313,20 @@ async function loadCoachWorkoutReviews(){
   sessions.forEach(session=>{
    const card=document.createElement("div");card.className="tile";card.style.minHeight="0";card.style.margin="10px 0";
    const heading=document.createElement("strong");heading.style.fontSize="15px";heading.textContent=(session.workoutName||"Workout")+" · "+(session.date?new Date(session.date+"T12:00:00").toLocaleDateString():"Date not recorded");card.append(heading);
-   (session.exercises||[]).forEach(ex=>{
-    const line=document.createElement("div");line.className="muted";line.style.marginTop="8px";
+   (session.exercises||[]).forEach((ex,exerciseIndex)=>{
+    const exerciseCard=document.createElement("div");exerciseCard.style.cssText="margin-top:12px;padding:10px;border:1px solid var(--line);border-radius:10px";
+    const line=document.createElement("div");line.className="muted";line.style.fontWeight="700";
     const sets=(ex.sets||[]).map((set,i)=>"Set "+(i+1)+": "+(set.weight||0)+" kg × "+(set.reps||0)+" reps"+(set.rir===null||set.rir===undefined?"":" · RIR "+set.rir)).join(" | ");
-    line.textContent=(ex.name||"Exercise")+(sets?" — "+sets:" — no sets recorded");card.append(line);
-    if(ex.clientFeedback){const clientNote=document.createElement("div");clientNote.style.cssText="margin:6px 0 10px;padding:9px 11px;border-left:3px solid #c6ff00;border-radius:6px;background:rgba(198,255,0,.07);white-space:pre-wrap";const label=document.createElement("strong");label.textContent="CLIENT FEEDBACK";label.style.cssText="display:block;margin-bottom:4px;font-size:11px";const body=document.createElement("span");body.textContent=ex.clientFeedback;clientNote.append(label,body);card.append(clientNote);}
+    line.textContent=(ex.name||"Exercise")+(sets?" — "+sets:" — no sets recorded");exerciseCard.append(line);
+    if(ex.clientFeedback){const clientNote=document.createElement("div");clientNote.style.cssText="margin:7px 0;padding:9px 11px;border-left:3px solid #c6ff00;border-radius:6px;background:rgba(198,255,0,.07);white-space:pre-wrap";const label=document.createElement("strong");label.textContent="CLIENT FEEDBACK";label.style.cssText="display:block;margin-bottom:4px;font-size:11px";const body=document.createElement("span");body.textContent=ex.clientFeedback;clientNote.append(label,body);exerciseCard.append(clientNote);}
+    const replyLabel=document.createElement("label");replyLabel.textContent="REPLY TO "+(ex.name||"EXERCISE").toUpperCase();replyLabel.style.cssText="display:block;margin-top:10px;font-size:12px;font-weight:800";
+    const reply=document.createElement("textarea");reply.rows=2;reply.style.cssText="display:block;width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1px solid #4b5540;border-radius:9px;background:#090c07;color:var(--white);font:inherit;resize:vertical";reply.placeholder="Reply to this exercise feedback…";reply.value=ex.coachReply||"";
+    const replySave=document.createElement("button");replySave.className="secondary";replySave.textContent="SAVE EXERCISE REPLY";replySave.style.cssText="width:100%;margin-top:7px";
+    replySave.onclick=async()=>{replySave.disabled=true;replySave.textContent="SAVING…";try{const ref=doc(db,"users",selectedClient.uid,"trainingSessions",session.id);const latest=await getDoc(ref);if(!latest.exists())throw new Error("Workout no longer exists.");const data=latest.data();const exercises=(data.exercises||[]).map((item,i)=>i===exerciseIndex?{...item,coachReply:reply.value.trim(),coachReplyUpdatedAt:Date.now(),coachReplyBy:currentUser.uid}:item);await setDoc(ref,{exercises,updatedAt:serverTimestamp()},{merge:true});session.exercises=exercises;replySave.textContent="REPLY SAVED ✓";}catch(e){replySave.textContent="SAVE FAILED";replySave.title=e.message;}finally{replySave.disabled=false;}};
+    exerciseCard.append(replyLabel,reply,replySave);card.append(exerciseCard);
    });
-   const feedbackLabel=document.createElement("label");feedbackLabel.textContent="Coach feedback";feedbackLabel.style.display="block";feedbackLabel.style.marginTop="12px";
-   const feedback=document.createElement("textarea");feedback.rows=3;feedback.style.cssText="width:100%;padding:12px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit;resize:vertical";feedback.placeholder="Comment on performance, technique, progression or next session…";feedback.value=session.coachFeedback||"";card.append(feedbackLabel,feedback);
+   const feedbackLabel=document.createElement("label");feedbackLabel.textContent="Overall workout feedback";feedbackLabel.style.display="block";feedbackLabel.style.marginTop="12px";
+   const feedback=document.createElement("textarea");feedback.rows=3;feedback.style.cssText="width:100%;padding:12px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit;resize:vertical";feedback.placeholder="General comments on performance, progression or next session…";feedback.value=session.coachFeedback||"";card.append(feedbackLabel,feedback);
    const save=document.createElement("button");save.textContent="SAVE WORKOUT FEEDBACK";save.style.width="100%";save.style.marginTop="9px";
    save.onclick=async()=>{save.disabled=true;save.textContent="SAVING…";try{await setDoc(doc(db,"users",selectedClient.uid,"trainingSessions",session.id),{coachFeedback:feedback.value.trim(),feedbackUpdatedAt:serverTimestamp(),feedbackBy:currentUser.uid},{merge:true});session.coachFeedback=feedback.value.trim();save.textContent="FEEDBACK SAVED";}catch(e){save.textContent="SAVE FAILED";}finally{save.disabled=false;}};
    card.append(save);host.append(card);
@@ -2472,7 +2478,7 @@ function readTrainingDraft(){
   const assistedInput=document.querySelector('[data-training-ass="'+ei+":"+si+'"]');
   const assistanceAmount=assistedInput?.value===""||!assistedInput?null:Number(assistedInput.value);
   return {weight:weight===""?null:Number(weight),reps:reps===""?null:Number(reps),rir:rir===""?null:Number(rir),assisted:assistanceAmount!==null&&assistanceAmount>0,assistanceAmount};
- }),notes:document.querySelector('[data-training-exercise-note="'+ei+'"]')?.value?.trim()||e.notes||"",clientFeedback:document.querySelector('[data-training-exercise-feedback="'+ei+'"]')?.value?.trim()||e.clientFeedback||""}));
+ }),notes:document.querySelector('[data-training-exercise-note="'+ei+'"]')?.value?.trim()||e.notes||"",clientFeedback:document.querySelector('[data-training-exercise-feedback="'+ei+'"]')?.value?.trim()||e.clientFeedback||"",coachReply:e.coachReply||""}));
  return {index:Number(index),date,workoutName:w.name,exercises};
 }
 function restoreTrainingDraft(index,date){
@@ -2598,6 +2604,7 @@ function renderClientWorkoutLogger(){
   const feedbackLabel=document.createElement("label");feedbackLabel.textContent="How did this exercise feel?";feedbackLabel.style.cssText="display:block;margin-top:10px;font-weight:700";
   const feedbackInput=document.createElement("textarea");feedbackInput.rows=2;feedbackInput.placeholder="e.g. Strong today, struggled with the last reps, felt discomfort, machine setup felt awkward…";feedbackInput.style.cssText="width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1px solid var(--line);border-radius:9px;background:#10140d;color:var(--white);font:inherit";feedbackInput.dataset.trainingExerciseFeedback=ei;feedbackInput.value=e.clientFeedback||"";feedbackInput.addEventListener("input",queueTrainingAutosave);
   card.append(feedbackLabel,feedbackInput);
+  if(e.coachReply){const reply=document.createElement("div");reply.style.cssText="margin:9px 0;padding:10px 12px;border-left:3px solid #c6ff00;border-radius:6px;background:rgba(198,255,0,.07);white-space:pre-wrap";const replyTitle=document.createElement("strong");replyTitle.textContent="COACH REPLY";replyTitle.style.cssText="display:block;margin-bottom:5px;font-size:12px";const replyBody=document.createElement("span");replyBody.textContent=e.coachReply;reply.append(replyTitle,replyBody);card.append(reply);}
   host.append(card);
  });
  restoreTrainingDraft(Number(index),$("trainingWorkoutDate").value);
@@ -2610,7 +2617,7 @@ $("trainingWorkoutSelect").addEventListener("change",()=>{
  const w=clientTrainingProgram.workouts[Number(index)];if(!w)return;
  const selectedDate=$("trainingWorkoutDate").value;
  const saved=clientTrainingLogs.find(log=>log.id===selectedDate+"_"+index);
- activeClientWorkoutExercises=saved?.exercises?.length?saved.exercises.map(ex=>({name:ex.name,muscleGroup:ex.muscleGroup||"",notes:ex.notes||"",clientFeedback:ex.clientFeedback||"",sets:(ex.sets||[]).length||3,reps:(w.exercises||[]).find(e=>e.name===ex.name)?.reps||"8–12"})):(w.exercises||[]).map(e=>({...e,notes:e.notes||""}));
+ activeClientWorkoutExercises=saved?.exercises?.length?saved.exercises.map(ex=>({name:ex.name,muscleGroup:ex.muscleGroup||"",notes:ex.notes||"",clientFeedback:ex.clientFeedback||"",coachReply:ex.coachReply||"",sets:(ex.sets||[]).length||3,reps:(w.exercises||[]).find(e=>e.name===ex.name)?.reps||"8–12"})):(w.exercises||[]).map(e=>({...e,notes:e.notes||"",coachReply:""}));
  renderClientWorkoutLogger();
 });
 $("trainingWorkoutDate").addEventListener("change",()=>{
