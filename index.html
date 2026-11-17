@@ -1057,12 +1057,14 @@ async function loadWeeklyCoachingReports(){
   const fmt=d=>d?d.toLocaleDateString(undefined,{day:"numeric",month:"short"}):"Not recorded";
   const safe=async work=>{try{return await work();}catch(error){return {docs:[],error};}};
   const reports=await Promise.all(clients.map(async client=>{
-   const [checksSnap,weightsSnap,sessionsSnap,dailySnap,foodSnaps]=await Promise.all([
+   const [checksSnap,weightsSnap,sessionsSnap,dailySnap,foodSnaps,targetsSnap,profileSnap]=await Promise.all([
     safe(()=>getDocs(collection(db,"users",client.uid,"weeklyCheckins"))),
     safe(()=>getDocs(collection(db,"users",client.uid,"weights"))),
     safe(()=>getDocs(collection(db,"users",client.uid,"trainingSessions"))),
     safe(()=>getDocs(collection(db,"users",client.uid,"dailyLogs"))),
-    Promise.all(dates.map(d=>safe(()=>getDocs(collection(db,"users",client.uid,"foodLogs",key(d),"entries")))))
+    Promise.all(dates.map(d=>safe(()=>getDocs(collection(db,"users",client.uid,"foodLogs",key(d),"entries"))))),
+    safe(()=>getDoc(doc(db,"users",client.uid,"nutrition","targets"))),
+    safe(()=>getDoc(doc(db,"users",client.uid,"profile","details")))
    ]);
    const checks=(checksSnap.docs||[]).map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.weekEnding||b.id).localeCompare(a.weekEnding||a.id));
    const check=checks[0]||null;
@@ -1078,6 +1080,27 @@ async function loadWeeklyCoachingReports(){
    const avgSteps=average("steps"),avgWater=average("waterLitres"),avgSleep=average("sleepHours");
    const diaryDays=foodSnaps.filter(x=>!x.error&&(x.docs||[]).length>0).length;
    const diaryErrors=foodSnaps.some(x=>x.error);
+   const targetData=targetsSnap?.exists?.()?targetsSnap.data():{};
+   const profileData=profileSnap?.exists?.()?profileSnap.data():{};
+   const adherenceScore=({"0–25%":12.5,"26–50%":38,"51–75%":63,"76–90%":83,"91–100%":95})[check?.adherence]??null;
+   const fourWeekWeights=weights.filter(x=>parse(x.date)>=new Date(today.getTime()-27*86400000)&&parse(x.date)<=today);
+   const fourWeekSpan=fourWeekWeights.length>=2?(parse(fourWeekWeights[fourWeekWeights.length-1].date)-parse(fourWeekWeights[0].date))/86400000:0;
+   const fourWeekChange=fourWeekWeights.length>=3&&fourWeekSpan>=14?fourWeekWeights[fourWeekWeights.length-1].value-fourWeekWeights[0].value:null;
+   const previousWeekSessions=sessions.filter(x=>{const d=parse(x.date||x.id?.slice(0,10));return d&&d>=new Date(dates[0].getTime()-7*86400000)&&d<dates[0];});
+   const decisionSuggestions=[];
+   if(!check){decisionSuggestions.push("FIRST ACTION: Obtain a current check-in before considering any nutrition or training changes.");}
+   if(adherenceScore!==null&&adherenceScore<76){decisionSuggestions.push("PRIORITY: Support adherence first. Discuss barriers, routine, hunger and meal-plan practicality; do not respond to low adherence by cutting calories.");}
+   else if(diaryDays<5){decisionSuggestions.push("DATA QUALITY: Food logging is incomplete ("+diaryDays+"/7 days). Check whether the diary reflects actual intake before judging the calorie target.");}
+   else if(adherenceScore!==null&&adherenceScore>=76&&fourWeekChange!==null&&Math.abs(fourWeekChange)<=0.2){
+    const goal=String(profileData.primaryGoal||"").toLowerCase();
+    if(goal.includes("fat loss")||goal.includes("weight loss"))decisionSuggestions.push("COACH REVIEW: Weight is broadly stable across "+Math.round(fourWeekSpan)+" days ("+(fourWeekChange>0?"+":"")+fourWeekChange.toFixed(1)+" kg), with self-reported adherence at "+check.adherence+" and "+diaryDays+"/7 food-diary days. Verify portions, weekend intake, weigh-in conditions and the agreed rate of loss; if the trend is confirmed, review the current energy target with the client.");
+    else if(goal.includes("build muscle")||goal.includes("muscle")||goal.includes("bulk"))decisionSuggestions.push("COACH REVIEW: Weight is broadly stable across "+Math.round(fourWeekSpan)+" days ("+(fourWeekChange>0?"+":"")+fourWeekChange.toFixed(1)+" kg). If gaining bodyweight is the agreed goal and intake is verified, review whether the current energy target is sufficient.");
+    else decisionSuggestions.push("WEIGHT TREND: Weight is broadly stable across "+Math.round(fourWeekSpan)+" days. Confirm the client's goal and desired trend before deciding whether any adjustment is appropriate.");
+   }else if(fourWeekChange===null){decisionSuggestions.push("GATHER MORE DATA: Aim for at least 3 weigh-ins spread over 14+ days before interpreting the weight trend.");}
+   if(avgSleep!==null&&avgSleep<6.5)decisionSuggestions.push("RECOVERY: Logged sleep averages "+avgSleep.toFixed(1)+" hours. Explore sleep quality, stress and recovery before increasing training demands.");
+   if(previousWeekSessions.length>=2&&recentSessions.length<=previousWeekSessions.length-2)decisionSuggestions.push("TRAINING REVIEW: Logged sessions have dropped compared with the previous week. Ask about schedule, soreness, motivation and recovery before changing volume.");
+   if(!decisionSuggestions.length)decisionSuggestions.push("MAINTAIN & MONITOR: Current records do not show a clear reason to change the plan. Continue the agreed approach and reassess with the next check-in.");
+   const decisionLines=["COACHING DECISION SUPPORT",...decisionSuggestions,"","Existing nutrition targets: "+(targetData.highDay?.calories!=null||targetData.lowDay?.calories!=null?("High day "+(targetData.highDay?.calories??"not set")+" kcal · Low day "+(targetData.lowDay?.calories??"not set")+" kcal"):"Not set / unavailable"),"These are review prompts, not automatic changes. Confirm the client's goal, health, context and full data before changing calories, macros or training."];
    const lines=[
     "B.COACHED · WEEKLY CLIENT REVIEW",
     "Client: "+(client.displayName||client.email||"Client"),
@@ -1108,9 +1131,11 @@ async function loadWeeklyCoachingReports(){
     "Support requested: "+(check?.support?.trim()||"Not provided"),
     "",
     "COACH REVIEW",
-    "Review adherence, consistency, weight trend and the client’s feedback together. Agree any plan changes with the client; do not adjust targets from one data point alone."
+    "Review adherence, consistency, weight trend and the client’s feedback together. Agree any plan changes with the client; do not adjust targets from one data point alone.",
+    "",
+    ...decisionLines
    ];
-   return {client,lines,latestWeight,weightChange,weekWeights,recentSessions,diaryDays,errors:[checksSnap,weightsSnap,sessionsSnap,dailySnap,...foodSnaps].filter(x=>x.error).length};
+   return {client,lines,latestWeight,weightChange,weekWeights,recentSessions,diaryDays,errors:[checksSnap,weightsSnap,sessionsSnap,dailySnap,...foodSnaps,targetsSnap,profileSnap].filter(x=>x.error).length};
   }));
   host.replaceChildren();
   if(!reports.length){host.textContent="No active client accounts found.";return;}
