@@ -2694,6 +2694,19 @@ async function createClientNotification(uid,type,title,body){
  if(!uid)return;
  const ref=doc(collection(db,"users",uid,"notifications"));
  await setDoc(ref,{type,title,body,read:false,createdAt:serverTimestamp(),createdBy:currentUser?.uid||null});
+ // Keep the in-app notification even if the client has not registered a phone or push delivery is temporarily unavailable.
+ try{
+  if(currentRole==="coach"&&currentUser){
+   const idToken=await currentUser.getIdToken();
+   const result=await fetch("https://bcoached-push.brandontaylorfife13.workers.dev/send-user-notification",{
+    method:"POST",
+    headers:{"Authorization":"Bearer "+idToken,"Content-Type":"application/json"},
+    body:JSON.stringify({recipientUid:uid,type,title,body})
+   });
+   const data=await result.json().catch(()=>({}));
+   if(!result.ok||data.success===false)console.warn("B.COACHED phone notification was not delivered:",data.error||result.status);
+  }
+ }catch(error){console.warn("B.COACHED in-app update saved; phone notification could not be sent:",error);}
 }
 async function sendMessage(uid,inputId,statusId,role,historyId){
  const input=$(inputId),statusEl=$(statusId),message=input.value.trim();if(!message){statusEl.textContent="Write a message first.";return;}
