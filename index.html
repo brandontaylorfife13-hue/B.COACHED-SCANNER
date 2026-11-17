@@ -2254,7 +2254,7 @@ $("coachExerciseEquipment").addEventListener("change",refreshCoachExerciseOption
 $("coachExerciseFavouriteOnly").addEventListener("change",refreshCoachExerciseOptions);
 $("coachExerciseLibrary").addEventListener("change",()=>{const value=$("coachExerciseLibrary").value;if(value)$("coachExerciseName").value=value;refreshCoachExerciseOptions();$("coachExerciseLibrary").value=value;});
 $("toggleCoachExerciseFavourite").addEventListener("click",async()=>{
- const name=$("coachExerciseLibrary").value||$("coachExerciseName").value.trim();
+ const name=$("coachExerciseName").value.trim()||$("coachExerciseLibrary").value;
  if(!name){$("coachTrainingStatus").textContent="Choose or enter an exercise first.";return;}
  const wasFavourite=coachExerciseFavourites.includes(name);
  coachExerciseFavourites=wasFavourite?coachExerciseFavourites.filter(x=>x!==name):[...coachExerciseFavourites,name];
