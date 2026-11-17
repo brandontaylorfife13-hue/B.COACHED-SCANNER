@@ -345,6 +345,9 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <div class="tile" style="min-height:0"><div id="analyticsWeightChart" class="muted">Loading weight trends…</div></div>
   <div class="section-title" style="margin-top:24px">Client performance table</div>
   <div id="analyticsClientTable" class="muted">Loading client performance…</div>
+  <div class="section-title" style="margin-top:28px">Four-week client consistency</div>
+  <p class="muted">A coach-wide view of weekly check-ins, days with food diary entries and completed training sessions. Missing diary days are shown as unlogged, not zero intake.</p>
+  <div id="coachConsistencyDashboard" class="muted">Loading four-week client consistency…</div>
   <div class="section-title" style="margin-top:28px">Training Performance Centre</div>
   <p class="muted">Completed sessions only. Compare strength records, working-set volume, effort and consistency using the programme and workout logs clients have saved.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(135px,1fr));margin-top:12px">
@@ -914,6 +917,59 @@ async function loadTrainingPerformanceCentre(){
   rows.forEach(x=>{const card=document.createElement("div");card.className="tile";card.style.cssText="min-height:0;margin:9px 0";const name=document.createElement("strong");name.textContent=x.client.displayName||x.client.email||"Client";const details=document.createElement("div");details.className="muted";details.style.marginTop="7px";details.textContent=x.summary.recentSessions+" completed workouts · "+x.summary.recentSets+" working sets · "+x.summary.bests.length+" exercise bests · "+x.summary.recentAssisted+" assisted sets · "+(x.summary.recentRir===null?"RIR not logged":"Avg RIR "+x.summary.recentRir.toFixed(1))+" · "+(x.summary.plannedDays||"No")+" programme workout days";const open=document.createElement("button");open.className="secondary";open.style.width="100%";open.style.marginTop="9px";open.textContent="OPEN TRAINING PERFORMANCE";open.onclick=()=>showClientProfile(x.client);card.append(name,details,open);table.append(card);});
  }catch(e){muscleHost.textContent="Could not load training volume: "+e.message;table.textContent="Could not load client training performance: "+e.message;}
 }
+async function loadCoachConsistencyDashboard(){
+ const host=$("coachConsistencyDashboard");if(!host)return;host.textContent="Loading four-week client consistency…";
+ try{
+  const result=await getDocs(query(collection(db,"users"),where("role","==","client")));
+  const clients=result.docs.map(d=>({uid:d.id,...d.data()})).filter(c=>c.accountStatus!=="inactive"&&c.accountStatus!=="archived");
+  const today=new Date();today.setHours(0,0,0,0);
+  const dates=Array.from({length:28},(_,i)=>{const d=new Date(today);d.setDate(d.getDate()-(27-i));return d;});
+  const dateKey=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
+  const weeks=Array.from({length:4},(_,i)=>dates.slice(i*7,(i+1)*7));
+  const rows=await Promise.all(clients.map(async client=>{
+   const safe=async work=>{try{return await work();}catch(error){return {docs:[],error};}};
+   const [checks,sessions,diary]=await Promise.all([
+    safe(()=>getDocs(collection(db,"users",client.uid,"weeklyCheckins"))),
+    safe(()=>getDocs(collection(db,"users",client.uid,"trainingSessions"))),
+    Promise.all(dates.map(date=>safe(()=>getDocs(collection(db,"users",client.uid,"foodLogs",dateKey(date),"entries")))))
+   ]);
+   const checkRows=(checks.docs||[]).map(d=>({id:d.id,...d.data()}));
+   const sessionRows=(sessions.docs||[]).map(d=>({id:d.id,...d.data()}));
+   const checkDate=x=>{const raw=x.date||x.weekEnding||x.id||"";const d=new Date(String(raw).slice(0,10)+"T12:00:00");return Number.isNaN(d.getTime())?null:d;};
+   const sessionDate=x=>{const raw=x.date||x.id?.slice(0,10)||"";const d=new Date(String(raw).slice(0,10)+"T12:00:00");return Number.isNaN(d.getTime())?null:d;};
+   const checkDates=checkRows.map(checkDate).filter(Boolean);
+   const completed=sessionRows.filter(x=>(!!x.completedAt||x.autoSaved===false||x.status==="completed")&&sessionDate(x));
+   const weekly=weeks.map((week,wi)=>{
+    const start=week[0],end=week[6],inside=d=>d&&d>=start&&d<=new Date(end.getTime()+86400000-1);
+    const diaryDays=diary.slice(wi*7,(wi+1)*7).filter(x=>!x.error&&x.docs?.length>0).length;
+    return {checkins:checkDates.filter(inside).length,diaryDays,workouts:completed.filter(x=>inside(sessionDate(x))).length,diaryErrors:diary.slice(wi*7,(wi+1)*7).some(x=>x.error)};
+   });
+   return {client,weekly,errors:[checks.error,sessions.error].filter(Boolean).length+diary.filter(x=>x.error).length};
+  }));
+  host.replaceChildren();
+  if(!rows.length){host.textContent="No active client accounts found.";return;}
+  rows.sort((a,b)=>a.client.displayName?.localeCompare(b.client.displayName||"")||0);
+  const legend=document.createElement("div");legend.className="muted";legend.style.marginBottom="10px";legend.textContent="Each row shows the four weeks from oldest to most recent. Diary = days with at least one food entry. Workouts = sessions marked completed.";host.append(legend);
+  rows.forEach(row=>{
+   const card=document.createElement("div");card.className="tile";card.style.cssText="min-height:0;margin:9px 0;padding:12px";
+   const head=document.createElement("div");head.style.cssText="display:flex;justify-content:space-between;gap:8px;align-items:center";
+   const name=document.createElement("strong");name.textContent=row.client.displayName||row.client.email||"Client";
+   const action=document.createElement("button");action.className="secondary";action.textContent="OPEN PROFILE";action.style.cssText="font-size:11px;padding:7px 9px";action.onclick=()=>showClientProfile(row.client);
+   head.append(name,action);card.append(head);
+   const table=document.createElement("div");table.style.cssText="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:10px";
+   row.weekly.forEach((w,i)=>{
+    const cell=document.createElement("div");cell.style.cssText="background:#11160e;border:1px solid #30372a;border-radius:9px;padding:8px 5px;text-align:center";
+    const label=document.createElement("div");label.className="eyebrow";label.textContent="WEEK "+(i+1);
+    const value=document.createElement("strong");value.style.cssText="display:block;font-size:13px;margin-top:5px";value.textContent=w.checkins+" check-in"+(w.checkins===1?"":"s");
+    const detail=document.createElement("div");detail.className="muted";detail.style.fontSize="11px";detail.style.marginTop="4px";detail.textContent=w.diaryDays+"/7 diary · "+w.workouts+" workouts";
+    cell.append(label,value,detail);table.append(cell);
+   });
+   card.append(table);
+   if(row.errors){const warning=document.createElement("div");warning.className="muted";warning.style.marginTop="7px";warning.textContent="Some records could not be read; figures may be incomplete.";card.append(warning);}
+   host.append(card);
+  });
+ }catch(e){host.textContent="Could not load client consistency: "+e.message;}
+}
 async function loadPerformanceAnalytics(){
  const countEl=$("analyticsClientCount"),rateEl=$("analyticsCheckinRate"),trackedEl=$("analyticsWeightTracked"),sessionsEl=$("analyticsSessions");
  const checkChart=$("analyticsCheckinChart"),weightChart=$("analyticsWeightChart"),table=$("analyticsClientTable");
@@ -1007,6 +1063,7 @@ async function loadPerformanceAnalytics(){
 }
 $("refreshAnalytics")?.addEventListener("click",loadPerformanceAnalytics);
 $("refreshAnalytics")?.addEventListener("click",loadTrainingPerformanceCentre);
+$("refreshAnalytics")?.addEventListener("click",loadCoachConsistencyDashboard);
 async function loadClients(){
  const list=$("clientList");list.textContent="Loading clients…";
  try{
@@ -2658,7 +2715,7 @@ document.querySelectorAll("#nav button").forEach(btn=>btn.addEventListener("clic
  document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b===btn));
  ["overview","clients","analytics","nutrition","foodDiary","training","progress","checkins","messages","updates"].forEach(v=>$(v+"View").classList.toggle("hidden",v!==btn.dataset.view));
  if(btn.dataset.view==="clients")loadClients();
- if(btn.dataset.view==="analytics"&&currentUser&&currentRole==="coach"){loadPerformanceAnalytics();loadTrainingPerformanceCentre();}
+ if(btn.dataset.view==="analytics"&&currentUser&&currentRole==="coach"){loadPerformanceAnalytics();loadTrainingPerformanceCentre();loadCoachConsistencyDashboard();}
  if(btn.dataset.view==="nutrition"&&currentUser)loadNutritionTargets(false);
  if(btn.dataset.view==="foodDiary"&&currentUser){$("foodDate").value=$("foodDate").value||localDateString();loadFoodDiary();}
  if(btn.dataset.view==="overview"&&currentUser&&currentRole!=="coach")loadClientFourWeekReview();
