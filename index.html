@@ -1844,7 +1844,62 @@ async function loadCoachProgressOverview(){
   metricSelect.onchange=renderMeasurementTrend;renderMeasurementTrend();
  }catch(e){$("coachProgressMeasurements").textContent="Could not load progress data: "+e.message;$("coachProgressWeightHistory").textContent="Check Firestore access and refresh.";}
 }
-async function loadCoachCheckins(){if(!selectedClient?.uid)return;const host=$("coachCheckinReview");host.textContent="Loading check-ins…";try{const result=await getDocs(collection(db,"users",selectedClient.uid,"weeklyCheckins"));const rows=result.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.weekEnding||"").localeCompare(a.weekEnding||""));host.replaceChildren();if(!rows.length){host.textContent="This client has not submitted a weekly check-in yet.";return;}rows.forEach(d=>{const card=document.createElement("div");card.className="tile";card.style.minHeight="0";card.style.margin="9px 0";const title=document.createElement("strong");title.style.fontSize="14px";title.textContent="Week ending "+new Date(d.weekEnding+"T12:00:00").toLocaleDateString();const summary=document.createElement("div");summary.className="muted";summary.style.marginTop="8px";summary.textContent="Nutrition: "+(d.adherence||"—")+" · Training: "+(d.trainingSessions??"—")+" sessions"+(d.averageWeight?" · Average weight: "+d.averageWeight+" kg":"");const answers=document.createElement("div");answers.className="muted";answers.style.marginTop="8px";answers.style.whiteSpace="pre-wrap";answers.textContent="Wins: "+(d.wins||"—")+"\nChallenges: "+(d.challenges||"—")+"\nHelp requested: "+(d.support||"—");const label=document.createElement("label");label.textContent="Coach feedback";const reply=document.createElement("textarea");reply.rows=3;reply.style.cssText="width:100%;padding:12px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit";reply.value=d.coachFeedback||"";const save=document.createElement("button");save.textContent="SAVE FEEDBACK";save.style.width="100%";save.style.marginTop="9px";save.onclick=async()=>{save.disabled=true;try{await setDoc(doc(db,"users",selectedClient.uid,"weeklyCheckins",d.id),{coachFeedback:reply.value.trim(),feedbackUpdatedAt:serverTimestamp(),feedbackBy:currentUser.uid},{merge:true});save.textContent="FEEDBACK SAVED";}catch(e){save.textContent="SAVE FAILED";}finally{save.disabled=false;}};card.append(title,summary,answers,label,reply,save);host.append(card);});}catch(e){host.textContent="Could not load client check-ins: "+e.message;}}
+async function loadCoachCheckins(){
+ if(!selectedClient?.uid)return;
+ const host=$("coachCheckinReview");host.textContent="Loading check-ins and coaching insights…";
+ try{
+  const [checkSnap,weightSnap,sessionSnap]=await Promise.all([
+   getDocs(collection(db,"users",selectedClient.uid,"weeklyCheckins")),
+   getDocs(collection(db,"users",selectedClient.uid,"weights")),
+   getDocs(collection(db,"users",selectedClient.uid,"trainingSessions"))
+  ]);
+  const rows=checkSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.weekEnding||"").localeCompare(a.weekEnding||""));
+  const weights=weightSnap.docs.map(d=>({date:d.id,...d.data()})).map(x=>({...x,value:Number(x.weightKg??x.weight)})).filter(x=>x.date&&Number.isFinite(x.value)&&x.value>0).sort((a,b)=>a.date.localeCompare(b.date));
+  const sessions=sessionSnap.docs.map(d=>({id:d.id,...d.data()}));
+  const now=new Date(),today=new Date(now.getFullYear(),now.getMonth(),now.getDate()),dayMs=86400000;
+  const recentSessions=sessions.filter(x=>{const date=new Date((x.date||x.id.slice(0,10))+"T12:00:00");return !Number.isNaN(date.getTime())&&date>=new Date(today.getTime()-6*dayMs)&&date<=new Date(today.getTime()+dayMs);}).length;
+  const currentWeights=weights.filter(x=>{const d=new Date(x.date+"T12:00:00");return d>=new Date(today.getTime()-6*dayMs)&&d<=new Date(today.getTime()+dayMs);});
+  const previousWeights=weights.filter(x=>{const d=new Date(x.date+"T12:00:00");return d>=new Date(today.getTime()-13*dayMs)&&d<new Date(today.getTime()-6*dayMs);});
+  const mean=a=>a.reduce((sum,x)=>sum+x.value,0)/a.length;
+  const enoughTrend=currentWeights.length>=3&&previousWeights.length>=3;
+  const currentAvg=enoughTrend?mean(currentWeights):null,previousAvg=enoughTrend?mean(previousWeights):null;
+  const change=enoughTrend?currentAvg-previousAvg:null;
+  const pct=enoughTrend&&previousAvg?change/previousAvg*100:null;
+  const adherenceValue=value=>({"0–25%":12.5,"26–50%":38,"51–75%":63,"76–90%":83,"91–100%":95}[value]??null);
+  host.replaceChildren();
+  if(!rows.length){host.textContent="This client has not submitted a weekly check-in yet.";return;}
+  rows.forEach((d,index)=>{
+   const card=document.createElement("div");card.className="tile";card.style.minHeight="0";card.style.margin="9px 0";
+   const title=document.createElement("strong");title.style.fontSize="14px";title.textContent="Week ending "+(d.weekEnding?new Date(d.weekEnding+"T12:00:00").toLocaleDateString():"Date unavailable");
+   const summary=document.createElement("div");summary.className="muted";summary.style.marginTop="8px";summary.textContent="Nutrition: "+(d.adherence||"Not recorded")+" · Training: "+(d.trainingSessions??"Not recorded")+" sessions"+(d.averageWeight?" · Check-in average: "+d.averageWeight+" kg":"");
+   const answers=document.createElement("div");answers.className="muted";answers.style.marginTop="8px";answers.style.whiteSpace="pre-wrap";answers.textContent="Wins: "+(d.wins||"—")+"\nChallenges: "+(d.challenges||"—")+"\nHelp requested: "+(d.support||"—");
+   card.append(title,summary,answers);
+   if(index===0){
+    const insight=document.createElement("div");insight.style.cssText="margin-top:12px;padding:12px;border:1px solid #586344;border-radius:11px;background:#10140d";
+    const heading=document.createElement("div");heading.className="eyebrow";heading.textContent="B.COACHED COACHING INSIGHT";
+    const stats=document.createElement("div");stats.className="muted";stats.style.marginTop="8px";
+    stats.textContent="Last 7 days: "+currentWeights.length+" weigh-ins"+(currentAvg!==null?" · Average "+currentAvg.toFixed(2)+" kg":" · Not enough weigh-ins for an average")+" · Previous 7 days: "+previousWeights.length+" weigh-ins"+(previousAvg!==null?" · Average "+previousAvg.toFixed(2)+" kg":" · Not enough weigh-ins for comparison")+" · Training sessions logged in the last 7 days: "+recentSessions+".";
+    const recommendation=document.createElement("div");recommendation.style.cssText="font-size:13px;line-height:1.5;margin-top:9px;color:#f5f7f1";
+    const adherence=adherenceValue(d.adherence);
+    let prompt="There is not enough recent weight data to assess the trend reliably. Gather consistent weigh-ins before considering a nutrition adjustment.";
+    if(adherence!==null&&adherence<76)prompt="Adherence is reported below 76%. Prioritise consistency and identify barriers with the client before considering a calorie adjustment.";
+    else if(pct!==null&&Math.abs(pct)<=0.15)prompt="The two 7-day weight averages are broadly stable ("+(pct>0?"+":"")+pct.toFixed(2)+"%). Check the client's goal, adherence, measurements and wider context before deciding whether targets need reviewing.";
+    else if(pct!==null)prompt="The recent average is "+(pct>0?"up ":"down ")+Math.abs(pct).toFixed(2)+"% versus the previous 7 days. Confirm this matches the client's goal and review adherence, measurements and context before changing anything.";
+    recommendation.textContent="Suggested coaching prompt: "+prompt;
+    const noteLabel=document.createElement("label");noteLabel.textContent="Your decision / coaching notes";
+    const note=document.createElement("textarea");note.rows=3;note.style.cssText="width:100%;padding:10px;border:1px solid #4b5540;border-radius:10px;background:#090c07;color:var(--white);font:inherit;margin-top:6px";note.value=d.coachReviewNote||"";
+    const reviewed=document.createElement("div");reviewed.className="muted";reviewed.style.marginTop="7px";reviewed.textContent=d.coachReviewStatus==="reviewed"?"Reviewed by coach":"Awaiting coach review";
+    const saveReview=document.createElement("button");saveReview.textContent=d.coachReviewStatus==="reviewed"?"UPDATE COACH REVIEW":"SAVE COACH REVIEW";saveReview.style.width="100%";saveReview.style.marginTop="9px";
+    saveReview.onclick=async()=>{saveReview.disabled=true;saveReview.textContent="SAVING…";try{await setDoc(doc(db,"users",selectedClient.uid,"weeklyCheckins",d.id),{coachReviewNote:note.value.trim(),coachReviewStatus:"reviewed",coachReviewedAt:serverTimestamp(),coachReviewedBy:currentUser.uid},{merge:true});d.coachReviewNote=note.value.trim();d.coachReviewStatus="reviewed";reviewed.textContent="Reviewed by coach";saveReview.textContent="REVIEW SAVED ✓";}catch(e){saveReview.textContent="SAVE FAILED";}finally{saveReview.disabled=false;}};
+    insight.append(heading,stats,recommendation,noteLabel,note,saveReview,reviewed);card.append(insight);
+   }
+   const label=document.createElement("label");label.textContent="Coach feedback";
+   const reply=document.createElement("textarea");reply.rows=3;reply.style.cssText="width:100%;padding:12px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit";reply.value=d.coachFeedback||"";
+   const save=document.createElement("button");save.textContent="SAVE FEEDBACK";save.style.width="100%";save.style.marginTop="9px";save.onclick=async()=>{save.disabled=true;try{await setDoc(doc(db,"users",selectedClient.uid,"weeklyCheckins",d.id),{coachFeedback:reply.value.trim(),feedbackUpdatedAt:serverTimestamp(),feedbackBy:currentUser.uid},{merge:true});save.textContent="FEEDBACK SAVED";}catch(e){save.textContent="SAVE FAILED";}finally{save.disabled=false;}};
+   card.append(label,reply,save);host.append(card);
+  });
+ }catch(e){host.textContent="Could not load client check-ins: "+e.message;}
+}
 async function loadCoachDailyLogs(){
  const host=$("coachDailyLogs");
  if(!selectedClient?.uid)return;
