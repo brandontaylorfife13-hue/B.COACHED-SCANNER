@@ -370,7 +370,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <button id="lookupBarcode" class="secondary" style="width:100%;margin-top:10px">LOOK UP BARCODE</button>
   <div id="barcodeStatus" class="status" role="status"></div>
   <div class="section-title" style="margin-top:20px">Add food</div>
-  <label for="foodName">Search food database</label><input id="foodName" list="foodSearchOptions" placeholder="Start typing chicken, oats, rice..."><datalist id="foodSearchOptions"></datalist><p class="muted">Search the UK CoFID database of 2,655 foods first, followed by branded products. Select a result to fill nutrition automatically. CoFID values are per 100g.</p><label for="foodGrams">Portion size (g)</label><input id="foodGrams" type="number" min="1" step="1" value="100">
+  <label for="foodName">Search food database</label><input id="foodName" list="foodSearchOptions" placeholder="Start typing chicken, oats, rice..."><datalist id="foodSearchOptions"></datalist><p class="muted">Search results are grouped by source: CoFID reference foods, ALDI products first, then other branded foods. Type at least 2 letters and choose a clearly labelled result. Nutrition is per 100g and your portion is calculated automatically.</p><label for="foodGrams">Portion size (g)</label><input id="foodGrams" type="number" min="1" step="1" value="100">
   <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">
    <div><label for="foodCalories">Calories (kcal)</label><input id="foodCalories" type="number" min="0" step="1" placeholder="0"></div>
    <div><label for="foodProtein">Protein (g)</label><input id="foodProtein" type="number" min="0" step="0.1" placeholder="0"></div>
@@ -945,37 +945,48 @@ function addFoodOption(list,item,label){
 }
 async function searchFoodDatabase(term){
  const list=$("foodSearchOptions");if(!list)return;
- const q=term.trim().toLowerCase();if(q.length<2)return;
- list.replaceChildren();
+ const q=term.trim().toLowerCase();if(q.length<2){list.replaceChildren();return;}
+ list.replaceChildren();foodLookupCache.clear();
+ const add=(item,label)=>{
+  const key=(label||item.name).toLowerCase();
+  if(foodLookupCache.has(key))return;
+  const opt=document.createElement("option");opt.value=label||item.name;list.append(opt);
+  foodLookupCache.set(key,item);
+ };
+ // CoFID: concise, relevant UK reference-food matches, ranked by exact and prefix matches.
  try{
-  // Search the locally hosted UK CoFID 2021 reference dataset first.
   const foods=await loadCofidFoods();
-  const terms=q.split(/\\s+/).filter(Boolean);
+  const terms=q.split(/\s+/).filter(Boolean);
   const matches=foods.map(f=>{
    const name=String(f.name||"").toLowerCase();
    const hit=terms.filter(t=>name.includes(t)).length;
    return {f,hit,exact:name===q,prefix:name.startsWith(q)};
-  }).filter(x=>x.hit>0).sort((a,b)=>(b.exact-a.exact)||(b.prefix-a.prefix)||(b.hit-a.hit)||a.f.name.localeCompare(b.f.name)).slice(0,35);
+  }).filter(x=>x.hit===terms.length).sort((a,b)=>(b.exact-a.exact)||(b.prefix-a.prefix)||(b.hit-a.hit)||a.f.name.localeCompare(b.f.name)).slice(0,15);
   matches.forEach(({f})=>{
    const p=f.per100||{};
    if(![p.calories,p.protein,p.carbs,p.fat].every(v=>v!==null&&v!==undefined&&Number.isFinite(Number(v))))return;
-   const item={name:f.name,calories:Number(p.calories),protein:Number(p.protein),carbs:Number(p.carbs),fats:Number(p.fat),source:"CoFID 2021",foodCode:f.code};
-   addFoodOption(list,item,item.name+" · CoFID");
+   add({name:f.name,calories:Number(p.calories),protein:Number(p.protein),carbs:Number(p.carbs),fats:Number(p.fat),source:"CoFID 2021",foodCode:f.code},"CoFID · "+f.name);
   });
  }catch(e){console.warn("CoFID search:",e);}
- // Add branded products after UK reference foods.
- try{
-  const url="https://world.openfoodfacts.org/cgi/search.pl?search_terms="+encodeURIComponent(q)+"&search_simple=1&action=process&json=1&page_size=25&sort_by=unique_scans_n&fields=product_name,product_name_en,brands,nutriments";
+ // Aldi products are searched separately so they are easy to spot and aren't buried in generic results.
+ const fetchProducts=async(url,source,limit,brandOnly=false)=>{
   const res=await fetch(url);if(!res.ok)throw new Error("Branded food search unavailable");
   const data=await res.json();
-  (data.products||[]).filter(p=>p.product_name||p.product_name_en).forEach(p=>{
-   const name=(p.product_name||p.product_name_en||"").trim(),n=p.nutriments||{};
+  (data.products||[]).forEach(p=>{
+   const name=(p.product_name||p.product_name_en||"").trim(),brand=p.brands||"",n=p.nutriments||"";
    const kcal=n["energy-kcal_100g"]??(n["energy_100g"]?Math.round(n["energy_100g"]/4.184):null);
    const protein=n.proteins_100g,carbs=n.carbohydrates_100g,fat=n.fat_100g;
    if(!name||![kcal,protein,carbs,fat].every(v=>v!==undefined&&v!==null&&Number.isFinite(Number(v))))return;
-   const item={name,calories:Number(kcal),protein:Number(protein),carbs:Number(carbs),fats:Number(fat),brand:p.brands||"",source:"Open Food Facts"};
-   addFoodOption(list,item,name+(item.brand?" — "+item.brand:"")+" · Branded");
+   if(brandOnly&&!/aldi/i.test(brand+" "+name))return;
+   add({name,calories:Number(kcal),protein:Number(protein),carbs:Number(carbs),fats:Number(fat),brand,source},source+" · "+name+(brand?" — "+brand:""));
   });
+ };
+ const base="https://world.openfoodfacts.org/cgi/search.pl?search_terms="+encodeURIComponent(q)+"&search_simple=1&action=process&json=1&page_size=";
+ try{
+  await fetchProducts(base+"20&sort_by=unique_scans_n&fields=product_name,product_name_en,brands,nutriments&brands_tags=aldi","ALDI product database",15,true);
+ }catch(e){console.warn("Aldi food search:",e);}
+ try{
+  await fetchProducts(base+"20&sort_by=unique_scans_n&fields=product_name,product_name_en,brands,nutriments","Open Food Facts",15,false);
  }catch(e){console.warn("Branded food search:",e);}
  if(!list.options.length){const opt=document.createElement("option");opt.value="No matching food found — try another search";list.append(opt);}
 }
