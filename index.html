@@ -338,6 +338,15 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
    <div class="tile">WEIGHT TRACKING<strong id="analyticsWeightTracked">—</strong><span>Clients with 2+ weigh-ins</span></div>
    <div class="tile">TRAINING THIS WEEK<strong id="analyticsSessions">—</strong><span>Logged sessions in the last 7 days</span></div>
   </div>
+  <div class="section-title" style="margin-top:24px">Automated Coaching Intelligence</div>
+  <p class="muted">Evidence-led prompts from recent check-ins, weigh-ins, training and daily activity. These are review signals, not automatic diagnoses or instructions to change a plan.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(135px,1fr));margin:12px 0">
+   <div class="tile">CLIENTS REVIEWED<strong id="intelligenceClientCount">—</strong><span>Active client records</span></div>
+   <div class="tile">CLIENTS FLAGGED<strong id="intelligenceFlagCount">—</strong><span>At least one review signal</span></div>
+   <div class="tile">CHECK-INS OVERDUE<strong id="intelligenceOverdueCount">—</strong><span>More than 14 days since latest</span></div>
+   <div class="tile">LOW ADHERENCE<strong id="intelligenceAdherenceCount">—</strong><span>Latest self-report at 75% or below</span></div>
+  </div>
+  <div id="coachingIntelligenceList" class="muted">Preparing coaching insights…</div>
   <div class="section-title" style="margin-top:24px">Weekly check-in review inbox</div>
   <p class="muted">Submitted check-ins across your active clients. Open a client to compare submissions, add feedback and mark each week reviewed.</p>
   <div id="coachCheckinInbox" class="muted">Loading submitted check-ins…</div>
@@ -1032,6 +1041,99 @@ async function loadCoachCheckinInbox(){
   groups.filter(g=>g.error).forEach(g=>{const warning=document.createElement("div");warning.className="muted";warning.textContent="Could not read check-ins for "+(g.client.displayName||g.client.email||"a client")+". ";host.append(warning);});
  }catch(e){host.textContent="Could not load check-in inbox: "+e.message;}
 }
+async function loadCoachingIntelligence(){
+ const host=$("coachingIntelligenceList");
+ if(!host)return;
+ host.textContent="Reviewing recent client records…";
+ ["intelligenceClientCount","intelligenceFlagCount","intelligenceOverdueCount","intelligenceAdherenceCount"].forEach(id=>$(id).textContent="—");
+ try{
+  const result=await getDocs(query(collection(db,"users"),where("role","==","client")));
+  const clients=result.docs.map(d=>({uid:d.id,...d.data()})).filter(c=>c.accountStatus!=="inactive"&&c.accountStatus!=="archived");
+  const now=new Date();now.setHours(23,59,59,999);
+  const dayStart=new Date();dayStart.setHours(0,0,0,0);
+  const dateFromDaysAgo=n=>{const d=new Date(dayStart);d.setDate(d.getDate()-n);return d;};
+  const parseDate=value=>{if(!value)return null;const raw=String(value).slice(0,10);const d=new Date(raw+"T12:00:00");return Number.isNaN(d.getTime())?null:d;};
+  const dateKey=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
+  const rows=await Promise.all(clients.map(async client=>{
+   const safeRead=async path=>{try{return await getDocs(collection(db,"users",client.uid,path));}catch(error){return {docs:[],readError:error};}};
+   const [checksSnap,weightsSnap,sessionsSnap,dailySnap]=await Promise.all([
+    safeRead("weeklyCheckins"),safeRead("weights"),safeRead("trainingSessions"),safeRead("dailyLogs")
+   ]);
+   const checks=(checksSnap.docs||[]).map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.weekEnding||b.id).localeCompare(a.weekEnding||a.id));
+   const latestCheck=checks[0]||null;
+   const checkDate=latestCheck?parseDate(latestCheck.weekEnding||latestCheck.id):null;
+   const daysSinceCheck=checkDate?Math.floor((dayStart-checkDate)/(86400000)):null;
+   const weights=(weightsSnap.docs||[]).map(d=>({date:d.id,...d.data(),value:Number(d.data().weightKg??d.data().weight)})).filter(x=>parseDate(x.date)&&Number.isFinite(x.value)&&x.value>0).sort((a,b)=>a.date.localeCompare(b.date));
+   const recentWeights=weights.filter(x=>parseDate(x.date)>=dateFromDaysAgo(28));
+   const sessions=(sessionsSnap.docs||[]).map(d=>({id:d.id,...d.data()})).filter(x=>!!x.completedAt||x.autoSaved===false||x.status==="completed");
+   const sessionDate=x=>parseDate(x.date||x.id?.slice(0,10));
+   const recentSessions=sessions.filter(x=>sessionDate(x)&&sessionDate(x)>=dateFromDaysAgo(7)&&sessionDate(x)<=now);
+   const priorSessions=sessions.filter(x=>sessionDate(x)&&sessionDate(x)>=dateFromDaysAgo(14)&&sessionDate(x)<dateFromDaysAgo(7));
+   const daily=(dailySnap.docs||[]).map(d=>({id:d.id,...d.data()})).filter(x=>parseDate(x.date||x.id));
+   const recentDaily=daily.filter(x=>parseDate(x.date||x.id)>=dateFromDaysAgo(7)&&parseDate(x.date||x.id)<=now);
+   const priorDaily=daily.filter(x=>parseDate(x.date||x.id)>=dateFromDaysAgo(14)&&parseDate(x.date||x.id)<dateFromDaysAgo(7));
+   const avgSteps=items=>{const values=items.map(x=>Number(x.steps)).filter(x=>Number.isFinite(x)&&x>0);return values.length>=3?values.reduce((a,b)=>a+b,0)/values.length:null;};
+   const recentSteps=avgSteps(recentDaily),priorSteps=avgSteps(priorDaily);
+   const adherenceMap={"0–25%":12.5,"26–50%":38,"51–75%":63,"76–90%":83,"91–100%":95};
+   const adherence=adherenceMap[latestCheck?.adherence]??null;
+   const flags=[];
+   if(!latestCheck||daysSinceCheck===null||daysSinceCheck>14){
+    flags.push({level:"high",title:"Weekly check-in overdue",evidence:!latestCheck?"No weekly check-in has been submitted yet.":"The latest check-in is "+daysSinceCheck+" days old.",prompt:"Reach out and ask how the current plan is going before making any changes."});
+   }
+   if(adherence!==null&&adherence<=75){
+    flags.push({level:adherence<=50?"high":"review",title:"Nutrition adherence may need support",evidence:"Latest self-reported nutrition adherence: "+latestCheck.adherence+".",prompt:"Explore barriers, routine and meal-plan practicality. Confirm what was achievable before considering a target change."});
+   }
+   if(recentWeights.length>=3){
+    const first=recentWeights[0],last=recentWeights[recentWeights.length-1];
+    const change=last.value-first.value;
+    const span=(parseDate(last.date)-parseDate(first.date))/86400000;
+    if(span>=14&&Math.abs(change)<=0.2){
+     flags.push({level:"review",title:"Weight trend has been broadly flat",evidence:"Change across "+Math.round(span)+" days: "+(change>0?"+":"")+change.toFixed(1)+" kg, based on "+recentWeights.length+" weigh-ins.",prompt:"Check the client's stated goal, weigh-in consistency, adherence and normal fluctuations. A flat trend is not automatically a reason to reduce calories."});
+    }
+   }
+   if(priorSessions.length>=2&&recentSessions.length<=priorSessions.length-2){
+    flags.push({level:"review",title:"Training frequency has fallen",evidence:recentSessions.length+" completed sessions in the last 7 days versus "+priorSessions.length+" in the preceding 7 days.",prompt:"Ask about schedule, recovery, motivation or barriers before changing the programme."});
+   }
+   if(recentSteps!==null&&priorSteps!==null&&priorSteps>0&&recentSteps<priorSteps*0.75){
+    flags.push({level:"review",title:"Daily steps have decreased",evidence:"Average recorded steps: "+Math.round(recentSteps).toLocaleString()+" recently versus "+Math.round(priorSteps).toLocaleString()+" in the previous week.",prompt:"Check whether routine, work, illness or recovery explains the change. Confirm the client's intended activity target."});
+   }
+   const readErrors=[checksSnap.readError,weightsSnap.readError,sessionsSnap.readError,dailySnap.readError].filter(Boolean);
+   return {client,flags,latestCheck,daysSinceCheck,readErrors};
+  }));
+  const flagged=rows.filter(x=>x.flags.length);
+  const overdue=rows.filter(x=>!x.latestCheck||x.daysSinceCheck===null||x.daysSinceCheck>14).length;
+  const lowAdherence=rows.filter(x=>{const map={"0–25%":12.5,"26–50%":38,"51–75%":63};return map[x.latestCheck?.adherence]!==undefined;}).length;
+  $("intelligenceClientCount").textContent=String(rows.length);
+  $("intelligenceFlagCount").textContent=String(flagged.length);
+  $("intelligenceOverdueCount").textContent=String(overdue);
+  $("intelligenceAdherenceCount").textContent=String(lowAdherence);
+  host.replaceChildren();
+  if(!rows.length){host.textContent="No active client accounts are available yet. Insights will appear as clients join and submit data.";return;}
+  const note=document.createElement("div");note.className="muted";note.style.marginBottom="10px";note.textContent="Signals use available records only. Weight trend flags require at least 3 weigh-ins across 14+ days; step comparisons require at least 3 logged days in each week. Missing data is not treated as poor adherence.";host.append(note);
+  if(!flagged.length){const clear=document.createElement("div");clear.className="tile";clear.style.minHeight="0";clear.textContent="No review signals were identified from the available recent records. Continue normal check-ins and use your coaching judgement.";host.append(clear);}
+  flagged.sort((a,b)=>Math.max(...b.flags.map(f=>f.level==="high"?2:1))-Math.max(...a.flags.map(f=>f.level==="high"?2:1))||b.flags.length-a.flags.length||(a.client.displayName||"").localeCompare(b.client.displayName||""));
+  flagged.forEach(row=>{
+   const card=document.createElement("div");card.className="tile";card.style.cssText="min-height:0;margin:9px 0;padding:13px";
+   const head=document.createElement("div");head.style.cssText="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap";
+   const name=document.createElement("strong");name.style.fontSize="16px";name.textContent=row.client.displayName||row.client.email||"Client";
+   const count=document.createElement("span");count.className="pill";count.textContent=row.flags.length+" review signal"+(row.flags.length===1?"":"s");head.append(name,count);card.append(head);
+   row.flags.forEach(flag=>{
+    const block=document.createElement("div");block.style.cssText="margin-top:12px;padding-top:10px;border-top:1px solid #343b2c";
+    const title=document.createElement("strong");title.style.cssText="font-size:13px;color:"+(flag.level==="high"?"#ffb36b":"#c6ff00");title.textContent=(flag.level==="high"?"PRIORITY · ":"REVIEW · ")+flag.title;
+    const evidence=document.createElement("div");evidence.className="muted";evidence.style.marginTop="5px";evidence.textContent="Evidence: "+flag.evidence;
+    const prompt=document.createElement("div");prompt.className="muted";prompt.style.marginTop="5px";prompt.textContent="Suggested coaching prompt: "+flag.prompt;
+    block.append(title,evidence,prompt);card.append(block);
+   });
+   if(row.readErrors.length){const warning=document.createElement("div");warning.className="muted";warning.style.marginTop="8px";warning.textContent="Some records could not be read; this client's insights may be incomplete.";card.append(warning);}
+   const open=document.createElement("button");open.className="secondary";open.style.cssText="width:100%;margin-top:12px";open.textContent="OPEN CLIENT PROFILE";open.onclick=()=>showClientProfile(row.client);card.append(open);host.append(card);
+  });
+  $("analyticsUpdated").textContent="Coaching Intelligence checked "+new Date().toLocaleString()+". Signals are prompts for coach review, not automatic plan changes.";
+ }catch(error){
+  console.error("Coaching Intelligence failed",error);
+  host.textContent="Could not calculate coaching insights: "+(error.message||"Unknown error")+". Existing client records have not been changed.";
+ }
+}
+
 async function loadPerformanceAnalytics(){
  const countEl=$("analyticsClientCount"),rateEl=$("analyticsCheckinRate"),trackedEl=$("analyticsWeightTracked"),sessionsEl=$("analyticsSessions");
  const checkChart=$("analyticsCheckinChart"),weightChart=$("analyticsWeightChart"),table=$("analyticsClientTable");
@@ -1127,6 +1229,7 @@ $("refreshAnalytics")?.addEventListener("click",loadPerformanceAnalytics);
 $("refreshAnalytics")?.addEventListener("click",loadTrainingPerformanceCentre);
 $("refreshAnalytics")?.addEventListener("click",loadCoachConsistencyDashboard);
 $("refreshAnalytics")?.addEventListener("click",loadCoachCheckinInbox);
+$("refreshAnalytics")?.addEventListener("click",loadCoachingIntelligence);
 async function loadClients(){
  const list=$("clientList");list.textContent="Loading clients…";
  try{
@@ -2778,7 +2881,7 @@ document.querySelectorAll("#nav button").forEach(btn=>btn.addEventListener("clic
  document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b===btn));
  ["overview","clients","analytics","nutrition","foodDiary","training","progress","checkins","messages","updates"].forEach(v=>$(v+"View").classList.toggle("hidden",v!==btn.dataset.view));
  if(btn.dataset.view==="clients")loadClients();
- if(btn.dataset.view==="analytics"&&currentUser&&currentRole==="coach"){loadPerformanceAnalytics();loadTrainingPerformanceCentre();loadCoachConsistencyDashboard();loadCoachCheckinInbox();}
+ if(btn.dataset.view==="analytics"&&currentUser&&currentRole==="coach"){loadPerformanceAnalytics();loadTrainingPerformanceCentre();loadCoachConsistencyDashboard();loadCoachCheckinInbox();loadCoachingIntelligence();}
  if(btn.dataset.view==="nutrition"&&currentUser)loadNutritionTargets(false);
  if(btn.dataset.view==="foodDiary"&&currentUser){$("foodDate").value=$("foodDate").value||localDateString();loadFoodDiary();}
  if(btn.dataset.view==="overview"&&currentUser&&currentRole!=="coach")loadClientFourWeekReview();
