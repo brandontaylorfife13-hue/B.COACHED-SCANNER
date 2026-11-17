@@ -771,7 +771,7 @@ function renderTrainingPerformance(host,summary,showDetail=true){
  const title=document.createElement("div");title.className="eyebrow";title.style.marginTop="16px";title.textContent="ALL-TIME EXERCISE BEST LOADS";host.append(title);
  if(!summary.bests.length){const empty=document.createElement("div");empty.className="muted";empty.textContent="No completed weighted sets recorded yet.";host.append(empty);return;}
  const table=document.createElement("div");
- summary.bests.forEach(x=>{const line=document.createElement("div");line.style.cssText="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #30372a";const label=document.createElement("span");label.textContent=x.name+" · "+(x.bestDate||"Date unknown");const value=document.createElement("strong");value.textContent=x.bestWeight+" kg × "+x.bestReps;line.append(label,value);table.append(line);});
+ summary.bests.forEach(x=>{const line=document.createElement("div");line.style.cssText="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #30372a";const label=document.createElement("span");label.textContent=x.name+" · "+(x.bestDate||"Date unknown");const value=document.createElement("strong");value.textContent=x.bestWeight+" kg × "+x.bestReps+" · e1RM "+x.bestE1rm.toFixed(1)+" kg";line.append(label,value);table.append(line);});
  host.append(table);
 }
 async function loadCoachClientTrainingAnalytics(){
@@ -795,7 +795,7 @@ async function loadTrainingPerformanceCentre(){
    const summary=summariseTrainingPerformance(p.exists()?p.data():{},logs.docs.map(d=>({id:d.id,...d.data()})));
    return {client,summary};
   }));
-  const totals=rows.reduce((a,x)=>({sessions:a.sessions+x.summary.recentSessions,bests:a.bests+x.summary.bestsRecent,assisted:a.assisted+x.summary.recentAssisted,rirSum:a.rirSum+(x.summary.recentRir===null?0:x.summary.recentRir*x.summary.recentRirCount),rirCount:a.rirCount+x.summary.recentRirCount}),{sessions:0,bests:0,assisted:0,rirSum:0,rirCount:0});
+  const totals=rows.reduce((a,x)=>({sessions:a.sessions+x.summary.recentSessions,bests:a.bests+x.summary.bests.length,assisted:a.assisted+x.summary.recentAssisted,rirSum:a.rirSum+(x.summary.recentRir===null?0:x.summary.recentRir*x.summary.recentRirCount),rirCount:a.rirCount+x.summary.recentRirCount}),{sessions:0,bests:0,assisted:0,rirSum:0,rirCount:0});
   sessionsEl.textContent=String(totals.sessions);bestsEl.textContent=String(totals.bests);assistedEl.textContent=String(totals.assisted);rirEl.textContent=totals.rirCount?(totals.rirSum/totals.rirCount).toFixed(1):"—";
   const muscles=new Map();rows.forEach(x=>x.summary.muscles.forEach(([g,n])=>muscles.set(g,(muscles.get(g)||0)+n)));
   muscleHost.replaceChildren();
