@@ -278,6 +278,9 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <div id="coachMealPlanEditor"></div>
   <button id="saveMealPlan" style="width:100%;margin-top:12px">SAVE TAILORED MEAL PLAN</button>
   <div id="mealPlanCoachStatus" class="status" role="status"></div>
+  <div class="section-title" style="margin-top:24px">Nutrition Adherence Centre</div>
+  <p class="muted">Review the client's food diary against their assigned high- and low-day targets. Only logged food is counted; missing diary days are not treated as zero intake.</p>
+  <div id="coachClientNutritionAnalytics" class="muted">Loading nutrition adherence…</div>
   <div class="section-title profile-anchor" id="profile-training-program" style="margin-top:28px">Training programme builder</div><p class="muted">Create the client's weekly split and prescribe exercises, target sets, rep ranges and muscle groups. Clients log their working weights and reps against this plan.</p>
   <div class="tile" style="margin:12px 0"><div class="eyebrow">READY-MADE TEMPLATES</div><strong style="font-size:16px;color:#f5f7f1">Torso / Limb Split</strong><p class="muted">Load the four-session torso/limb programme into this client’s editor.</p><button type="button" id="applyTorsoLimbTemplate" style="width:100%">LOAD TORSO / LIMB TEMPLATE</button><div id="trainingTemplateStatus" class="status"></div></div></div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
@@ -774,6 +777,52 @@ function renderTrainingPerformance(host,summary,showDetail=true){
  summary.bests.forEach(x=>{const line=document.createElement("div");line.style.cssText="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #30372a";const label=document.createElement("span");label.textContent=x.name+" · "+(x.bestDate||"Date unknown");const value=document.createElement("strong");value.textContent=x.bestWeight+" kg × "+x.bestReps+" · e1RM "+x.bestE1rm.toFixed(1)+" kg";line.append(label,value);table.append(line);});
  host.append(table);
 }
+async function loadCoachClientNutritionAnalytics(){
+ if(!selectedClient?.uid)return;
+ const host=$("coachClientNutritionAnalytics");if(!host)return;host.textContent="Loading nutrition adherence…";
+ try{
+  const targetSnap=await getDoc(doc(db,"users",selectedClient.uid,"nutrition","targets"));
+  const targets=targetSnap.exists()?targetSnap.data():{};
+  const highDays=Array.isArray(targets.highDays)?targets.highDays:[];
+  const today=new Date();today.setHours(0,0,0,0);
+  const dates=Array.from({length:7},(_,i)=>{const d=new Date(today);d.setDate(d.getDate()-(6-i));return d;});
+  const days=await Promise.all(dates.map(async date=>{
+   const key=[date.getFullYear(),String(date.getMonth()+1).padStart(2,"0"),String(date.getDate()).padStart(2,"0")].join("-");
+   const [entriesSnap,selectionSnap]=await Promise.all([
+    getDocs(collection(db,"users",selectedClient.uid,"foodLogs",key,"entries")),
+    getDoc(doc(db,"users",selectedClient.uid,"mealPlanSelections",key))
+   ]);
+   const entries=entriesSnap.docs.map(x=>x.data());
+   const totals=entries.reduce((a,x)=>({calories:a.calories+(Number(x.calories)||0),protein:a.protein+(Number(x.proteinG)||0),carbs:a.carbs+(Number(x.carbsG)||0),fats:a.fats+(Number(x.fatsG)||0)}),{calories:0,protein:0,carbs:0,fats:0});
+   const dayName=date.toLocaleDateString("en-US",{weekday:"long"});
+   const high=highDays.includes(dayName),target=high?(targets.highDay||{}):(targets.lowDay||{});
+   const selection=selectionSnap.exists()?selectionSnap.data():{};
+   const eaten=selection.eatenMeals&&typeof selection.eatenMeals==="object"?Object.values(selection.eatenMeals).filter(Boolean).length:0;
+   const planned=selection.eatenMeals&&typeof selection.eatenMeals==="object"?Object.keys(selection.eatenMeals).length:0;
+   return {key,date,dayName,entries:entries.length,totals,high,target,eaten,planned,hasSelection:selectionSnap.exists()};
+  }));
+  host.replaceChildren();
+  const logged=days.filter(x=>x.entries>0);
+  const overview=document.createElement("div");overview.className="grid";overview.style.cssText="grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px";
+  const metrics=[["DIARY DAYS",logged.length+" / 7"],["FOOD ENTRIES",days.reduce((n,x)=>n+x.entries,0)],["MEAN CALORIES",logged.length?Math.round(logged.reduce((n,x)=>n+x.totals.calories,0)/logged.length).toLocaleString():"—"],["MEAN PROTEIN",logged.length?(logged.reduce((n,x)=>n+x.totals.protein,0)/logged.length).toFixed(1)+" g":"—"]];
+  metrics.forEach(([label,value])=>{const tile=document.createElement("div");tile.className="tile";tile.style.minHeight="0";const l=document.createElement("div");l.className="eyebrow";l.textContent=label;const v=document.createElement("strong");v.textContent=value;tile.append(l,v);overview.append(tile);});
+  host.append(overview);
+  const note=document.createElement("div");note.className="muted";note.style.margin="10px 0";note.textContent=logged.length?"Averages use diary days with at least one food entry. Compare like-for-like days and check whether entries are complete before making nutrition changes.":"No food diary entries recorded in the last seven days.";host.append(note);
+  const listTitle=document.createElement("div");listTitle.className="eyebrow";listTitle.style.marginTop="14px";listTitle.textContent="DAILY INTAKE VS ASSIGNED TARGET";host.append(listTitle);
+  days.slice().reverse().forEach(day=>{
+   const card=document.createElement("div");card.className="tile";card.style.cssText="min-height:0;margin:8px 0;padding:12px";
+   const head=document.createElement("div");head.style.cssText="display:flex;justify-content:space-between;gap:10px;align-items:center";
+   const title=document.createElement("strong");title.textContent=day.date.toLocaleDateString("en-US",{weekday:"short",day:"numeric",month:"short"});
+   const status=document.createElement("span");status.className="pill";status.textContent=day.entries?day.entries+" food entries":"No diary logged";head.append(title,status);card.append(head);
+   const type=document.createElement("div");type.className="muted";type.style.marginTop="5px";type.textContent=(highDays.length?(day.high?"High day":"Low day"):"Day type not assigned")+(day.planned?" · Meal plan marked "+day.eaten+"/"+day.planned+" eaten":"");card.append(type);
+   if(day.entries){
+    const vals=[["Calories",day.totals.calories,day.target.calories,"kcal"],["Protein",day.totals.protein,day.target.proteinG,"g"],["Carbs",day.totals.carbs,day.target.carbsG,"g"],["Fats",day.totals.fats,day.target.fatsG,"g"]];
+    vals.forEach(([label,actual,target,unit])=>{const line=document.createElement("div");line.style.cssText="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid #30372a";const l=document.createElement("span");l.textContent=label;const v=document.createElement("strong");v.textContent=target==null?Math.round(actual*10)/10+unit+" · target not set":Math.round(actual*10)/10+" / "+target+unit;line.append(l,v);card.append(line);});
+   }else{const empty=document.createElement("div");empty.className="muted";empty.style.marginTop="7px";empty.textContent="No intake recorded. This is missing data, not zero intake.";card.append(empty);}
+   host.append(card);
+  });
+ }catch(e){host.textContent="Could not load nutrition adherence: "+e.message;}
+}
 async function loadCoachClientTrainingAnalytics(){
  if(!selectedClient?.uid)return;
  const host=$("coachClientTrainingAnalytics");if(!host)return;host.textContent="Loading training performance…";
@@ -1009,6 +1058,7 @@ async function showClientProfile(client){
   $("clientDetailsStatus").textContent="";
   await loadWeightHistory();
   await loadNutritionTargets(true);
+  await loadCoachClientNutritionAnalytics();
   await loadCoachDailyLogs();
   renderMessageThread(selectedClient.uid,"coachMessageHistory");
   await loadCoachCheckins();
