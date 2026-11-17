@@ -113,8 +113,8 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
     <div class="tile">CHECK-INS OVERDUE<strong id="overviewOverdueCount">—</strong><span>No check-in in 14 days</span></div>
     <div class="tile">AWAITING REPLY<strong id="overviewMessageCount">—</strong><span>Latest message is from a client</span></div><div class="tile">CHECK-INS TO REVIEW<strong id="overviewCheckinReviewCount">—</strong><span>Submitted but not reviewed</span></div>
    </div>
-   <div class="section-title" style="margin-top:22px">Your action centre</div>
-   <p class="muted">The clients who need your attention most, with a direct link to their profile.</p>
+   <div class="section-title" style="margin-top:22px">Today's Coaching Tasks</div>
+   <p class="muted">A live, prioritised list of check-in reviews, client messages and overdue follow-ups. Open each task to take action.</p>
    <div id="overviewActionList" class="muted">Loading your client activity…</div>
    <div class="actions"><button id="overviewAllClients" class="secondary" type="button">VIEW ALL CLIENTS</button><button id="overviewAddClient" type="button">ADD A CLIENT</button></div>
    <div class="section-title" style="margin-top:24px">Coaching workflow</div>
@@ -296,7 +296,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <div class="section-title profile-anchor" id="profile-training-program" style="margin-top:28px">Training programme builder</div><p class="muted">Create the client's weekly split and prescribe exercises, target sets, rep ranges and muscle groups. Clients log their working weights and reps against this plan.</p>
   <div class="tile" style="margin:12px 0"><div class="eyebrow">READY-MADE TEMPLATES</div><strong style="font-size:16px;color:#f5f7f1">Torso / Limb Split</strong><p class="muted">Load the four-session torso/limb programme into this client’s editor.</p><button type="button" id="applyTorsoLimbTemplate" style="width:100%">LOAD TORSO / LIMB TEMPLATE</button><div id="trainingTemplateStatus" class="status"></div></div></div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
-  <div><label for="coachWorkoutName">Workout name</label><input id="coachWorkoutName" placeholder="e.g. Push A"></div><div><label for="coachExerciseName">Exercise name</label><input id="coachExerciseName" placeholder="e.g. Incline dumbbell press"></div><div><label for="coachExerciseMuscle">Muscle group</label><input id="coachExerciseMuscle" placeholder="e.g. Chest"></div><div><label for="coachExerciseSets">Working sets</label><input id="coachExerciseSets" type="number" min="1" max="20" value="3"></div><div><label for="coachExerciseReps">Rep target</label><input id="coachExerciseReps" placeholder="e.g. 8–12"></div></div>
+  <div><label for="coachWorkoutName">Workout name</label><input id="coachWorkoutName" placeholder="e.g. Push A"></div><div><label for="coachExerciseMuscle">Body part / muscle group</label><select id="coachExerciseMuscle" class="training-select"><option value="">Choose body part</option><option>Chest</option><option>Lats</option><option>Upper back</option><option>Back</option><option>Shoulders</option><option>Biceps</option><option>Triceps</option><option>Quadriceps</option><option>Hamstrings</option><option>Glutes</option><option>Calves</option><option>Abdominals</option><option>Adductors</option><option>Abductors</option></select></div><div><label for="coachExerciseLibrary">Choose exercise</label><select id="coachExerciseLibrary" class="training-select"><option value="">Choose body part first</option></select></div><div><label for="coachExerciseName">Exercise name (or custom)</label><input id="coachExerciseName" placeholder="Choose above or type a custom exercise"></div><div><label for="coachExerciseSets">Working sets</label><input id="coachExerciseSets" type="number" min="1" max="20" value="3"></div><div><label for="coachExerciseReps">Rep target</label><input id="coachExerciseReps" value="8–12" placeholder="e.g. 8–12"></div></div>
   <div class="actions"><button type="button" id="addCoachExercise">ADD EXERCISE TO WORKOUT</button><button type="button" class="secondary" id="addCoachWorkout">ADD WORKOUT DAY</button></div><div id="coachTrainingEditor" style="margin-top:14px"></div><button id="saveTrainingProgram" style="width:100%;margin-top:12px">SAVE TRAINING PROGRAMME</button><div id="coachTrainingStatus" class="status" role="status"></div>
   <div class="section-title" style="margin-top:24px">Training Performance Centre</div>
   <p class="muted">Strength bests, weekly working-set volume, effort and assisted-set history for this client.</p>
@@ -725,24 +725,31 @@ async function loadCoachReviewDashboard(clients){
   const overviewHost=$("overviewActionList");overviewHost.replaceChildren();
   const overviewRows=rows.filter(x=>x.awaitingReply||x.inactive||x.goalNeedsReview||x.milestoneDue||x.overdue||x.needsCheckinReview||x.lowAdherence)
    .sort((a,b)=>(Number(b.awaitingReply)-Number(a.awaitingReply))||(Number(b.needsCheckinReview)-Number(a.needsCheckinReview))||(Number(b.overdue)-Number(a.overdue))||(Number(b.lowAdherence)-Number(a.lowAdherence))||(a.client.displayName||"").localeCompare(b.client.displayName||"")).slice(0,5);
-  if(!overviewRows.length){
-   const clear=document.createElement("div");clear.className="tile";clear.style.minHeight="0";clear.textContent=clients.length?"All clear — no clients currently need attention based on the latest activity.":"Your client action list will appear here once clients have joined.";overviewHost.append(clear);
+  const tasks=[];
+  rows.forEach(row=>{
+   if(row.awaitingReply)tasks.push({row,type:"Client message",detail:"A client has sent a message and is awaiting your reply.",target:"profile-messages",priority:0});
+   if(row.needsCheckinReview)tasks.push({row,type:"Weekly check-in review",detail:"The latest submitted weekly check-in has not been reviewed.",target:"profile-weekly-checkins",priority:1});
+   if(row.overdue)tasks.push({row,type:"Overdue check-in",detail:row.never?"No weekly check-in has been submitted yet.":"No check-in in the last 14 days.",target:"profile-weekly-checkins",priority:2});
+   if(row.goalNeedsReview)tasks.push({row,type:"Goal review",detail:"The client's goal is marked as needing review.",target:"profile-goal-tracking",priority:3});
+   if(row.milestoneDue)tasks.push({row,type:"Milestone follow-up",detail:"The milestone target date has passed.",target:"profile-goal-tracking",priority:4});
+   if(row.inactive)tasks.push({row,type:"Activity follow-up",detail:"No training in 7 days and no weigh-in in 14 days.",target:"profile-progress-overview",priority:5});
+   if(row.lowAdherence)tasks.push({row,type:"Adherence support",detail:"Reported nutrition adherence is below 76%.",target:"profile-nutrition-targets",priority:6});
+  });
+  tasks.sort((a,b)=>a.priority-b.priority||(a.row.client.displayName||"").localeCompare(b.row.client.displayName||""));
+  if(!tasks.length){
+   const clear=document.createElement("div");clear.className="tile";clear.style.minHeight="0";clear.textContent=clients.length?"No outstanding coaching tasks right now. Your client activity is up to date.":"Your coaching task list will appear here once clients have joined.";overviewHost.append(clear);
   }else{
-   overviewRows.forEach(row=>{
-    const card=document.createElement("div");card.className="tile";card.style.minHeight="0";card.style.margin="9px 0";
-    const name=document.createElement("strong");name.style.fontSize="16px";name.textContent=row.client.displayName||row.client.email||"Client";
-    const reasons=[];
-    if(row.awaitingReply)reasons.push("Awaiting your reply");
-    if(row.needsCheckinReview)reasons.push("New check-in needs review");
-    if(row.lowAdherence)reasons.push("Reported nutrition adherence below 76%");
-    if(row.overdue)reasons.push(row.never?"No weekly check-in submitted":"Weekly check-in overdue");
-    if(row.inactive)reasons.push("No training in 7 days and no weigh-in in 14 days");
-    if(row.goalNeedsReview)reasons.push("Goal marked Needs review");
-    if(row.milestoneDue)reasons.push("Milestone target date has passed");
-    const detail=document.createElement("div");detail.className="muted";detail.style.marginTop="7px";detail.textContent=reasons.join(" · ");
-    const open=document.createElement("button");open.className="secondary";open.style.width="100%";open.style.marginTop="10px";open.textContent="OPEN CLIENT PROFILE";open.onclick=()=>showClientProfile(row.client);
-    card.append(name,detail,open);overviewHost.append(card);
+   const count=document.createElement("div");count.className="muted";count.style.margin="0 0 8px";count.textContent=tasks.length+" task(s) across "+new Set(tasks.map(t=>t.row.client.uid)).size+" client(s)";overviewHost.append(count);
+   tasks.slice(0,20).forEach(task=>{
+    const card=document.createElement("div");card.className="tile";card.style.minHeight="0";card.style.margin="8px 0";
+    const top=document.createElement("div");top.style.cssText="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap";
+    const kind=document.createElement("strong");kind.style.fontSize="14px";kind.textContent=task.type;
+    const client=document.createElement("span");client.className="pill";client.textContent=task.row.client.displayName||task.row.client.email||"Client";top.append(kind,client);
+    const detail=document.createElement("div");detail.className="muted";detail.style.marginTop="7px";detail.textContent=task.detail;
+    const open=document.createElement("button");open.className="secondary";open.style.width="100%";open.style.marginTop="9px";open.textContent=task.target==="profile-messages"?"OPEN CLIENT MESSAGES":"OPEN CLIENT & REVIEW";open.onclick=async()=>{await showClientProfile(task.row.client);document.getElementById(task.target)?.scrollIntoView({behavior:"smooth",block:"start"});};
+    card.append(top,detail,open);overviewHost.append(card);
    });
+   if(tasks.length>20){const more=document.createElement("div");more.className="muted";more.textContent="Showing the 20 highest-priority tasks.";overviewHost.append(more);}
   }
   $("reviewAttentionCount").textContent=String(attention);$("reviewRecentCount").textContent=String(recent);$("reviewNeverCount").textContent=String(never);
   const actionRows=rows.filter(x=>x.awaitingReply||x.inactive||x.goalNeedsReview||x.milestoneDue||x.overdue||x.needsCheckinReview||x.lowAdherence);
@@ -2101,7 +2108,28 @@ $("saveNutritionTargets").addEventListener("click",async()=>{
 });
 
 
-let coachTrainingProgram={workouts:[]},clientTrainingProgram={workouts:[]},clientTrainingLogs=[];
+const exerciseLibrary={
+ "Chest":["Barbell Bench Press","Dumbbell Bench Press","Incline Barbell Press","Incline Dumbbell Press","Flat Machine Press","Incline Machine Press","Chest Press Machine","Smith Machine Bench Press","Cable Fly","Cable Fly with Cuffs","Pec Deck","Weighted Dip","Push-Up"],
+ "Lats":["Lat Pulldown","Neutral-Grip Lat Pulldown","Frontal Plane Lat Pulldown","Single-Arm Cable Pulldown","Straight-Arm Pulldown","Assisted Pull-Up","Weighted Pull-Up","Single-Arm Cable Row","Chest-Supported Lat Row"],
+ "Upper back":["Chest-Supported Row","T-Bar Row","T-Bar Upper Back Row","Seated Cable Row","Wide-Grip Cable Row","Machine High Row","Kelso Shrug","Kelso Shrugs","Reverse Pec Deck"],
+ "Back":["Barbell Row","Pendlay Row","Chest-Supported Row","Seated Cable Row","Machine Row","T-Bar Row","Back Extension"],
+ "Shoulders":["Seated Dumbbell Shoulder Press","Machine Shoulder Press","High/Incline Shoulder Press","Lateral Raise","Cable Lateral Raise","Machine Lateral Raise","Reverse Cable Fly","Rear-Delt Machine Fly","Front Raise"],
+ "Biceps":["Dumbbell Preacher Curl","EZ-Bar Curl","Barbell Curl","Incline Dumbbell Curl","Hammer Curl","Cable Curl","Bayesian Cable Curl","Machine Preacher Curl"],
+ "Triceps":["Cable Pushdown","Rope Pushdown","Straight-Bar Pushdown","Cable Overhead Triceps Extension","Dumbbell Overhead Extension","Skull Crusher","Close-Grip Bench Press","Assisted Dip"],
+ "Quadriceps":["Barbell Squat","Hack Squat","Leg Press","Pendulum Squat","Belt Squat","Leg Extension","Bulgarian Split Squat","Smith Machine Squat"],
+ "Hamstrings":["Seated Hamstring Curl","Lying Hamstring Curl","Unilateral Lying Hamstring Curl","Dumbbell Romanian Deadlift","Barbell Romanian Deadlift","Good Morning","Nordic Curl"],
+ "Glutes":["Hip Thrust","Glute Bridge","Cable Kickback","Smith Machine Glute Bridge","Bulgarian Split Squat","45-Degree Back Extension"],
+ "Calves":["Standing Calf Raise","Seated Calf Raise","Leg Press Calf Raise"],
+ "Abdominals":["Cable Crunch","Machine Crunch","Hanging Knee Raise","Hanging Leg Raise","Reverse Crunch","Ab Wheel"],
+ "Adductors":["Adduction","Adductor Machine","Cable Hip Adduction"],
+ "Abductors":["Abduction","Abductor Machine","Cable Hip Abduction"]
+};
+function fillExerciseLibrarySelect(select,muscleGroup){
+ select.replaceChildren();const blank=document.createElement("option");blank.value="";blank.textContent=muscleGroup?"Choose an exercise":"Choose body part first";select.append(blank);
+ (exerciseLibrary[muscleGroup]||[]).forEach(name=>{const option=document.createElement("option");option.value=name;option.textContent=name;select.append(option);});
+}
+
+let coachTrainingProgram={workouts:[]},clientTrainingProgram={workouts:[]},clientTrainingLogs=[],activeClientWorkoutExercises=[];
 function renderCoachTrainingProgram(){
  const host=$("coachTrainingEditor");host.replaceChildren();
  if(!coachTrainingProgram.workouts.length){host.textContent="No workout days added yet.";return;}
@@ -2109,7 +2137,7 @@ function renderCoachTrainingProgram(){
   const card=document.createElement("div");card.className="meal-plan-block";
   const label=document.createElement("div");label.className="eyebrow";label.textContent="WORKOUT "+(wi+1);
   const name=document.createElement("input");name.value=w.name||"";name.dataset.trainingWorkoutName=wi;name.placeholder="Workout name";card.append(label,name);
-  (w.exercises||[]).forEach((e,ei)=>{const row=document.createElement("div");row.className="training-exercise";const title=document.createElement("strong");title.textContent=e.name;const meta=document.createElement("div");meta.className="muted";meta.textContent=e.muscleGroup+" · "+e.sets+" sets · "+e.reps+" reps";const del=document.createElement("button");del.type="button";del.className="secondary";del.textContent="REMOVE";del.onclick=()=>{w.exercises.splice(ei,1);renderCoachTrainingProgram();};row.append(title,meta,del);card.append(row);});
+  (w.exercises||[]).forEach((e,ei)=>{const row=document.createElement("div");row.className="training-exercise";const title=document.createElement("strong");title.textContent=e.name;const meta=document.createElement("div");meta.className="muted";meta.textContent=e.muscleGroup+" · "+e.sets+" sets · "+e.reps+" reps";const del=document.createElement("button");del.type="button";del.className="secondary";del.textContent="REMOVE EXERCISE";del.onclick=()=>{w.exercises.splice(ei,1);renderCoachTrainingProgram();};row.append(title,meta,del);card.append(row);});
   const delDay=document.createElement("button");delDay.type="button";delDay.className="secondary";delDay.textContent="REMOVE WORKOUT DAY";delDay.style.width="100%";delDay.onclick=()=>{coachTrainingProgram.workouts.splice(wi,1);renderCoachTrainingProgram();};card.append(delDay);host.append(card);
  });
 }
@@ -2192,6 +2220,8 @@ $("addCoachWorkout").addEventListener("click",()=>{
  const name=$("coachWorkoutName").value.trim();if(!name){$("coachTrainingStatus").textContent="Enter a workout name first.";return;}
  coachTrainingProgram.workouts.push({name,exercises:[]});$("coachWorkoutName").value="";renderCoachTrainingProgram();$("coachTrainingStatus").textContent="Workout day added. Now add its exercises.";
 });
+$("coachExerciseMuscle").addEventListener("change",()=>fillExerciseLibrarySelect($("coachExerciseLibrary"),$("coachExerciseMuscle").value));
+$("coachExerciseLibrary").addEventListener("change",()=>{const value=$("coachExerciseLibrary").value;if(value)$("coachExerciseName").value=value;});
 $("addCoachExercise").addEventListener("click",()=>{
  const name=$("coachExerciseName").value.trim(),muscleGroup=$("coachExerciseMuscle").value.trim(),sets=Number($("coachExerciseSets").value),reps=$("coachExerciseReps").value.trim();
  if(!name||!muscleGroup||!reps||!Number.isInteger(sets)||sets<1||sets>20){$("coachTrainingStatus").textContent="Enter an exercise, muscle group, valid set count and rep target.";return;}
@@ -2309,7 +2339,7 @@ function readTrainingDraft(){
  const index=$("trainingWorkoutSelect").value,date=$("trainingWorkoutDate").value;
  if(index===""||!date||!currentUser)return null;
  const w=clientTrainingProgram.workouts[Number(index)];if(!w)return null;
- const exercises=(w.exercises||[]).map((e,ei)=>({name:e.name,muscleGroup:e.muscleGroup,sets:Array.from({length:Number(e.sets||0)},(_,si)=>{
+ const exercises=(activeClientWorkoutExercises||[]).map((e,ei)=>({name:e.name,muscleGroup:e.muscleGroup,sets:Array.from({length:Number(e.sets||0)},(_,si)=>{
   const weight=document.querySelector('[data-training-weight="'+ei+":"+si+'"]')?.value??"";
   const reps=document.querySelector('[data-training-reps="'+ei+":"+si+'"]')?.value??"";
   const rir=document.querySelector('[data-training-rir="'+ei+":"+si+'"]')?.value??"";
@@ -2366,15 +2396,53 @@ function queueTrainingAutosave(){
   }).catch(error=>{$("trainingLogStatus").textContent="Auto-save failed: "+error.message+" · Keep the app open and try again.";});
  },500);
 }
-$("trainingWorkoutSelect").addEventListener("change",()=>{
- const index=$("trainingWorkoutSelect").value,host=$("clientWorkoutLogger");host.replaceChildren();if(index==="")return;const w=clientTrainingProgram.workouts[Number(index)];if(!w)return;
- (w.exercises||[]).forEach((e,ei)=>{const card=document.createElement("div");card.className="training-exercise";const title=document.createElement("strong");title.textContent=e.name;const note=document.createElement("div");note.className="muted";note.textContent=(e.muscleGroup||"")+" · Target "+e.sets+" sets × "+e.reps;card.append(title,note);const selectedDate=$("trainingWorkoutDate").value;const previous=clientTrainingLogs.filter(log=>(!selectedDate||!log.date||log.date<selectedDate)).slice().reverse().flatMap(log=>(log.exercises||[]).filter(x=>x.name===e.name).map(x=>({date:log.date,sets:x.sets||[]})))[0];const previousNote=document.createElement("div");previousNote.className="muted";previousNote.style.color="#c6ff00";previousNote.style.marginTop="5px";previousNote.textContent=previous?"Last time ("+new Date(previous.date+"T12:00:00").toLocaleDateString()+"): "+previous.sets.filter(z=>Number(z.weight)>0&&Number(z.reps)>0).map(z=>z.weight+" kg × "+z.reps).join(" · "):"No previous performance logged yet.";card.append(previousNote);
-  for(let si=0;si<Number(e.sets||0);si++){const row=document.createElement("div");row.className="training-set-row";const lab=document.createElement("span");lab.className="muted";lab.textContent="Set "+(si+1);const weight=document.createElement("input");weight.type="number";weight.min="0";weight.step="0.5";weight.placeholder="Weight kg";weight.dataset.trainingWeight=ei+":"+si;const reps=document.createElement("input");reps.type="number";reps.min="0";reps.step="1";reps.placeholder="Reps";reps.dataset.trainingReps=ei+":"+si;const rir=document.createElement("input");rir.type="number";rir.min="0";rir.max="10";rir.step="0.5";rir.placeholder="RIR";rir.title="Reps in reserve (optional)";rir.dataset.trainingRir=ei+":"+si;
-   const assisted=document.createElement("button");assisted.type="button";assisted.className="training-ass-btn";assisted.textContent="ASS";assisted.title="Mark this set as assisted";assisted.dataset.trainingAss=ei+":"+si;assisted.setAttribute("aria-pressed","false");assisted.addEventListener("click",()=>{const active=assisted.classList.toggle("active");assisted.setAttribute("aria-pressed",String(active));queueTrainingAutosave();});
+function renderClientWorkoutLogger(){
+ const host=$("clientWorkoutLogger");host.replaceChildren();
+ const index=$("trainingWorkoutSelect").value;if(index==="")return;
+ const w=clientTrainingProgram.workouts[Number(index)];if(!w)return;
+ const controls=document.createElement("div");controls.className="tile";controls.style.cssText="min-height:0;margin:10px 0;padding:12px";
+ const heading=document.createElement("strong");heading.style.color="var(--lime)";heading.textContent="CUSTOMISE THIS WORKOUT";controls.append(heading);
+ const hint=document.createElement("div");hint.className="muted";hint.style.margin="6px 0 10px";hint.textContent="Add an exercise from the body-part library or remove one for this session. Your coach's assigned programme stays unchanged; your workout log records the exercises you actually do.";controls.append(hint);
+ const muscleLabel=document.createElement("label");muscleLabel.textContent="Body part";controls.append(muscleLabel);
+ const muscle=document.createElement("select");muscle.className="training-select";const muscleBlank=document.createElement("option");muscleBlank.value="";muscleBlank.textContent="Choose body part";muscle.append(muscleBlank);
+ Object.keys(exerciseLibrary).forEach(group=>{const o=document.createElement("option");o.value=group;o.textContent=group;muscle.append(o);});controls.append(muscle);
+ const exerciseLabel=document.createElement("label");exerciseLabel.textContent="Exercise";controls.append(exerciseLabel);
+ const exercise=document.createElement("select");exercise.className="training-select";fillExerciseLibrarySelect(exercise,"");controls.append(exercise);
+ muscle.addEventListener("change",()=>fillExerciseLibrarySelect(exercise,muscle.value));
+ const add=document.createElement("button");add.type="button";add.style.width="100%";add.style.marginTop="9px";add.textContent="ADD EXERCISE TO THIS SESSION";
+ add.onclick=()=>{const name=exercise.value,group=muscle.value;if(!name||!group)return;if(activeClientWorkoutExercises.some(x=>x.name===name)){$("trainingLogStatus").textContent="That exercise is already in this workout.";return;}activeClientWorkoutExercises.push({name,muscleGroup:group,sets:3,reps:"8–12"});renderClientWorkoutLogger();$("trainingLogStatus").textContent=name+" added to this session. Your log will autosave.";queueTrainingAutosave();};controls.append(add);host.append(controls);
+ if(!activeClientWorkoutExercises.length){const empty=document.createElement("div");empty.className="muted";empty.textContent="No exercises in this workout. Choose a body part and add an exercise to get started.";host.append(empty);}
+ activeClientWorkoutExercises.forEach((e,ei)=>{
+  const card=document.createElement("div");card.className="training-exercise";
+  const title=document.createElement("strong");title.textContent=e.name;
+  const note=document.createElement("div");note.className="muted";note.textContent=(e.muscleGroup||"")+" · Target "+e.sets+" sets × "+e.reps;
+  const remove=document.createElement("button");remove.type="button";remove.className="secondary";remove.style.marginTop="7px";remove.textContent="REMOVE FROM THIS SESSION";
+  remove.onclick=()=>{activeClientWorkoutExercises.splice(ei,1);renderClientWorkoutLogger();queueTrainingAutosave();};
+  card.append(title,note,remove);
+  const selectedDate=$("trainingWorkoutDate").value;
+  const previous=clientTrainingLogs.filter(log=>(!selectedDate||!log.date||log.date<selectedDate)).slice().reverse().flatMap(log=>(log.exercises||[]).filter(x=>x.name===e.name).map(x=>({date:log.date,sets:x.sets||[]})))[0];
+  const previousNote=document.createElement("div");previousNote.className="muted";previousNote.style.color="#c6ff00";previousNote.style.marginTop="5px";previousNote.textContent=previous?"Last time ("+new Date(previous.date+"T12:00:00").toLocaleDateString()+"): "+previous.sets.filter(z=>Number(z.weight)>0&&Number(z.reps)>0).map(z=>z.weight+" kg × "+z.reps).join(" · "):"No previous performance logged yet.";card.append(previousNote);
+  for(let si=0;si<Number(e.sets||0);si++){
+   const row=document.createElement("div");row.className="training-set-row";const lab=document.createElement("span");lab.className="muted";lab.textContent="Set "+(si+1);
+   const weight=document.createElement("input");weight.type="number";weight.min="0";weight.step="0.5";weight.placeholder="Weight kg";weight.dataset.trainingWeight=ei+":"+si;
+   const reps=document.createElement("input");reps.type="number";reps.min="0";reps.step="1";reps.placeholder="Reps";reps.dataset.trainingReps=ei+":"+si;
+   const rir=document.createElement("input");rir.type="number";rir.min="0";rir.max="10";rir.step="0.5";rir.placeholder="RIR";rir.title="Reps in reserve (optional)";rir.dataset.trainingRir=ei+":"+si;
+   const assisted=document.createElement("button");assisted.type="button";assisted.className="training-ass-btn";assisted.textContent="ASS";assisted.title="Mark this set as assisted";assisted.dataset.trainingAss=ei+":"+si;assisted.setAttribute("aria-pressed","false");
+   assisted.addEventListener("click",()=>{const active=assisted.classList.toggle("active");assisted.setAttribute("aria-pressed",String(active));queueTrainingAutosave();});
    [weight,reps,rir].forEach(input=>input.addEventListener("input",queueTrainingAutosave));
-   row.append(lab,weight,reps,rir,assisted);card.append(row);}host.append(card);});
+   row.append(lab,weight,reps,rir,assisted);card.append(row);
+  }
+  host.append(card);
+ });
  restoreTrainingDraft(Number(index),$("trainingWorkoutDate").value);
  const save=document.createElement("button");save.id="saveTrainingSession";save.textContent="SAVE COMPLETED WORKOUT";save.style.width="100%";save.style.marginTop="12px";save.onclick=saveClientTrainingSession;host.append(save);
+}
+$("trainingWorkoutSelect").addEventListener("change",()=>{
+ const index=$("trainingWorkoutSelect").value;$("clientWorkoutLogger").replaceChildren();
+ if(index===""){activeClientWorkoutExercises=[];return;}
+ const w=clientTrainingProgram.workouts[Number(index)];if(!w)return;
+ activeClientWorkoutExercises=(w.exercises||[]).map(e=>({...e}));
+ renderClientWorkoutLogger();
 });
 $("trainingWorkoutDate").addEventListener("change",()=>{
  const index=$("trainingWorkoutSelect").value;if(index!=="")$("trainingWorkoutSelect").dispatchEvent(new Event("change"));
