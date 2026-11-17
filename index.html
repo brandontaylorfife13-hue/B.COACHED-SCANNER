@@ -299,7 +299,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <div><label for="coachWorkoutName">Workout name</label><input id="coachWorkoutName" placeholder="e.g. Push A"></div><div><label for="coachExerciseMuscle">Body part / muscle group</label><select id="coachExerciseMuscle" class="training-select"><option value="">Choose body part</option><option>Chest</option><option>Lats</option><option>Upper back</option><option>Back</option><option>Shoulders</option><option>Biceps</option><option>Triceps</option><option>Quadriceps</option><option>Hamstrings</option><option>Glutes</option><option>Calves</option><option>Abdominals</option><option>Adductors</option><option>Abductors</option></select></div><div><label for="coachExerciseEquipment">Equipment filter</label><select id="coachExerciseEquipment" class="training-select"><option value="all">All equipment</option><option value="machine">Machines</option><option value="cable">Cables</option><option value="dumbbell">Dumbbells</option><option value="barbell">Barbells</option><option value="smith">Smith machine</option><option value="bodyweight">Bodyweight</option><option value="other">Other / mixed</option></select></div><div><label for="coachExerciseLibrary">Choose exercise</label><select id="coachExerciseLibrary" class="training-select"><option value="">Choose body part first</option></select></div><div><label for="coachExerciseName">Exercise name (or custom)</label><input id="coachExerciseName" placeholder="Choose above or type a custom exercise"></div><div><label for="coachExerciseFavouriteOnly">Exercise list</label><select id="coachExerciseFavouriteOnly" class="training-select"><option value="all">All exercises</option><option value="favourites">My favourites</option></select></div><div><button type="button" class="secondary" id="toggleCoachExerciseFavourite" style="width:100%;margin-top:22px">☆ SAVE SELECTED AS FAVOURITE</button></div><div><label for="coachExerciseSets">Working sets</label><input id="coachExerciseSets" type="number" min="1" max="20" value="3"></div><div><label for="coachExerciseReps">Rep target</label><input id="coachExerciseReps" value="8–12" placeholder="e.g. 8–12"></div></div>
   <div class="actions"><button type="button" id="addCoachExercise">ADD EXERCISE TO WORKOUT</button><button type="button" class="secondary" id="addCoachWorkout">ADD WORKOUT DAY</button></div><div id="coachTrainingEditor" style="margin-top:14px"></div><button id="saveTrainingProgram" style="width:100%;margin-top:12px">SAVE TRAINING PROGRAMME</button><div id="coachTrainingStatus" class="status" role="status"></div>
   <div class="section-title" style="margin-top:24px">Training Performance Centre</div>
-  <p class="muted">Strength bests, weekly working-set volume, effort and assisted-set history for this client.</p>
+  <p class="muted">Track strength progression through heavier loads, extra reps at the same load and estimated strength changes, alongside weekly volume and effort.</p>
   <div id="coachClientTrainingAnalytics" class="muted">Loading training performance…</div>
   <div class="section-title" style="margin-top:24px">Workout reviews</div><p class="muted">Review completed sessions, check the client's logged sets and leave coaching feedback.</p><div id="coachWorkoutReviews" class="muted">Loading workout history…</div>
   <div class="section-title" style="margin-top:26px">Progress photo comparison</div><p class="muted">Review the client's private progress photos and compare two dates side by side.</p><div id="coachProgressPhotoStatus" class="muted">Loading progress photos…</div><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-top:12px"><div><label for="coachPhotoCompareA">Earlier photo</label><select id="coachPhotoCompareA" class="training-select"><option value="">Choose photo</option></select></div><div><label for="coachPhotoCompareB">Later photo</label><select id="coachPhotoCompareB" class="training-select"><option value="">Choose photo</option></select></div></div><button id="compareCoachPhotos" class="secondary" style="width:100%;margin-top:10px">COMPARE PHOTOS</button><div id="coachPhotoComparison" style="margin-top:12px"></div><div class="section-title" style="margin-top:18px">All progress photos</div><div id="coachProgressPhotoGallery" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr))"></div>
@@ -828,7 +828,35 @@ function summariseTrainingPerformance(program,sessions,now=new Date()){
  const recentSets=recent.reduce((n,x)=>n+(x.exercises||[]).reduce((a,e)=>a+(e.sets||[]).filter(z=>Number(z.weight)>0&&Number(z.reps)>0).length,0),0);
  const recentVolume=recent.reduce((n,x)=>n+(x.exercises||[]).reduce((a,e)=>a+(e.sets||[]).reduce((b,z)=>b+(Number(z.weight)>0&&Number(z.reps)>0?Number(z.weight)*Number(z.reps):0),0),0),0);
  const bestsRecent=bests.filter(x=>x.bestDate&&new Date(x.bestDate+"T12:00:00")>=cutoff56).length;
- return {completed,recent,bests,muscles:[...muscles.entries()].sort((a,b)=>b[1]-a[1]),recentSessions,recentAssisted,recentRir:recentRirs.length?recentRirs.reduce((a,b)=>a+b,0)/recentRirs.length:null,recentRirCount:recentRirs.length,recentSets,recentVolume,bestsRecent,allTimeSets:workingSets,allTimeVolume:totalVolume,exerciseMap,plannedDays:(program?.workouts||[]).length};
+ const progressionRows=[];
+ const byExercise=new Map();
+ completed.forEach(session=>(session.exercises||[]).forEach(ex=>{
+  const name=String(ex.name||"Exercise"),key=name.toLowerCase();
+  const valid=(ex.sets||[]).filter(z=>Number(z.weight)>0&&Number(z.reps)>0).map(z=>({weight:Number(z.weight),reps:Number(z.reps),e1rm:Number(z.weight)*(1+Number(z.reps)/30)}));
+  if(!valid.length)return;
+  if(!byExercise.has(key))byExercise.set(key,{name,sessions:[]});
+  const bestSet=valid.reduce((a,b)=>!a||b.e1rm>a.e1rm?b:a,null);
+  byExercise.get(key).sessions.push({date:session.date||session.id?.slice(0,10)||"",bestSet,sets:valid});
+ }));
+ byExercise.forEach(item=>{
+  item.sessions.sort((a,b)=>a.date.localeCompare(b.date));
+  const latest=item.sessions[item.sessions.length-1],previous=item.sessions.length>1?item.sessions[item.sessions.length-2]:null;
+  const repRecords=new Map();
+  item.sessions.forEach(s=>s.sets.forEach(set=>{const key=String(set.weight);repRecords.set(key,Math.max(repRecords.get(key)||0,set.reps));}));
+  const repBests=[...repRecords.entries()].map(([weight,reps])=>({weight:Number(weight),reps})).sort((a,b)=>b.reps-a.reps);
+  let repImproved=false,loadImproved=false,e1rmImproved=false;
+  if(previous){
+   const prevAtSameLoad=previous.sets.filter(s=>Math.abs(s.weight-latest.bestSet.weight)<0.001).reduce((m,s)=>Math.max(m,s.reps),0);
+   repImproved=prevAtSameLoad>0&&latest.bestSet.reps>prevAtSameLoad;
+   loadImproved=latest.bestSet.weight>previous.bestSet.weight;
+   e1rmImproved=latest.bestSet.e1rm>previous.bestSet.e1rm+0.01;
+  }
+  progressionRows.push({...item,latest,previous,repBests,repImproved,loadImproved,e1rmImproved,improved:repImproved||e1rmImproved});
+ });
+ progressionRows.sort((a,b)=>(b.improved?1:0)-(a.improved?1:0)||b.latest.date.localeCompare(a.latest.date));
+ const improvingExercises=progressionRows.filter(x=>x.improved).length;
+ const repProgressions=progressionRows.filter(x=>x.repImproved).length;
+ return {completed,recent,bests,muscles:[...muscles.entries()].sort((a,b)=>b[1]-a[1]),recentSessions,recentAssisted,recentRir:recentRirs.length?recentRirs.reduce((a,b)=>a+b,0)/recentRirs.length:null,recentRirCount:recentRirs.length,recentSets,recentVolume,bestsRecent,allTimeSets:workingSets,allTimeVolume:totalVolume,exerciseMap,progressionRows,improvingExercises,repProgressions,plannedDays:(program?.workouts||[]).length};
 }
 function renderTrainingPerformance(host,summary,showDetail=true){
  host.replaceChildren();
@@ -841,6 +869,24 @@ function renderTrainingPerformance(host,summary,showDetail=true){
  summary.muscles.forEach(([group,count])=>{const line=document.createElement("div");line.style.cssText="display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid #30372a";const label=document.createElement("span");label.textContent=group;const value=document.createElement("strong");value.textContent=count+" sets";line.append(label,value);host.append(line);});
  const rir=document.createElement("div");rir.className="muted";rir.style.marginTop="10px";rir.textContent="Average RIR: "+(summary.recentRir===null?"Not recorded":summary.recentRir.toFixed(1)+" across "+summary.recentRirCount+" sets")+" · Exercise bests set in last 8 weeks: "+summary.bestsRecent;host.append(rir);
  if(!showDetail)return;
+ const progressionTitle=document.createElement("div");progressionTitle.className="eyebrow";progressionTitle.style.marginTop="16px";progressionTitle.textContent="EXERCISE PROGRESSION · LATEST SESSION VS PREVIOUS";host.append(progressionTitle);
+ const progressionIntro=document.createElement("div");progressionIntro.className="muted";progressionIntro.textContent="Progress includes stronger estimated performance and extra reps at the same load. Comparisons use each exercise's latest two logged sessions.";host.append(progressionIntro);
+ if(!summary.progressionRows?.length){const empty=document.createElement("div");empty.className="muted";empty.textContent="Not enough completed exercise history yet. Log at least one completed workout to start tracking.";host.append(empty);}
+ (summary.progressionRows||[]).forEach(x=>{
+  const card=document.createElement("div");card.className="tile";card.style.cssText="min-height:0;margin:8px 0;padding:11px";
+  const name=document.createElement("strong");name.textContent=x.name;card.append(name);
+  const current=document.createElement("div");current.className="muted";current.style.marginTop="5px";current.textContent="Latest ("+x.latest.date+"): "+x.latest.bestSet.weight+" kg × "+x.latest.bestSet.reps+" reps · e1RM "+x.latest.bestSet.e1rm.toFixed(1)+" kg";card.append(current);
+  if(x.previous){
+   const prior=document.createElement("div");prior.className="muted";prior.textContent="Previous ("+x.previous.date+"): "+x.previous.bestSet.weight+" kg × "+x.previous.bestSet.reps+" reps · e1RM "+x.previous.bestSet.e1rm.toFixed(1)+" kg";card.append(prior);
+   const changes=[];
+   if(x.repImproved)changes.push("More reps at the same load");
+   if(x.loadImproved)changes.push("Heavier load");
+   if(x.e1rmImproved&&!x.repImproved&&!x.loadImproved)changes.push("Estimated strength improved");
+   const verdict=document.createElement("strong");verdict.style.cssText="display:block;margin-top:6px;color:"+(x.improved?"#c6ff00":"var(--muted)");verdict.textContent=x.improved?"↑ Progress: "+changes.join(" · "):"No increase in top-set performance versus previous session";card.append(verdict);
+  }else{const first=document.createElement("div");first.className="muted";first.textContent="First recorded session for this exercise.";card.append(first);}
+  const repBest=x.repBests[0];if(repBest){const rep=document.createElement("div");rep.className="muted";rep.style.marginTop="4px";rep.textContent="Highest reps at a recorded load: "+repBest.reps+" reps at "+repBest.weight+" kg";card.append(rep);}
+  host.append(card);
+ });
  const title=document.createElement("div");title.className="eyebrow";title.style.marginTop="16px";title.textContent="ALL-TIME EXERCISE BEST LOADS";host.append(title);
  if(!summary.bests.length){const empty=document.createElement("div");empty.className="muted";empty.textContent="No completed weighted sets recorded yet.";host.append(empty);return;}
  const table=document.createElement("div");
@@ -954,7 +1000,7 @@ async function loadTrainingPerformanceCentre(){
    const summary=summariseTrainingPerformance(p.exists()?p.data():{},logs.docs.map(d=>({id:d.id,...d.data()})));
    return {client,summary};
   }));
-  const totals=rows.reduce((a,x)=>({sessions:a.sessions+x.summary.recentSessions,bests:a.bests+x.summary.bests.length,assisted:a.assisted+x.summary.recentAssisted,rirSum:a.rirSum+(x.summary.recentRir===null?0:x.summary.recentRir*x.summary.recentRirCount),rirCount:a.rirCount+x.summary.recentRirCount}),{sessions:0,bests:0,assisted:0,rirSum:0,rirCount:0});
+  const totals=rows.reduce((a,x)=>({sessions:a.sessions+x.summary.recentSessions,bests:a.bests+x.summary.bests.length,improving:a.improving+x.summary.improvingExercises,repProgressions:a.repProgressions+x.summary.repProgressions,assisted:a.assisted+x.summary.recentAssisted,rirSum:a.rirSum+(x.summary.recentRir===null?0:x.summary.recentRir*x.summary.recentRirCount),rirCount:a.rirCount+x.summary.recentRirCount}),{sessions:0,bests:0,improving:0,repProgressions:0,assisted:0,rirSum:0,rirCount:0});
   sessionsEl.textContent=String(totals.sessions);bestsEl.textContent=String(totals.bests);assistedEl.textContent=String(totals.assisted);rirEl.textContent=totals.rirCount?(totals.rirSum/totals.rirCount).toFixed(1):"—";
   const muscles=new Map();rows.forEach(x=>x.summary.muscles.forEach(([g,n])=>muscles.set(g,(muscles.get(g)||0)+n)));
   muscleHost.replaceChildren();
@@ -963,7 +1009,7 @@ async function loadTrainingPerformanceCentre(){
   table.replaceChildren();
   if(!rows.length){table.textContent="No active client accounts found.";return;}
   rows.sort((a,b)=>b.summary.recentSessions-a.summary.recentSessions||(a.client.displayName||"").localeCompare(b.client.displayName||""));
-  rows.forEach(x=>{const card=document.createElement("div");card.className="tile";card.style.cssText="min-height:0;margin:9px 0";const name=document.createElement("strong");name.textContent=x.client.displayName||x.client.email||"Client";const details=document.createElement("div");details.className="muted";details.style.marginTop="7px";details.textContent=x.summary.recentSessions+" completed workouts · "+x.summary.recentSets+" working sets · "+x.summary.bests.length+" exercise bests · "+x.summary.recentAssisted+" assisted sets · "+(x.summary.recentRir===null?"RIR not logged":"Avg RIR "+x.summary.recentRir.toFixed(1))+" · "+(x.summary.plannedDays||"No")+" programme workout days";const open=document.createElement("button");open.className="secondary";open.style.width="100%";open.style.marginTop="9px";open.textContent="OPEN TRAINING PERFORMANCE";open.onclick=()=>showClientProfile(x.client);card.append(name,details,open);table.append(card);});
+  rows.forEach(x=>{const card=document.createElement("div");card.className="tile";card.style.cssText="min-height:0;margin:9px 0";const name=document.createElement("strong");name.textContent=x.client.displayName||x.client.email||"Client";const details=document.createElement("div");details.className="muted";details.style.marginTop="7px";details.textContent=x.summary.recentSessions+" completed workouts · "+x.summary.recentSets+" working sets · "+x.summary.improvingExercises+" exercises progressing · "+x.summary.repProgressions+" rep improvements · "+x.summary.bests.length+" exercise best loads · "+x.summary.recentAssisted+" assisted sets · "+(x.summary.recentRir===null?"RIR not logged":"Avg RIR "+x.summary.recentRir.toFixed(1))+" · "+(x.summary.plannedDays||"No")+" programme workout days";const open=document.createElement("button");open.className="secondary";open.style.width="100%";open.style.marginTop="9px";open.textContent="OPEN TRAINING PERFORMANCE";open.onclick=()=>showClientProfile(x.client);card.append(name,details,open);table.append(card);});
  }catch(e){muscleHost.textContent="Could not load training volume: "+e.message;table.textContent="Could not load client training performance: "+e.message;}
 }
 async function loadCoachConsistencyDashboard(){
