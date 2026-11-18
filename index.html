@@ -2865,7 +2865,7 @@ $("saveTrainingTemplate").addEventListener("click",async()=>{
  if(!name){$("trainingTemplateStatus").textContent="Enter a name for this template first.";return;}
  const button=$("saveTrainingTemplate");button.disabled=true;
  try{const ref=doc(db,"users",currentUser.uid,"coachSettings","trainingTemplates");const snap=await getDoc(ref);const templates=snap.exists()&&Array.isArray(snap.data().templates)?snap.data().templates:[];
- const id="template_"+Date.now();templates.push({id,name,workouts:JSON.parse(JSON.stringify(coachTrainingProgram.workouts)),scheduleNote:coachTrainingProgram.scheduleNote||"",progressionNote:coachTrainingProgram.progressionNote||"",createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+ const id="template_"+Date.now();templates.push({id,name,workouts:JSON.parse(JSON.stringify(coachTrainingProgram.workouts)),scheduleNote:coachTrainingProgram.scheduleNote||"",progressionNote:coachTrainingProgram.progressionNote||"",createdAt:new Date().toISOString()});
  await setDoc(ref,{templates,updatedAt:serverTimestamp()},{merge:true});await refreshTrainingTemplateOptions();$("trainingTemplateSelect").value=id;$("trainingTemplateStatus").textContent="Saved “"+name+"” to your template library. It is now available for every client.";
  }catch(e){$("trainingTemplateStatus").textContent="Could not save template: "+e.message;}finally{button.disabled=false;}
 });
