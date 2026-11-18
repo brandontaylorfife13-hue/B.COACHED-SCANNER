@@ -1784,26 +1784,44 @@ async function showClientProfile(client){
 }
 async function loadCoachPedClientOptions(){
  const select=$("pedClientSelect");if(!select)return;
+ const empty=$("coachPedEmpty");
+ select.disabled=true;
+ empty.textContent="Loading clients…";
  try{
   const result=await getDocs(query(collection(db,"users"),where("role","==","client")));
-  const clients=result.docs.map(d=>({uid:d.id,...d.data()}));
-  const enabled=[];
-  for(const client of clients){
-   const setting=await getDoc(doc(db,"users",client.uid,"settings","pedTracking"));
-   if(setting.exists()&&setting.data().enabled===true)enabled.push(client);
-  }
+  const clients=result.docs.map(d=>({uid:d.id,...d.data()})).sort((a,b)=>(a.displayName||"").localeCompare(b.displayName||""));
+  const rows=await Promise.all(clients.map(async client=>{
+   try{
+    const setting=await getDoc(doc(db,"users",client.uid,"settings","pedTracking"));
+    return {...client,pedTrackingEnabled:setting.exists()&&setting.data().enabled===true};
+   }catch(error){return {...client,pedTrackingEnabled:false};}
+  }));
   select.replaceChildren(new Option("Select a client…",""));
-  enabled.sort((a,b)=>(a.displayName||"").localeCompare(b.displayName||"")).forEach(client=>select.add(new Option(client.displayName||client.email||"Client",client.uid)));
-  $("coachPedEmpty").classList.remove("hidden");
+  rows.forEach(client=>{
+   const label=(client.displayName||client.email||"Client")+(client.pedTrackingEnabled?" · PED enabled":" · PED not enabled");
+   select.add(new Option(label,client.uid));
+  });
+  empty.textContent=rows.length?"Choose a client. Only clients with PED tracking enabled can have records added here.":"No client accounts found.";
+  empty.classList.remove("hidden");
   $("coachPedCard").classList.add("hidden");
- }catch(error){$("coachPedEmpty").textContent="Could not load clients: "+error.message;}
+ }catch(error){
+  empty.textContent="Could not load clients: "+error.message;
+  empty.classList.remove("hidden");
+ }finally{select.disabled=false;}
 }
 $("pedClientSelect")?.addEventListener("change",async()=>{
  const uid=$("pedClientSelect").value;
  const clientCard=$("coachPedCard");
- if(!uid){clientCard.classList.add("hidden");$("coachPedEmpty").classList.remove("hidden");return;}
+ if(!uid){clientCard.classList.add("hidden");$("coachPedEmpty").classList.remove("hidden");$("coachPedEmpty").textContent="Choose a client to view their PED tracking records.";return;}
  const option=$("pedClientSelect").selectedOptions[0];
+ const enabled=option?.textContent.includes("· PED enabled")===true;
  selectedClient={uid,displayName:option?.textContent||"Client"};
+ if(!enabled){
+  clientCard.classList.add("hidden");
+  $("coachPedEmpty").textContent="PED tracking is not enabled for this client. Go to Clients and tick “Enable PED tracking (client can view)” first.";
+  $("coachPedEmpty").classList.remove("hidden");
+  return;
+ }
  $("coachPedEmpty").classList.add("hidden");
  clientCard.classList.remove("hidden");
  $("pedDate").value=localDateString();
