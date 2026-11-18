@@ -605,7 +605,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, addDoc, serverTimestamp, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { getFirestore, doc, setDoc, updateDoc, getDoc, addDoc, serverTimestamp, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging.js";
 import { BrowserMultiFormatReader } from "https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm";
@@ -728,7 +728,23 @@ onAuthStateChanged(auth,async user=>{
    snap=await getDoc(doc(db,"users",user.uid));
   }
   const profile=snap.data();
-   currentRole=profile.role||"client";
+  // Mark an invitation accepted once its invited client has successfully created their account.
+  // This is retried on later logins if the Firestore rule update has not yet been published.
+  if(profile.role==="client"){
+   const accountEmail=(user.email||"").toLowerCase();
+   if(accountEmail){
+    try{
+     const invitationRef=doc(db,"invitations",accountEmail);
+     const invitationSnap=await getDoc(invitationRef);
+     if(invitationSnap.exists()&&invitationSnap.data().status==="pending"&&invitationSnap.data().email===accountEmail){
+      await updateDoc(invitationRef,{status:"accepted",acceptedBy:user.uid,acceptedAt:serverTimestamp()});
+     }
+    }catch(invitationError){
+     console.warn("Could not update invitation acceptance yet; it will be retried on a later login.",invitationError);
+    }
+   }
+  }
+  currentRole=profile.role||"client";
    $("pedTrackingNav").classList.toggle("hidden",currentRole!=="coach");
    if(currentRole!=="coach"){
     const pedSetting=await getDoc(doc(db,"users",user.uid,"settings","pedTracking"));
