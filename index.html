@@ -478,6 +478,16 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <p class="muted">Log meals and track your daily calories and macros. Search a barcode using the product database, or enter food values manually.</p>
   <label for="foodDate">Diary date</label><input id="foodDate" type="date">
 
+  <div class="section-title" style="margin-top:24px">Today's targets</div>
+  <div class="tile" id="foodTargetSummary" style="margin-bottom:14px"><div class="muted">Your coach's calorie and macro targets will appear here.</div></div>
+  <div class="section-title" style="margin-top:24px">Daily totals</div>
+  <div class="grid">
+   <div class="tile">CALORIES<strong id="foodTotalCalories">0</strong><span>kcal</span></div>
+   <div class="tile">PROTEIN<strong id="foodTotalProtein">0g</strong><span>grams</span></div>
+   <div class="tile">CARBS<strong id="foodTotalCarbs">0g</strong><span>grams</span></div>
+   <div class="tile">FATS<strong id="foodTotalFats">0g</strong><span>grams</span></div>
+  </div>
+
   <div class="section-title" style="margin-top:22px">Your tailored meal plan</div>
   <p class="muted">Choose one approved option for each meal. Your planned macros and calories update automatically. Your coach can see your choices.</p>
   <div id="clientMealPlan"></div>
@@ -497,15 +507,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <p class="muted" style="margin:6px 0 0">Use as many meals as you need. There is no fixed limit — label them Meal 1, Meal 2, Meal 3 and so on.</p>
   <button id="addFoodBtn" style="width:100%;margin-top:14px">ADD TO FOOD DIARY</button>
   <div id="foodStatus" class="status" role="status"></div>
-  <div class="section-title" style="margin-top:24px">Today's targets</div>
-  <div class="tile" id="foodTargetSummary" style="margin-bottom:14px"><div class="muted">Your coach's calorie and macro targets will appear here.</div></div>
-  <div class="section-title" style="margin-top:24px">Daily totals</div>
-  <div class="grid">
-   <div class="tile">CALORIES<strong id="foodTotalCalories">0</strong><span>kcal</span></div>
-   <div class="tile">PROTEIN<strong id="foodTotalProtein">0g</strong><span>grams</span></div>
-   <div class="tile">CARBS<strong id="foodTotalCarbs">0g</strong><span>grams</span></div>
-   <div class="tile">FATS<strong id="foodTotalFats">0g</strong><span>grams</span></div>
-  </div>
+
   <div class="section-title" style="margin-top:22px">Today's entries</div>
   <div id="foodDiaryEntries" class="muted">No food logged yet.</div>
  </section>
@@ -2169,7 +2171,7 @@ async function loadClientMealPlan(){
    const eatenText=document.createElement("span");eatenText.textContent="I've eaten this meal";eatenLabel.append(eaten,eatenText);block.append(eatenLabel);
    host.append(block);
   });
-  const total=document.createElement("div");total.className="tile";total.id="clientPlanTotals";host.append(total);
+  const total=document.createElement("div");total.className="tile";total.id="clientPlanTotals";host.prepend(total);
   const save=document.createElement("button");save.id="saveClientMealChoices";save.textContent="SAVE MY MEAL CHOICES";save.style.width="100%";save.style.marginTop="12px";host.append(save);
   const update=()=>{
    const map={},consumed=[];
