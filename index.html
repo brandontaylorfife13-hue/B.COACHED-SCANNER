@@ -1539,7 +1539,7 @@ async function loadPerformanceAnalytics(){
   const now=new Date(),today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
   const daysAgo=n=>new Date(today.getTime()-n*86400000);
   const cutoff8=daysAgo(56),cutoff14=daysAgo(14),cutoff7=daysAgo(7);
-  const weekKey=d=>{const x=new Date(d);const day=(x.getDay()+6)%7;x.setDate(x.getDate()-day);x.setHours(0,0,0,0);return x.toISOString().slice(0,10);};
+  const weekKey=d=>{const x=new Date(d);const day=(x.getDay()+6)%7;x.setDate(x.getDate()-day);x.setHours(0,0,0,0);return localDateKey(x);};
   const dateOf=(row,fallback)=>{const raw=row.date||row.weekEnding||row.id||fallback||"";const d=new Date(String(raw).slice(0,10)+"T12:00:00");return Number.isNaN(d.getTime())?null:d;};
   const rows=await Promise.all(clients.map(async client=>{
    const safeRead=async path=>{
@@ -2402,7 +2402,7 @@ async function loadClientFourWeekReview(){
  try{
   const now=new Date();now.setHours(0,0,0,0);
   const start=new Date(now);start.setDate(start.getDate()-27);
-  const dates=Array.from({length:28},(_,i)=>{const d=new Date(start);d.setDate(start.getDate()+i);return d.toISOString().slice(0,10);});
+  const dates=Array.from({length:28},(_,i)=>{const d=new Date(start);d.setDate(start.getDate()+i);return localDateKey(d);});
   const [checksSnap,sessionsSnap,weightsSnap,foodSnaps]=await Promise.all([
    getDocs(collection(db,"users",currentUser.uid,"weeklyCheckins")),
    getDocs(collection(db,"users",currentUser.uid,"trainingSessions")),
@@ -3474,6 +3474,9 @@ $("saveHabitsBtn").addEventListener("click",async()=>{
  }catch(e){$("habitStatus").textContent="Could not save daily check-in: "+e.message;}
  finally{$("saveHabitsBtn").disabled=false;}
 });
+function localDateKey(date){
+ return [date.getFullYear(),String(date.getMonth()+1).padStart(2,"0"),String(date.getDate()).padStart(2,"0")].join("-");
+}
 function localDateString(){
  const d=new Date();const offset=d.getTimezoneOffset();return new Date(d.getTime()-offset*60000).toISOString().slice(0,10);
 }
