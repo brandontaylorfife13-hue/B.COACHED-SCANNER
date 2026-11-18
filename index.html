@@ -804,13 +804,13 @@ async function loadCoachReviewDashboard(clients){
   }));
   const attention=rows.filter(x=>x.overdue).length,recent=rows.length-attention,never=rows.filter(x=>x.never).length;
   $("overviewClientCount").textContent=String(clients.length);
-  $("overviewActionCount").textContent=String(rows.filter(x=>x.awaitingReply||x.inactive||x.goalNeedsReview||x.milestoneDue||x.overdue||x.needsCheckinReview||x.lowAdherence).length);
+  $("overviewActionCount").textContent=String(rows.filter(x=>x.awaitingReply||x.coachFollowUpDue||x.inactive||x.goalNeedsReview||x.milestoneDue||x.overdue||x.needsCheckinReview||x.lowAdherence).length);
   $("overviewOverdueCount").textContent=String(attention);
   $("overviewMessageCount").textContent=String(rows.filter(x=>x.awaitingReply).length);
   $("overviewCheckinReviewCount").textContent=String(rows.filter(x=>x.needsCheckinReview).length);
   const overviewHost=$("overviewActionList");overviewHost.replaceChildren();
   const overviewRows=rows.filter(x=>x.awaitingReply||x.inactive||x.goalNeedsReview||x.milestoneDue||x.overdue||x.needsCheckinReview||x.lowAdherence)
-   .sort((a,b)=>(Number(b.awaitingReply)-Number(a.awaitingReply))||(Number(b.needsCheckinReview)-Number(a.needsCheckinReview))||(Number(b.overdue)-Number(a.overdue))||(Number(b.lowAdherence)-Number(a.lowAdherence))||(a.client.displayName||"").localeCompare(b.client.displayName||"")).slice(0,5);
+   .sort((a,b)=>(Number(b.awaitingReply)-Number(a.awaitingReply))||(Number(b.coachFollowUpDue)-Number(a.coachFollowUpDue))||(Number(b.needsCheckinReview)-Number(a.needsCheckinReview))||(Number(b.overdue)-Number(a.overdue))||(Number(b.lowAdherence)-Number(a.lowAdherence))||(a.client.displayName||"").localeCompare(b.client.displayName||"")).slice(0,5);
   const tasks=[];
   rows.forEach(row=>{
    if(row.awaitingReply)tasks.push({row,type:"Client message",detail:"A client has sent a message and is awaiting your reply.",target:"profile-messages",priority:0});
