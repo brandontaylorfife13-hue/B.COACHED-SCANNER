@@ -10,7 +10,17 @@ service cloud.firestore {
     function isOwner(userId) { return signedIn() && request.auth.uid == userId; }
 
     match /invitations/{email} {
-      allow create, update, delete: if isCoach();
+      allow create, delete: if isCoach();
+      allow update: if isCoach()
+        || (signedIn()
+            && request.auth.token.email_verified == true
+            && request.auth.token.email == resource.data.email
+            && resource.data.status == "pending"
+            && request.resource.data.status == "accepted"
+            && request.resource.data.acceptedBy == request.auth.uid
+            && request.resource.data.acceptedAt == request.time
+            && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(["status", "acceptedBy", "acceptedAt"]));
       allow read: if isCoach()
         || (signedIn() && request.auth.token.email_verified == true
             && request.auth.token.email == resource.data.email);
