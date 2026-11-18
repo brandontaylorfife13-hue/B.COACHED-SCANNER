@@ -1847,25 +1847,33 @@ async function loadCoachPedClientOptions(){
  const empty=$("coachPedEmpty");
  select.disabled=true;
  empty.textContent="Loading clients…";
+ empty.classList.remove("hidden");
  try{
   const result=await getDocs(query(collection(db,"users"),where("role","==","client")));
   const clients=result.docs.map(d=>({uid:d.id,...d.data()})).sort((a,b)=>(a.displayName||"").localeCompare(b.displayName||""));
   const rows=await Promise.all(clients.map(async client=>{
    try{
     const setting=await getDoc(doc(db,"users",client.uid,"settings","pedTracking"));
-    return {...client,pedTrackingEnabled:setting.exists()&&setting.data().enabled===true};
-   }catch(error){return {...client,pedTrackingEnabled:false};}
+    return {...client,pedTrackingEnabled:setting.exists()&&setting.data().enabled===true,pedSettingError:""};
+   }catch(error){
+    console.warn("PED tracking setting could not be read for client",client.uid,error);
+    return {...client,pedTrackingEnabled:false,pedSettingError:error.message||"Permission or connection error"};
+   }
   }));
   select.replaceChildren(new Option("Select a client…",""));
   rows.forEach(client=>{
-   const label=(client.displayName||client.email||"Client")+(client.pedTrackingEnabled?" · PED enabled":" · PED not enabled");
+   const label=(client.displayName||client.email||"Client")+(client.pedTrackingEnabled?" · PED enabled":client.pedSettingError?" · Setting unavailable":" · PED not enabled");
    select.add(new Option(label,client.uid));
   });
-  empty.textContent=rows.length?"Choose a client. Only clients with PED tracking enabled can have records added here.":"No client accounts found.";
+  const unavailable=rows.filter(x=>x.pedSettingError).length;
+  empty.textContent=!rows.length?"No client accounts found.":unavailable
+   ? "Client list loaded, but "+unavailable+" PED setting(s) could not be checked. Check Firestore permissions or connection, then reload."
+   : "Choose a client. Enable PED tracking in Clients before viewing or adding records.";
   empty.classList.remove("hidden");
   $("coachPedCard").classList.add("hidden");
  }catch(error){
-  empty.textContent="Could not load clients: "+error.message;
+  console.error("PED client list failed to load",error);
+  empty.textContent="Could not load PED clients: "+(error.message||error)+" · Check your connection and Firestore rules.";
   empty.classList.remove("hidden");
  }finally{select.disabled=false;}
 }
@@ -1892,13 +1900,18 @@ async function loadPedRecords(uid,view){
  const card=$(view==="client"?"clientPedCard":"coachPedCard");
  const host=$(view==="client"?"clientPedRecords":"coachPedRecords");
  if(!card||!host||!uid)return;
+ host.textContent="Checking PED tracking access…";
  if(view==="client")card.classList.add("hidden");
- host.textContent="Loading records…";
  try{
   const setting=await getDoc(doc(db,"users",uid,"settings","pedTracking"));
   const enabled=setting.exists()&&setting.data().enabled===true;
-  card.classList.toggle("hidden",!enabled);
-  if(!enabled)return;
+  if(!enabled){
+   host.textContent="PED tracking is not enabled for this client. Ask your coach to enable it in Clients.";
+   card.classList.add("hidden");
+   return;
+  }
+  card.classList.remove("hidden");
+  host.textContent="Loading injection history…";
   const snap=await getDocs(collection(db,"users",uid,"pedRecords"));
   const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   host.replaceChildren();
@@ -1910,7 +1923,11 @@ async function loadPedRecords(uid,view){
    details.textContent=(record.date||"Date not recorded")+" · "+(record.site||"Site not recorded");
    row.append(title,details);host.append(row);
   });
- }catch(error){host.textContent="Could not load PED records: "+error.message;}
+ }catch(error){
+  console.error("PED record loading failed",view,uid,error);
+  host.textContent="Could not load PED records: "+(error.message||error)+" · Check Firestore permissions and connection.";
+  if(view==="client")card.classList.remove("hidden");
+ }
 }
 $("clientPedCompound")?.addEventListener("change",()=> $("clientPedOtherWrap")?.classList.toggle("hidden",$("clientPedCompound").value!=="Other / not listed"));
 $("saveClientPedRecord")?.addEventListener("click",async()=>{
