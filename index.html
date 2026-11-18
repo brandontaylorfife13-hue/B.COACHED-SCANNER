@@ -793,7 +793,7 @@ async function loadCoachReviewDashboard(clients){
    const milestoneDue=!!milestoneTime&&milestoneTime<=now&&details.goalStatus!=="Achieved"&&details.goalStatus!=="Paused";
    const awaitingReply=!!latestMessage&&latestMessage.senderRole==="client";
    const latestMessageTime=latestMessage?.createdAt?.toMillis?.()||0;
-   const coachFollowUpDue=!!latestMessage&&latestMessage.senderRole==="coach"&&latestMessageTime>0&&now-latestMessageTime>=72*60*60*1000;
+   const coachFollowUpDue=!!latestMessage&&latestMessage.senderRole==="coach"&&!latestMessage.followUpCompleted&&latestMessageTime>0&&now-latestMessageTime>=72*60*60*1000;
    const inactive=(!sessionTime||sessionTime<cutoff7)&&(!weightTime||weightTime<cutoff14);
    const never=!latestCheck,overdue=!latestCheck||checkTime<cutoff14;
    const needsCheckinReview=!!latestCheck&&latestCheck.coachReviewStatus!=="reviewed";
@@ -2845,12 +2845,26 @@ async function loadCoachMessagesInbox(){
    const lastTime=t.last.createdAt?.toMillis?.()||0,age=lastTime?Date.now()-lastTime:0;
    const status=document.createElement("div");status.className="pill";status.style.marginTop="8px";
    if(t.last.senderRole==="client"){status.textContent="CLIENT REPLIED · YOUR RESPONSE NEEDED";status.style.borderColor="#829e22";status.style.color="#c6ff00";}
+   else if(t.last.followUpCompleted){status.textContent="FOLLOW-UP COMPLETED";status.style.borderColor="#829e22";status.style.color="#c6ff00";}
    else if(lastTime&&age>=72*60*60*1000){status.textContent="FOLLOW-UP DUE · NO REPLY FOR 3+ DAYS";status.style.borderColor="#ffb36b";status.style.color="#ffcf9e";}
    else{status.textContent="AWAITING CLIENT REPLY";}
    const preview=document.createElement("p");preview.className="muted";preview.style.margin="6px 0";preview.textContent=(t.last.senderRole==="coach"?"You: ":"Client: ")+(t.last.text||"");
    const date=document.createElement("div");date.className="muted";date.style.fontSize="11px";date.textContent=lastTime?"Last message · "+new Date(lastTime).toLocaleString():"Message date unavailable";
    const open=document.createElement("button");open.className="secondary";open.style.width="100%";open.style.marginTop="9px";open.textContent="OPEN CONVERSATION ("+t.count+")";open.onclick=()=>{selectedClient=t.client;$("coachInboxSelectedName").textContent="Conversation with "+(t.client.displayName||t.client.email||"client");renderMessageThread(t.client.uid,"coachInboxThread");$("coachInboxStatus").textContent="";};
-   card.append(title,status,preview,date,open);inbox.append(card);
+   card.append(title,status,preview,date);
+   if(t.last.senderRole==="coach"&&lastTime&&age>=72*60*60*1000&&!t.last.followUpCompleted){
+    const complete=document.createElement("button");complete.className="secondary";complete.style.cssText="width:100%;margin-top:8px;border-color:#829e22;color:#c6ff00";complete.textContent="MARK FOLLOW-UP COMPLETE";
+    complete.onclick=async()=>{
+     complete.disabled=true;complete.textContent="SAVING…";
+     try{
+      await setDoc(doc(db,"users",t.client.uid,"messages",t.last.id),{followUpCompleted:true,followUpCompletedAt:serverTimestamp(),followUpCompletedBy:currentUser.uid},{merge:true});
+      await loadCoachMessagesInbox();
+      await loadClients();
+     }catch(error){complete.disabled=false;complete.textContent="MARK FOLLOW-UP COMPLETE";$("coachInboxStatus").textContent="Could not update follow-up: "+error.message;}
+    };
+    card.append(complete);
+   }
+   card.append(open);inbox.append(card);
   });
  }catch(e){inbox.textContent="Could not load conversations: "+e.message;}
 }
