@@ -2934,6 +2934,7 @@ $("loadTrainingTemplate").addEventListener("click",async()=>{
  }catch(e){$("trainingTemplateStatus").textContent="Could not load template: "+e.message;}
 });
 async function loadCoachTrainingProgram(){
+ selectedTrainingTemplateId="";
  if(!selectedClient?.uid)return;
  try{const snap=await getDoc(doc(db,"users",selectedClient.uid,"training","program"));const d=snap.exists()?snap.data():{};coachTrainingProgram={workouts:Array.isArray(d.workouts)?d.workouts:[],scheduleNote:d.scheduleNote||"",progressionNote:d.progressionNote||""};renderCoachTrainingProgram();await refreshTrainingTemplateOptions();$("coachTrainingStatus").textContent=snap.exists()?"Training programme loaded.":"Build the client's first training programme below.";}
  catch(e){$("coachTrainingStatus").textContent="Could not load training programme: "+e.message;}
