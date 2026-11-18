@@ -157,6 +157,12 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
     <button id="clientWelcomeCheckin" class="secondary" type="button">WEEKLY CHECK-IN</button>
    </div>
   </section>
+<section id="clientDailyPriorities" class="tile hidden" style="margin:14px 0 18px;min-height:0;padding:16px;border-color:#829e22;background:linear-gradient(145deg,#1b2412,#10140d)">
+ <div class="eyebrow">YOUR DAILY FOCUS</div><div class="section-title" style="margin-top:6px">Today's priorities</div>
+ <p class="muted" style="margin:5px 0 12px">A quick guide based on the activity you've logged today.</p>
+ <div id="clientDailyPriorityList" style="display:grid;gap:8px"><div class="muted">Checking your priorities…</div></div>
+ <div id="clientDailyPriorityNote" class="muted" style="margin-top:10px;font-size:11px"></div>
+</section>
   <section id="clientSetupCard" class="tile hidden" style="margin:14px 0 18px;min-height:0;padding:15px;border-color:#829e22">
    <div class="eyebrow">YOUR COACHING JOURNEY</div>
    <div class="section-title" style="margin-top:6px">Your setup checklist</div>
@@ -702,6 +708,48 @@ $("primaryBtn").onclick=async()=>{
 $("resetBtn").onclick=async()=>{const email=$("email").value.trim();if(!email){status("Enter your email address first.","bad");return;}try{await sendPasswordResetEmail(auth,email);status("Password reset email sent. Check your inbox.","good");}catch(e){status(friendly(e),"bad");}};
 $("logoutBtn").onclick=()=>signOut(auth);
 function friendly(e){const m=e?.message||"Something went wrong.";if(m.includes("auth/invalid-credential"))return"Email or password is incorrect.";if(m.includes("auth/email-already-in-use"))return"An account already exists with this email. Try logging in.";if(m.includes("auth/weak-password"))return"Choose a stronger password with at least 6 characters.";if(m.includes("auth/invalid-email"))return"Please enter a valid email address.";return m;}
+
+async function loadClientDailyPriorities(){
+ const card=$("clientDailyPriorities"),host=$("clientDailyPriorityList"),note=$("clientDailyPriorityNote");
+ if(!card||!host||!currentUser||currentRole==="coach")return;
+ card.classList.remove("hidden");host.textContent="Checking your priorities…";note.textContent="";
+ const today=localDateString();
+ const go=(view)=>document.querySelector('#nav button[data-view="'+view+'"]')?.click();
+ const item=(title,detail,view,label)=>({title,detail,view,label});
+ try{
+  const [weightSnap,foodSnap,checkinSnap]=await Promise.all([
+   getDocs(collection(db,"users",currentUser.uid,"weights")),
+   getDocs(collection(db,"users",currentUser.uid,"foodLogs",today,"entries")),
+   getDocs(collection(db,"users",currentUser.uid,"weeklyCheckins"))
+  ]);
+  const weights=weightSnap.docs.map(d=>({id:d.id,...d.data()}));
+  const weighed=weights.some(x=>(x.date||x.id)===today);
+  const foodCount=foodSnap.size;
+  const checkins=checkinSnap.docs.map(d=>({id:d.id,...d.data()}));
+  const monday=new Date(today+"T12:00:00");monday.setDate(monday.getDate()-((monday.getDay()+6)%7));
+  const mondayKey=monday.getFullYear()+"-"+String(monday.getMonth()+1).padStart(2,"0")+"-"+String(monday.getDate()).padStart(2,"0");
+  const checkedIn=checkins.some(x=>String(x.weekEnding||x.date||x.id)>=mondayKey);
+  const tasks=[];
+  if(!weighed)tasks.push(item("Log your weigh-in","No weigh-in is recorded for today. If you are following a daily weigh-in routine, add it in Progress.","progress","LOG WEIGHT"));
+  if(!foodCount)tasks.push(item("Start your food diary","No food entries have been saved for today. Add what you eat as you go.","foodDiary","LOG FOOD"));
+  if(!checkedIn)tasks.push(item("Complete your weekly check-in","Your check-in for this week hasn't been recorded yet.","checkins","CHECK IN"));
+  if(!tasks.length)tasks.push(item("You're up to date","Your weigh-in, food diary and weekly check-in all have entries. Keep following your coach's plan.","guide","VIEW GUIDE"));
+  host.replaceChildren();
+  tasks.forEach(t=>{
+   const row=document.createElement("div");row.style.cssText="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px;background:#0c1009;border:1px solid #343b2c;border-radius:11px";
+   const copy=document.createElement("div");copy.style.minWidth="0";
+   const title=document.createElement("strong");title.textContent=t.title;title.style.cssText="display:block;font-size:13px";
+   const detail=document.createElement("div");detail.className="muted";detail.textContent=t.detail;detail.style.fontSize="11px";
+   copy.append(title,detail);
+   const button=document.createElement("button");button.type="button";button.className="secondary";button.textContent=t.label;button.style.cssText="padding:9px 10px;min-width:84px;font-size:10px;flex:0 0 auto";
+   button.addEventListener("click",()=>go(t.view));row.append(copy,button);host.append(row);
+  });
+  note.textContent="Based on saved weigh-ins, food diary entries and check-ins. It does not assess training completion or judge your adherence.";
+ }catch(error){
+  console.error("Daily priorities failed",error);host.textContent="Your priorities couldn't be loaded right now. You can still use the tabs above.";note.textContent="No existing entries have been changed.";
+ }
+}
+
 async function loadClientSetupChecklist(){
  const card=$("clientSetupCard");
  if(!card||!currentUser||currentRole==="coach")return;
@@ -844,6 +892,7 @@ onAuthStateChanged(auth,async user=>{
   await loadClientTrainingDashboard();
   if(!coach)await loadClientGoalDashboard();
   if(!coach&&profile.onboardingComplete===true)await loadClientSetupChecklist();
+  if(!coach)await loadClientDailyPriorities();
   if(coach)loadClients();
  }catch(e){
   status(friendly(e),"bad");
