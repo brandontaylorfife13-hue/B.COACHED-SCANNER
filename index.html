@@ -820,6 +820,7 @@ onAuthStateChanged(auth,async user=>{
     uid:user.uid,
     email:email,
     displayName:invitation.data().displayName||user.displayName||"Client",
+    coachUid:invitation.data().createdBy||null,
     role:"client",
     createdAt:serverTimestamp(),
     accountStatus:"active"
@@ -835,8 +836,10 @@ onAuthStateChanged(auth,async user=>{
     try{
      const invitationRef=doc(db,"invitations",accountEmail);
      const invitationSnap=await getDoc(invitationRef);
-     if(invitationSnap.exists()&&invitationSnap.data().status==="pending"&&invitationSnap.data().email===accountEmail){
-      await updateDoc(invitationRef,{status:"accepted",acceptedBy:user.uid,acceptedAt:serverTimestamp()});
+     if(invitationSnap.exists()&&invitationSnap.data().email===accountEmail){
+      const invitationData=invitationSnap.data();
+      if(invitationData.status==="pending")await updateDoc(invitationRef,{status:"accepted",acceptedBy:user.uid,acceptedAt:serverTimestamp()});
+      if(invitationData.createdBy&&!profile.coachUid)await updateDoc(doc(db,"users",user.uid),{coachUid:invitationData.createdBy});
      }
     }catch(invitationError){
      console.warn("Could not update invitation acceptance yet; it will be retried on a later login.",invitationError);
@@ -3248,7 +3251,9 @@ async function loadUpdates(){
  try{
   const items=[];
   if(currentRole==="coach"){
-   const result=await getDocs(query(collection(db,"users"),where("role","==","client")));
+   const [result,coachNotifications]=await Promise.all([getDocs(query(collection(db,"users"),where("role","==","client"))),getDocs(collection(db,"users",currentUser.uid,"notifications"))]);
+   const clientsById=new Map(result.docs.map(snap=>[snap.id,{uid:snap.id,...snap.data()}]));
+   coachNotifications.docs.forEach(d=>{const n=d.data();items.push({kind:n.title||"Client activity",text:n.body||"",time:n.createdAt?.toMillis?n.createdAt.toMillis():0,unread:n.read!==true,notificationId:d.id,client:n.clientUid?(clientsById.get(n.clientUid)||{uid:n.clientUid,displayName:n.clientName||"Client"}):null});});
    for(const snap of result.docs){const client={uid:snap.id,...snap.data()};const [messages,checks]=await Promise.all([getDocs(collection(db,"users",client.uid,"messages")),getDocs(collection(db,"users",client.uid,"weeklyCheckins"))]);
     messages.docs.forEach(d=>{const m=d.data();if(m.senderRole==="client")items.push({kind:"Message",client,text:m.text||"",time:m.createdAt?.toMillis?m.createdAt.toMillis():0});});
     checks.docs.forEach(d=>{const x=d.data();items.push({kind:"Weekly check-in",client,text:"Week ending "+(x.weekEnding||d.id)+(x.adherence?" · Nutrition "+x.adherence:""),time:x.submittedAt?.toMillis?x.submittedAt.toMillis():0});});
@@ -3336,10 +3341,20 @@ async function createClientNotification(uid,type,title,body){
   }
  }catch(error){console.warn("B.COACHED in-app update saved; phone notification could not be sent:",error);}
 }
-async function sendMessage(uid,inputId,statusId,role,historyId){
+async function createCoachActivityNotification(id,title,body){
+  try{
+   if(!currentUser||currentRole==="coach")return;
+   const profileSnap=await getDoc(doc(db,"users",currentUser.uid));
+   const profile=profileSnap.exists()?profileSnap.data():{};
+   const coachUid=profile.coachUid;
+   if(!coachUid)return;
+   await setDoc(doc(db,"users",coachUid,"notifications",id),{type:"client_activity",title,body,read:false,createdAt:serverTimestamp(),createdBy:currentUser.uid,clientUid:currentUser.uid,clientName:profile.displayName||currentUser.displayName||"Client"});
+  }catch(error){console.warn("Client activity saved, but coach notification could not be created:",error);}
+ }
+ async function sendMessage(uid,inputId,statusId,role,historyId){
  const input=$(inputId),statusEl=$(statusId),message=input.value.trim();if(!message){statusEl.textContent="Write a message first.";return;}
  const buttonId=role==="coach"?"sendCoachMessage":"sendClientMessage",button=$(buttonId);button.disabled=true;statusEl.textContent="Sending…";
- try{const messageRef=doc(collection(db,"users",uid,"messages"));await setDoc(messageRef,{text:message,senderUid:currentUser.uid,senderRole:role,createdAt:serverTimestamp()});if(role==="coach")await createClientNotification(uid,"message","New message from your coach",message.length>150?message.slice(0,147)+"…":message);input.value="";statusEl.textContent="Message sent.";await renderMessageThread(uid,historyId);}
+ try{const messageRef=doc(collection(db,"users",uid,"messages"));await setDoc(messageRef,{text:message,senderUid:currentUser.uid,senderRole:role,createdAt:serverTimestamp()});if(role==="coach")await createClientNotification(uid,"message","New message from your coach",message.length>150?message.slice(0,147)+"…":message);else await createCoachActivityNotification("client_message_"+messageRef.id,"New message from "+(currentUser.displayName||"your client"),message.length>180?message.slice(0,177)+"…":message);input.value="";statusEl.textContent="Message sent.";await renderMessageThread(uid,historyId);}
  catch(e){statusEl.textContent="Could not send message: "+e.message;}finally{button.disabled=false;}
 }
 $("sendClientMessage").addEventListener("click",()=>{if(currentUser&&currentRole!=="coach")sendMessage(currentUser.uid,"clientMessageInput","clientMessageStatus","client","clientMessageHistory");});
@@ -3347,7 +3362,7 @@ $("sendCoachMessage").addEventListener("click",()=>{if(currentUser&&currentRole=
 $("refreshCoachMessages").addEventListener("click",()=>{if(selectedClient?.uid)renderMessageThread(selectedClient.uid,"coachMessageHistory");});
 async function loadClientCheckins(){if(!currentUser||currentRole==="coach")return;const host=$("clientCheckinHistory");host.textContent="Loading check-ins…";try{const result=await getDocs(collection(db,"users",currentUser.uid,"weeklyCheckins"));const rows=result.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.weekEnding||"").localeCompare(a.weekEnding||""));host.replaceChildren();if(!rows.length){host.textContent="No check-ins submitted yet.";return;}rows.forEach(d=>{const card=document.createElement("div");card.className="tile";card.style.minHeight="0";card.style.margin="9px 0";const title=document.createElement("strong");title.style.fontSize="14px";title.textContent="Week ending "+new Date(d.weekEnding+"T12:00:00").toLocaleDateString();const detail=document.createElement("div");detail.className="muted";detail.style.marginTop="7px";detail.textContent="Nutrition: "+(d.adherence||"—")+" · Training: "+(d.trainingSessions??"—")+" sessions"+(d.averageWeight?" · Average weight: "+d.averageWeight+" kg":"");const answers=document.createElement("div");answers.className="muted";answers.style.marginTop="7px";answers.style.whiteSpace="pre-wrap";answers.textContent="Wins: "+(d.wins||"—")+"\nChallenges: "+(d.challenges||"—")+"\nHelp needed: "+(d.support||"—");card.append(title,detail,answers);if(d.coachFeedback){const feedback=document.createElement("div");feedback.className="pill";feedback.textContent="Coach feedback: "+d.coachFeedback;card.append(feedback);}host.append(card);});}catch(e){host.textContent="Could not load check-ins: "+e.message;}}
 $("clientCheckinReminderBtn").addEventListener("click",()=>document.querySelector('#nav button[data-view="checkins"]')?.click());
-$("saveWeeklyCheckin").addEventListener("click",async()=>{if(!currentUser||currentRole==="coach")return;const weekEnding=$("checkinWeek").value,weight=$("checkinAverageWeight").value.trim(),training=$("checkinTraining").value.trim();if(!weekEnding){$("checkinStatus").textContent="Choose the week-ending date.";return;}if(weight!==""&&(!Number.isFinite(Number(weight))||Number(weight)<=0)){$("checkinStatus").textContent="Enter a valid average weight.";return;}if(training!==""&&(!Number.isInteger(Number(training))||Number(training)<0||Number(training)>14)){$("checkinStatus").textContent="Enter training sessions from 0 to 14.";return;}$("saveWeeklyCheckin").disabled=true;$("checkinStatus").textContent="Submitting check-in…";try{await setDoc(doc(db,"users",currentUser.uid,"weeklyCheckins",weekEnding),{weekEnding,averageWeight:weight===""?null:Number(weight),adherence:$("checkinAdherence").value,trainingSessions:training===""?null:Number(training),wins:$("checkinWins").value.trim(),challenges:$("checkinChallenges").value.trim(),support:$("checkinSupport").value.trim(),submittedAt:serverTimestamp(),updatedAt:serverTimestamp()},{merge:true});$("checkinStatus").textContent="Weekly check-in submitted.";await loadClientCheckins();await loadClientGoalDashboard();}catch(e){$("checkinStatus").textContent="Could not submit check-in: "+e.message;}finally{$("saveWeeklyCheckin").disabled=false;}});
+$("saveWeeklyCheckin").addEventListener("click",async()=>{if(!currentUser||currentRole==="coach")return;const weekEnding=$("checkinWeek").value,weight=$("checkinAverageWeight").value.trim(),training=$("checkinTraining").value.trim();if(!weekEnding){$("checkinStatus").textContent="Choose the week-ending date.";return;}if(weight!==""&&(!Number.isFinite(Number(weight))||Number(weight)<=0)){$("checkinStatus").textContent="Enter a valid average weight.";return;}if(training!==""&&(!Number.isInteger(Number(training))||Number(training)<0||Number(training)>14)){$("checkinStatus").textContent="Enter training sessions from 0 to 14.";return;}$("saveWeeklyCheckin").disabled=true;$("checkinStatus").textContent="Submitting check-in…";try{await setDoc(doc(db,"users",currentUser.uid,"weeklyCheckins",weekEnding),{weekEnding,averageWeight:weight===""?null:Number(weight),adherence:$("checkinAdherence").value,trainingSessions:training===""?null:Number(training),wins:$("checkinWins").value.trim(),challenges:$("checkinChallenges").value.trim(),support:$("checkinSupport").value.trim(),submittedAt:serverTimestamp(),updatedAt:serverTimestamp()},{merge:true});$("checkinStatus").textContent="Weekly check-in submitted.";await createCoachActivityNotification("client_checkin_"+weekEnding,"Weekly check-in submitted",(currentUser.displayName||"Your client")+" submitted their weekly check-in for week ending "+weekEnding+".");await loadClientCheckins();await loadClientGoalDashboard();}catch(e){$("checkinStatus").textContent="Could not submit check-in: "+e.message;}finally{$("saveWeeklyCheckin").disabled=false;}});
 let coachProgressTimelineItems=[];
 function renderCoachProgressTimeline(){
  const host=$("coachProgressTimeline");if(!host)return;host.replaceChildren();
