@@ -1572,7 +1572,30 @@ async function loadClientEngagementPulse(clients){
   card.append(top,stats);
   const note=document.createElement("div");note.className="muted";note.style.cssText="font-size:12px;margin-top:8px";
   note.textContent=row.errors?"Some records could not be read; figures may be incomplete.":row.diaryDays===0&&row.workouts===0?"No food diary entries or completed workouts recorded in this 7-day period.":row.diaryDays===0?"No food diary entries recorded in this 7-day period.":row.workouts===0?"No completed workouts recorded in this 7-day period.": "Latest completed workout: "+(row.lastWorkout||"Date unavailable")+".";
-  card.append(note);host.append(card);
+  card.append(note);
+  const quickLabel=document.createElement("div");quickLabel.className="eyebrow";quickLabel.style.cssText="margin-top:12px;font-size:10px";quickLabel.textContent="QUICK CHECK-IN";
+  const quickActions=document.createElement("div");quickActions.style.cssText="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:7px";
+  const prompts=[
+   ["GENERAL","How are things going this week? Is there anything you need help with?"],
+   ["NUTRITION","How are you getting on with your nutrition and food diary? Is anything making it difficult to stay on plan?"],
+   ["TRAINING","How are you finding your training this week? Are you managing to get your sessions completed?"]
+  ];
+  prompts.forEach(([label,message])=>{
+   const promptButton=document.createElement("button");promptButton.type="button";promptButton.className="secondary";promptButton.textContent=label;promptButton.style.cssText="padding:9px 5px;font-size:10px;min-width:0";
+   promptButton.addEventListener("click",async()=>{
+    promptButton.disabled=true;
+    try{
+     await showClientProfile(row.client);
+     const input=$("coachMessageInput");
+     if(input){input.value=message;input.focus();input.scrollIntoView({behavior:"smooth",block:"center"});}
+     const status=$("coachMessageStatus");if(status)status.textContent="Quick check-in prepared. Review it, then tap SEND REPLY when you're ready.";
+     $("profile-messages")?.scrollIntoView({behavior:"smooth",block:"start"});
+    }catch(error){console.error("Could not prepare quick check-in",error);}
+    finally{promptButton.disabled=false;}
+   });
+   quickActions.append(promptButton);
+  });
+  card.append(quickLabel,quickActions);host.append(card);
  });
 }
 async function loadClients(){
