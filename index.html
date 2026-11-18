@@ -2323,21 +2323,26 @@ async function loadClientMealPlan(){
     const foods=editedFoods[key].foods;
     const foodsHost=host.querySelector('[data-client-meal-foods="'+mi+'"]');
     foodsHost.replaceChildren();
-    const sub=document.createElement("div");sub.className="eyebrow";sub.textContent="YOUR FOOD & PORTIONS · REMOVE OR ADD AS NEEDED";foodsHost.append(sub);
-    if(!foods.length){const empty=document.createElement("div");empty.className="muted";empty.textContent="No foods in this meal yet. Add your own below.";foodsHost.append(empty);}
+    const sub=document.createElement("div");sub.className="eyebrow";sub.textContent="EDIT YOUR FOOD & PORTIONS";foodsHost.append(sub);
+    const hint=document.createElement("div");hint.className="muted";hint.textContent="Change the grams to match what you actually ate. Your meal macros update automatically.";foodsHost.append(hint);
+    if(!foods.length){const empty=document.createElement("div");empty.className="muted";empty.textContent="No foods in this meal yet. Add the foods you actually ate below.";foodsHost.append(empty);}
     foods.forEach((food,fi)=>{
-     const row=document.createElement("div");row.className="client-meal-food-row";
-     const desc=document.createElement("span");desc.textContent=(food.name||"Food item")+" · "+(Number(food.grams)||0)+" g";
-     const remove=document.createElement("button");remove.type="button";remove.className="secondary client-food-remove";remove.textContent="Remove";remove.onclick=()=>{foods.splice(fi,1);update();};
-     row.append(desc,remove);foodsHost.append(row);
+     const row=document.createElement("div");row.className="client-meal-food-row";row.style.cssText="display:grid;grid-template-columns:minmax(0,1fr) 88px 38px;align-items:center;gap:8px";
+     const desc=document.createElement("span");desc.textContent=food.name||"Food item";desc.style.cssText="min-width:0;overflow-wrap:anywhere";
+     const portion=document.createElement("label");portion.style.cssText="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted)";
+     const gramsInput=document.createElement("input");gramsInput.type="number";gramsInput.min="0";gramsInput.step="1";gramsInput.inputMode="decimal";gramsInput.value=Number(food.grams)||0;gramsInput.setAttribute("aria-label","Grams of "+(food.name||"food"));gramsInput.style.cssText="width:62px;min-width:0;padding:7px 4px;text-align:center;margin:0";
+     const unit=document.createElement("span");unit.textContent="g";portion.append(gramsInput,unit);
+     gramsInput.addEventListener("change",()=>{food.grams=Math.max(0,Number(gramsInput.value)||0);update();});
+     const remove=document.createElement("button");remove.type="button";remove.className="secondary client-food-remove";remove.textContent="×";remove.setAttribute("aria-label","Remove "+(food.name||"food"));remove.onclick=()=>{foods.splice(fi,1);update();};
+     row.append(desc,portion,remove);foodsHost.append(row);
     });
     const add=document.createElement("details");add.className="client-add-food";
-    const summary=document.createElement("summary");summary.textContent="＋ Add your own food";add.append(summary);
+    const summary=document.createElement("summary");summary.textContent="＋ Add food you actually ate";add.append(summary);
     const fields=document.createElement("div");fields.className="client-add-food-fields";
     const makeInput=(placeholder,type="number",step="0.1")=>{const x=document.createElement("input");x.placeholder=placeholder;x.type=type;if(type==="number"){x.min="0";x.step=step;}return x;};
     const name=makeInput("Food name","text"),grams=makeInput("Portion g","number","1"),kcal=makeInput("kcal per 100g"),protein=makeInput("Protein /100g"),carbs=makeInput("Carbs /100g"),fats=makeInput("Fat /100g");
     [name,grams,kcal,protein,carbs,fats].forEach(x=>fields.append(x));
-    const addBtn=document.createElement("button");addBtn.type="button";addBtn.textContent="ADD FOOD TO MEAL";addBtn.style.width="100%";addBtn.onclick=()=>{
+    const addBtn=document.createElement("button");addBtn.type="button";addBtn.textContent="ADD FOOD TO THIS MEAL";addBtn.style.width="100%";addBtn.onclick=()=>{
      if(!name.value.trim()||Number(grams.value)<=0){addBtn.textContent="Enter a food name and portion";return;}
      foods.push({name:name.value.trim(),grams:Number(grams.value),calories100:Number(kcal.value)||0,protein100:Number(protein.value)||0,carbs100:Number(carbs.value)||0,fats100:Number(fats.value)||0});
      update();
@@ -2388,7 +2393,7 @@ async function loadClientMealPlan(){
      return {meal:meal.name||"Meal "+(mi+1),option:(meal.options?.[map[mi]]?.name)||"Option",foods:foods.map(f=>({name:f.name||"",grams:Number(f.grams)||0})),...optionMacros(o)};
     });
     await setDoc(doc(db,"users",currentUser.uid,"mealPlanSelections",date),{date,dayType:type,selectionMap:map,customFoods:custom,eatenMeals:eatenMap,choices:selections,updatedAt:serverTimestamp()},{merge:true});
-    clientMealSelections=map;save.textContent="CHOICES SAVED";
+    clientMealSelections=map;save.textContent="SAVED ✓";
    }catch(e){save.textContent="SAVE FAILED: "+e.message;}
    finally{save.disabled=false;}
   });
