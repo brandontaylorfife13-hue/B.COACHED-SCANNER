@@ -78,6 +78,27 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 .client-meal-eaten{display:flex;align-items:center;gap:9px;margin-top:12px;padding:9px 11px;background:#171b14;border:1px solid var(--line);border-radius:9px;font-size:13px;cursor:pointer}
 .client-meal-eaten input{width:18px;height:18px;accent-color:var(--lime);margin:0}
 .profile-anchor{scroll-margin-top:16px}
+
+/* Premium client home screen */
+#overviewView{overflow:hidden}
+#overviewView>.eyebrow{letter-spacing:2px}
+#clientWelcomeCard{position:relative;overflow:hidden;padding:22px!important;border-radius:20px!important;background:radial-gradient(circle at 100% 0%,#354b12 0,transparent 42%),linear-gradient(135deg,#202b12,#11160d 72%)!important;box-shadow:0 16px 36px #0006}
+#clientWelcomeCard:after{content:"B.";position:absolute;right:12px;top:-26px;font-size:150px;line-height:1;font-weight:950;color:#c6ff000c;pointer-events:none}
+#clientWelcomeCard>*{position:relative;z-index:1}
+#clientWelcomeCard .eyebrow{font-size:10px;letter-spacing:2.4px}
+#clientWelcomeCard .heading{font-size:clamp(25px,6vw,34px)!important;line-height:1.08;max-width:600px}
+#clientWelcomeCard .muted{max-width:620px}
+#clientWelcomeCard .actions{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px!important}
+#clientWelcomeCard .actions button{min-width:0;min-height:48px;padding:12px 10px;font-size:11px;letter-spacing:.35px}
+#clientWelcomeCard .actions button:first-child{grid-column:span 2}
+#clientOverviewMetrics{gap:9px!important;margin-top:14px}
+#clientOverviewMetrics .tile{min-height:100px;padding:14px;border-radius:14px;background:linear-gradient(145deg,#1b2115,#10140d)}
+#clientOverviewMetrics .tile strong{font-size:clamp(22px,5vw,28px);margin:9px 0 3px}
+#clientSetupCard{border-radius:16px!important;background:linear-gradient(145deg,#1a2113,#10140d)}
+#clientFourWeekReview{border-radius:16px!important;background:linear-gradient(145deg,#1a2113,#10140d)}
+#clientGoalDashboard .tile{border-radius:14px}
+#overviewView .section-title{letter-spacing:.1px}
+@media(min-width:650px){#clientWelcomeCard{padding:28px!important}#clientWelcomeCard .actions{grid-template-columns:repeat(4,minmax(0,1fr))!important}#clientWelcomeCard .actions button:first-child{grid-column:auto}}
 </style>
 </head>
 <body><main>
@@ -130,7 +151,8 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
     <div style="display:flex;gap:10px;align-items:flex-start"><span style="color:var(--lime);font-weight:900">03</span><div><strong style="font-size:13px">Stay connected</strong><div class="muted" style="font-size:12px">Use Messages and Updates to keep in touch with your coach.</div></div></div>
    </div>
    <div class="actions" style="margin-top:8px">
-    <button id="clientWelcomeNutrition" type="button">MY NUTRITION</button>
+    <button id="clientWelcomeNutrition" type="button">OPEN MY NUTRITION</button>
+    <button id="clientWelcomeFood" class="secondary" type="button">LOG FOOD DIARY</button>
     <button id="clientWelcomeTraining" class="secondary" type="button">MY TRAINING</button>
     <button id="clientWelcomeCheckin" class="secondary" type="button">WEEKLY CHECK-IN</button>
    </div>
@@ -3774,10 +3796,10 @@ $("profileQuickNav")?.addEventListener("change",event=>{
  const view={dashGoTraining:"training",dashGoCheckin:"checkins",dashGoProgress:"progress",dashGoMessages:"messages"}[id];
  document.querySelector('#nav button[data-view="'+view+'"]')?.click();
 }));
-["clientWelcomeNutrition","clientWelcomeTraining","clientWelcomeCheckin"].forEach(id=>{
+["clientWelcomeNutrition","clientWelcomeFood","clientWelcomeTraining","clientWelcomeCheckin"].forEach(id=>{
  const button=$(id);if(!button)return;
  button.addEventListener("click",()=>{
-  const view={clientWelcomeNutrition:"nutrition",clientWelcomeTraining:"training",clientWelcomeCheckin:"checkins"}[id];
+  const view={clientWelcomeNutrition:"nutrition",clientWelcomeFood:"foodDiary",clientWelcomeTraining:"training",clientWelcomeCheckin:"checkins"}[id];
   document.querySelector('#nav button[data-view="'+view+'"]')?.click();
  });
 });
