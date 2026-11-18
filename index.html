@@ -111,6 +111,12 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
    <div id="clientSetupList"></div>
    <div id="clientSetupUpdated" class="muted" style="margin-top:9px"></div>
   </section>
+  <section id="clientPedCard" class="tile hidden" style="margin:14px 0 18px;min-height:0;padding:15px">
+   <div class="eyebrow">PERSONAL HEALTH RECORD</div>
+   <div class="section-title" style="margin-top:6px">PED injection record</div>
+   <p class="muted">A private record of entries shared by you and your coach. This is for recordkeeping only, not medical advice.</p>
+   <div id="clientPedRecords" class="muted">Loading records…</div>
+  </section>
   <div id="clientNotificationGuide" class="tile hidden" style="margin:14px 0 18px;border-color:#829e22;min-height:0">
    <div class="eyebrow">STAY ON TRACK</div>
    <div class="section-title" style="margin-top:7px">Turn on your phone notifications</div>
@@ -254,6 +260,21 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   </div>
   <div class="section-title profile-anchor" id="profile-progress-overview" style="margin-top:24px">Progress overview</div><p class="muted">A live snapshot of this client's recorded weight, measurements, training and weekly check-ins.</p><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(135px,1fr))"><div class="tile">LATEST WEIGHT<strong id="coachProgressWeight">—</strong><span id="coachProgressWeightDate">No weigh-ins</span></div><div class="tile">CHANGE FROM START<strong id="coachProgressChange">—</strong><span>Based on recorded weights</span></div><div class="tile">TRAINING SESSIONS<strong id="coachProgressSessions">—</strong><span>Logged workouts</span></div><div class="tile">WEEKLY CHECK-INS<strong id="coachProgressCheckins">—</strong><span>Submitted check-ins</span></div></div><div class="tile" style="margin-top:12px;min-height:0"><strong>Latest measurements</strong><div id="coachProgressMeasurements" class="muted" style="margin-top:8px">Loading measurements…</div></div><div class="tile" style="margin-top:12px;min-height:0"><strong>Recent weigh-ins</strong><div id="coachProgressWeightHistory" class="muted" style="margin-top:8px">Loading weight history…</div></div><div class="section-title profile-anchor" id="profile-progress-trends" style="margin-top:20px">Progress trends</div><div class="tile" style="margin-top:10px;min-height:0"><strong>Weight trend</strong><div id="coachWeightTrendChart" style="margin-top:12px">Loading chart…</div></div><div class="tile" style="margin-top:12px;min-height:0"><strong>Body measurement trend</strong><label for="coachMeasurementMetric">Choose measurement</label><select id="coachMeasurementMetric" class="training-select"><option value="waist">Waist</option><option value="chest">Chest</option><option value="hips">Hips</option><option value="arm">Arm</option><option value="thigh">Thigh</option><option value="calf">Calf</option></select><div id="coachMeasurementTrendChart" style="margin-top:12px">Loading chart…</div></div><div class="section-title" style="margin-top:20px">Client progress timeline</div><p class="muted">A dated record of weigh-ins, measurements, check-ins and progress photos.</p><div id="coachProgressTimeline" class="muted">Building timeline…</div>
   <div class="tile" id="coachOnboardingSummary" style="margin-top:18px;min-height:0"><div class="eyebrow">CLIENT ONBOARDING</div><strong style="font-size:15px;color:var(--white);margin-top:8px">Getting started information</strong><div id="coachOnboardingSummaryText" class="muted" style="margin-top:8px">No onboarding profile submitted yet.</div></div>
+  <section id="coachPedCard" class="tile" style="margin-top:20px;min-height:0;padding:15px">
+   <div class="eyebrow">PERSONAL HEALTH RECORD</div>
+   <div class="section-title" style="margin-top:6px">PED injection record</div>
+   <p class="muted">Entries saved here are visible to this client in their own dashboard as well as to you. Recordkeeping only — not cycle or dosing guidance.</p>
+   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-top:12px">
+    <div><label for="pedDate">Injection date</label><input id="pedDate" type="date"></div>
+    <div><label for="pedCompound">Compound recorded</label><select id="pedCompound" class="training-select"><option value="">Select compound</option><option>Testosterone</option><option>Nandrolone</option><option>Boldenone</option><option>Trenbolone</option><option>Drostanolone</option><option>Methenolone</option><option>Stanozolol</option><option>Oxandrolone</option><option>Other / not listed</option></select></div>
+    <div><label for="pedSite">Injection site recorded</label><select id="pedSite" class="training-select"><option value="">Select site</option><option>Left glute</option><option>Right glute</option><option>Left ventrogluteal</option><option>Right ventrogluteal</option><option>Left thigh</option><option>Right thigh</option><option>Left deltoid</option><option>Right deltoid</option><option>Other / not recorded</option></select></div>
+   </div>
+   <div id="pedOtherWrap" class="hidden" style="margin-top:10px"><label for="pedOther">Other compound</label><input id="pedOther" maxlength="80" placeholder="Enter compound name"></div>
+   <button id="savePedRecord" style="width:100%;margin-top:12px">SAVE INJECTION RECORD</button>
+   <div id="pedRecordStatus" class="status" role="status"></div>
+   <div class="section-title" style="margin-top:18px">Recorded history</div>
+   <div id="coachPedRecords" class="muted">Loading records…</div>
+  </section>
   <div class="section-title profile-anchor" id="profile-client-details" style="margin-top:22px">Client details</div>
   <p class="muted">Add or update the client's key starting information. Changes are saved securely to their profile.</p>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(210px,1fr))">
@@ -528,7 +549,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, serverTimestamp, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, addDoc, serverTimestamp, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging.js";
 import { BrowserMultiFormatReader } from "https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm";
@@ -652,6 +673,7 @@ onAuthStateChanged(auth,async user=>{
   }
   const profile=snap.data();
    currentRole=profile.role||"client";
+   if(currentRole!=="coach") await loadPedRecords(user.uid,"client");
    const onboardingRequired=currentRole!=="coach"&&profile.onboardingComplete!==true;
    $("clientOnboardingCard").classList.toggle("hidden",!onboardingRequired);
    $("onboardName").value=profile.displayName||user.displayName||"";
@@ -1618,8 +1640,13 @@ async function loadClients(){
    const name=document.createElement("strong");name.style.fontSize="17px";name.style.color="#f5f7f1";name.textContent=c.displayName||"Unnamed client";
    const email=document.createElement("span");email.textContent=c.email||"No email address";
    const state=document.createElement("div");state.className="pill";state.textContent=c.accountStatus||"Status unknown";
+   const pedWrap=document.createElement("label");pedWrap.style.cssText="display:flex;align-items:center;gap:9px;margin-top:12px;font-size:13px";
+   const pedToggle=document.createElement("input");pedToggle.type="checkbox";pedToggle.checked=c.pedTrackingEnabled===true;pedToggle.style.width="20px";pedToggle.style.minHeight="20px";pedToggle.style.margin="0";
+   const pedText=document.createElement("span");pedText.textContent="Enable PED tracking (client can view)";
+   pedToggle.addEventListener("change",async()=>{pedToggle.disabled=true;try{await setDoc(doc(db,"users",c.uid,"settings","pedTracking"),{enabled:pedToggle.checked,updatedAt:serverTimestamp(),updatedBy:currentUser.uid},{merge:true});c.pedTrackingEnabled=pedToggle.checked;}catch(e){pedToggle.checked=!pedToggle.checked;alert("Could not update PED tracking. "+e.message);}finally{pedToggle.disabled=false;}});
+   pedWrap.append(pedToggle,pedText);
    const open=document.createElement("button");open.className="secondary";open.textContent="OPEN CLIENT PROFILE";open.style.width="100%";open.style.marginTop="12px";open.addEventListener("click",()=>showClientProfile(c));
-   card.append(name,email,state,open);list.append(card);
+   card.append(name,email,state,pedWrap,open);list.append(card);
   });
   await loadInvitations();
  }catch(e){
@@ -1732,8 +1759,49 @@ async function showClientProfile(client){
   await loadCoachWorkoutReviews();
   await loadCoachClientTrainingAnalytics();
   await loadCoachProgressPhotos();
+  await loadPedRecords(client.uid,"coach");
  }catch(e){$("clientDetailsStatus").textContent="Could not load saved details: "+e.message;}
 }
+async function loadPedRecords(uid,view){
+ const card=$(view==="client"?"clientPedCard":"coachPedCard");
+ const host=$(view==="client"?"clientPedRecords":"coachPedRecords");
+ if(!card||!host||!uid)return;
+ if(view==="client")card.classList.add("hidden");
+ host.textContent="Loading records…";
+ try{
+  const setting=await getDoc(doc(db,"users",uid,"settings","pedTracking"));
+  const enabled=setting.exists()&&setting.data().enabled===true;
+  if(view==="client"&&!enabled)return;
+  if(view==="coach")card.classList.toggle("hidden",!enabled);
+  if(!enabled)return;
+  const snap=await getDocs(collection(db,"users",uid,"pedRecords"));
+  const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  host.replaceChildren();
+  if(!rows.length){host.textContent="No injection records have been added yet.";return;}
+  rows.forEach(record=>{
+   const row=document.createElement("div");row.className="tile";row.style.cssText="margin:8px 0;padding:11px;min-height:0";
+   const title=document.createElement("strong");title.textContent=record.compound||"Compound not recorded";
+   const details=document.createElement("div");details.className="muted";details.style.marginTop="5px";
+   details.textContent=(record.date||"Date not recorded")+" · "+(record.site||"Site not recorded");
+   row.append(title,details);host.append(row);
+  });
+ }catch(error){host.textContent="Could not load PED records: "+error.message;}
+}
+$("pedCompound")?.addEventListener("change",()=> $("pedOtherWrap")?.classList.toggle("hidden",$("pedCompound").value!=="Other / not listed"));
+$("savePedRecord")?.addEventListener("click",async()=>{
+ if(currentRole!=="coach"||!selectedClient?.uid)return;
+ const date=$("pedDate").value,compound=$("pedCompound").value,site=$("pedSite").value;
+ const finalCompound=compound==="Other / not listed"?$("pedOther").value.trim():compound;
+ if(!date||!finalCompound||!site){$("pedRecordStatus").textContent="Please complete the date, compound and injection site.";return;}
+ const button=$("savePedRecord");button.disabled=true;$("pedRecordStatus").textContent="Saving record…";
+ try{
+  await addDoc(collection(db,"users",selectedClient.uid,"pedRecords"),{date,compound:finalCompound,site,createdAt:serverTimestamp(),recordedBy:currentUser.uid});
+  $("pedDate").value="";$("pedCompound").value="";$("pedSite").value="";$("pedOther").value="";$("pedOtherWrap").classList.add("hidden");
+  $("pedRecordStatus").textContent="Record saved. It is now visible in the client's dashboard.";
+  await loadPedRecords(selectedClient.uid,"coach");
+ }catch(error){$("pedRecordStatus").textContent="Could not save record: "+error.message;}
+ finally{button.disabled=false;}
+});
 function fillMacroInputs(prefix,data){
  $(prefix+"Calories").value=data.calories??"";
  $(prefix+"Protein").value=data.proteinG??"";
