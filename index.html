@@ -3028,6 +3028,9 @@ $("trainingWorkoutDate").addEventListener("change",()=>{
 async function saveClientTrainingSession(){
  const draft=readTrainingDraft();if(!draft){$("trainingLogStatus").textContent="Choose a workout and date.";return;}
  if(trainingAutosaveTimer){clearTimeout(trainingAutosaveTimer);trainingAutosaveTimer=null;}
+ // Finish any queued draft save before writing the completed state, so autoSaved:true
+ // cannot race with and overwrite the final autoSaved:false marker.
+ await trainingAutosaveQueue;
  const exercises=draft.exercises.map(e=>({...e,sets:e.sets.map(z=>({weight:Number(z.weight)||0,reps:Number(z.reps)||0,rir:z.rir}))}));
  if(!exercises.some(e=>e.sets.some(z=>z.weight>0&&z.reps>0))){$("trainingLogStatus").textContent="Enter at least one set with both weight and reps.";return;}
  $("trainingLogStatus").textContent="Saving completed workout…";
