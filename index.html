@@ -516,9 +516,16 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
    <div class="tile">FATS<strong id="foodTotalFats">0g</strong><span>grams</span></div>
   </div>
 
-  <div class="section-title" style="margin-top:22px">Your tailored meal plan</div>
-  <p class="muted">Choose one approved option for each meal. Your planned macros and calories update automatically. Your coach can see your choices.</p>
-  <div id="clientMealPlan"></div>
+  <div class="section-title" style="margin-top:22px">Meal tracking preference</div>
+  <p class="muted">Choose how you want to track your food. You can switch back at any time.</p>
+  <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+   <button type="button" id="mealModePlan" class="secondary">USE MY MEAL PLAN</button>
+   <button type="button" id="mealModeManual" class="secondary">LOG MY OWN FOOD</button>
+  </div>
+  <div id="clientMealPlanSection">
+   <p class="muted">Choose one approved option for each meal. Your planned macros and calories update automatically. Your coach can see your choices.</p>
+   <div id="clientMealPlan"></div>
+  </div>
   <div class="section-title" style="margin-top:20px">Find a packaged food</div>
   <label for="foodBarcode">Barcode number (optional manual entry)</label><input id="foodBarcode" inputmode="numeric" placeholder="Scan with camera or enter barcode"> <button type="button" id="startBarcodeScan" class="secondary" style="width:100%;margin-top:8px">OPEN CAMERA BARCODE SCANNER</button><div id="barcodeScanner" class="hidden" style="margin-top:10px"><video id="barcodeVideo" class="scan-video" playsinline muted></video><button type="button" id="stopBarcodeScan" class="secondary" style="width:100%;margin-top:8px">STOP SCANNER</button></div>
   <button id="lookupBarcode" class="secondary" style="width:100%;margin-top:10px">LOOK UP BARCODE</button>
@@ -2080,6 +2087,28 @@ function displayMacroSet(prefix,data){
 
 // ---------------- Tailored meal planner ----------------
 let coachMealPlan={highDay:[],lowDay:[]},coachPlanType="highDay",clientMealPlan={highDay:[],lowDay:[]},clientMealSelections={};
+let clientMealPlanMode="plan";
+function renderClientMealMode(){
+ const section=$("clientMealPlanSection"),planBtn=$("mealModePlan"),manualBtn=$("mealModeManual");
+ if(!section||!planBtn||!manualBtn)return;
+ const usePlan=clientMealPlanMode==="plan";
+ section.classList.toggle("hidden",!usePlan);
+ planBtn.classList.toggle("active",usePlan);manualBtn.classList.toggle("active",!usePlan);
+ planBtn.setAttribute("aria-pressed",String(usePlan));manualBtn.setAttribute("aria-pressed",String(!usePlan));
+ if(!usePlan){clientMealConsumed=[];renderFoodDiary();}
+}
+$("mealModePlan")?.addEventListener("click",async()=>{
+ if(!currentUser||currentRole==="coach")return;
+ clientMealPlanMode="plan";renderClientMealMode();
+ try{await setDoc(doc(db,"users",currentUser.uid,"nutrition","preferences"),{mealPlanMode:"plan",updatedAt:serverTimestamp()},{merge:true});}
+ catch(e){$("foodStatus").textContent="Could not save tracking preference: "+e.message;}
+});
+$("mealModeManual")?.addEventListener("click",async()=>{
+ if(!currentUser||currentRole==="coach")return;
+ clientMealPlanMode="manual";renderClientMealMode();
+ try{await setDoc(doc(db,"users",currentUser.uid,"nutrition","preferences"),{mealPlanMode:"manual",updatedAt:serverTimestamp()},{merge:true});}
+ catch(e){$("foodStatus").textContent="Could not save tracking preference: "+e.message;}
+});
 const escMeal=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const foodMacros=f=>{const g=Number(f.grams)||0,scale=g/100;return {calories:(Number(f.calories100)||0)*scale,proteinG:(Number(f.protein100)||0)*scale,carbsG:(Number(f.carbs100)||0)*scale,fatsG:(Number(f.fats100)||0)*scale};};
 const optionMacros=o=>(o.foods||[]).reduce((a,f)=>{const m=foodMacros(f);Object.keys(a).forEach(k=>a[k]+=m[k]);return a;},{calories:0,proteinG:0,carbsG:0,fatsG:0});
@@ -2274,7 +2303,9 @@ async function loadClientMealPlan(){
  if(!currentUser||currentRole==="coach")return;
  const host=$("clientMealPlan");if(!host)return;
  try{
-  const [planSnap,targetSnap]=await Promise.all([getDoc(doc(db,"users",currentUser.uid,"nutrition","mealPlan")),getDoc(doc(db,"users",currentUser.uid,"nutrition","targets"))]);
+  const [planSnap,targetSnap,preferenceSnap]=await Promise.all([getDoc(doc(db,"users",currentUser.uid,"nutrition","mealPlan")),getDoc(doc(db,"users",currentUser.uid,"nutrition","targets")),getDoc(doc(db,"users",currentUser.uid,"nutrition","preferences"))]);
+  clientMealPlanMode=preferenceSnap.exists()&&preferenceSnap.data().mealPlanMode==="manual"?"manual":"plan";
+  renderClientMealMode();
   const d=planSnap.exists()?planSnap.data():{};
   clientMealPlan={highDay:Array.isArray(d.highDay)?d.highDay:[],lowDay:Array.isArray(d.lowDay)?d.lowDay:[]};
   const targets=targetSnap.exists()?targetSnap.data():{};
@@ -2291,7 +2322,7 @@ async function loadClientMealPlan(){
   const editedFoods={};
   clientMealConsumed=[];
   host.replaceChildren();
-  if(!plan.length){host.textContent="Your coach has not added a meal plan for this "+(type==="highDay"?"high":"low")+" day yet.";renderFoodDiary();return;}
+  if(!plan.length){host.textContent="Your coach has not added a meal plan for this "+(type==="highDay"?"high":"low")+" day yet. You can still log your own food above.";if(clientMealPlanMode==="plan")clientMealPlanMode="manual";renderClientMealMode();renderFoodDiary();return;}
   const label=document.createElement("div");label.className="pill";label.textContent=(type==="highDay"?"HIGH DAY":"LOW DAY")+" · "+dayName;host.append(label);
   plan.forEach((meal,mi)=>{
    const block=document.createElement("div");block.className="meal-plan-block";
