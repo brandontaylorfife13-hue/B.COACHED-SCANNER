@@ -116,7 +116,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <button id="completeOnboardingBtn" style="width:100%;margin-top:16px">SAVE PROFILE & CONTINUE</button>
   <div id="onboardingStatus" class="status" role="status" aria-live="polite"></div>
  </section>
- <nav id="nav"><button class="active" data-view="overview">Overview</button><button id="clientsNav" class="hidden" data-view="clients">Clients</button><button id="analyticsNav" class="hidden" data-view="analytics">Analytics</button><button id="pedTrackingNav" class="hidden" data-view="pedTracking">PED Tracking</button><button data-view="nutrition">Nutrition</button><button id="foodDiaryNav" data-view="foodDiary">Food diary</button><button data-view="training">Training</button><button data-view="progress">Progress</button><button data-view="checkins">Check-ins</button><button data-view="messages">Messages</button><button data-view="updates">Updates</button></nav>
+ <nav id="nav"><button class="active" data-view="overview">Overview</button><button id="clientsNav" class="hidden" data-view="clients">Clients</button><button id="analyticsNav" class="hidden" data-view="analytics">Analytics</button><button id="pedTrackingNav" class="hidden" data-view="pedTracking">PED Tracking</button><button data-view="nutrition">Nutrition</button><button id="foodDiaryNav" data-view="foodDiary">Food diary</button><button data-view="training">Training</button><button data-view="progress">Progress</button><button data-view="checkins">Check-ins</button><button data-view="messages">Messages</button><button data-view="updates">Updates</button><button data-view="guide">App guide</button></nav>
  <section class="card" id="overviewView">
   <div class="eyebrow" id="roleLabel">CLIENT DASHBOARD</div><div class="heading" id="overviewHeading">Your daily overview</div>
   <p class="muted">Welcome to your B.COACHED space. Your personal targets and coaching plan will appear here as we build each section.</p>
@@ -600,6 +600,34 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
    <div id="clientPedRecords" class="muted">Loading records…</div>
   </section>
  </section>
+<section class="card hidden" id="guideView">
+ <div class="eyebrow">B.COACHED USER GUIDE</div>
+ <div class="heading">How to use your coaching app</div>
+ <p class="muted">A practical guide to each area of B.COACHED. Your coach may not use every feature, and some sections only appear when enabled for your account.</p>
+ <div id="clientGuideContent">
+  <div class="tile" style="min-height:0;margin:12px 0;border-color:#829e22"><div class="eyebrow">START HERE</div><strong style="font-size:17px;color:var(--white)">Your weekly routine</strong><ol class="muted" style="padding-left:20px;line-height:1.7"><li>Check your Overview for targets, reminders and updates.</li><li>Follow the nutrition and training plans your coach has assigned.</li><li>Log food, workouts and weigh-ins as consistently as you can.</li><li>Complete your weekly check-in and tell your coach what is going well or proving difficult.</li><li>Use Messages if you need help between check-ins.</li></ol></div>
+  <div class="section-title">Your app tabs</div>
+  <div class="meal-plan-block"><h3>Overview</h3><p class="muted">Your home screen. Check your coaching targets, setup checklist, reminders, goals and recent consistency. Use the shortcut buttons to jump to key areas.</p></div>
+  <div class="meal-plan-block"><h3>Nutrition</h3><p class="muted">View the meal plan and calorie or macro targets set by your coach. Follow the portions and food choices shown. If your coach updates your plan, the latest version appears here. Ask your coach before making major changes.</p></div>
+  <div class="meal-plan-block"><h3>Food diary</h3><p class="muted">Log what you actually eat, using the correct date and meal. Add foods and quantities as accurately as possible. Mark planned meals as eaten where that option is available. Your coach can use the diary to understand your real intake, so log honestly rather than trying to make the day look perfect.</p></div>
+  <div class="meal-plan-block"><h3>Training</h3><p class="muted">Open the session assigned by your coach. Follow the exercise order, sets, rep targets, rest periods and technique notes. Enter the weight and reps you complete for each set, then save or finish the session. Record what you actually achieved; don't guess or change prescribed work without discussing it.</p></div>
+  <div class="meal-plan-block"><h3>Progress</h3><p class="muted">Add weigh-ins using a consistent routine and record measurements when requested. Upload progress photos only when your coach asks or when you want them included in your progress history. Use similar lighting, distance and poses each time for a fair comparison.</p></div>
+  <div class="meal-plan-block"><h3>Check-ins</h3><p class="muted">Complete your weekly check-in honestly and include useful detail about adherence, training, recovery, challenges and questions. Submit it for your coach to review. You can look back at previous check-ins and feedback.</p></div>
+  <div class="meal-plan-block"><h3>Messages</h3><p class="muted">Use Messages for questions and day-to-day coaching conversations. Include enough detail for your coach to understand what you need help with. For urgent medical concerns, contact an appropriate healthcare professional rather than relying on app messages.</p></div>
+  <div class="meal-plan-block"><h3>Updates</h3><p class="muted">See coaching announcements and manage available phone notification settings. Notifications may require installing B.COACHED to your Home Screen and granting permission on your device.</p></div>
+  <div class="meal-plan-block"><h3>PED Tracking (if enabled)</h3><p class="muted">This optional area records information you choose to enter, such as date, compound and injection site. It is a record-keeping feature, not medical advice or a recommendation to use performance-enhancing drugs. Discuss health risks and monitoring with a qualified clinician.</p></div>
+  <div class="tile" style="min-height:0;margin-top:14px"><strong style="font-size:15px;color:var(--white)">A few important points</strong><ul class="muted" style="padding-left:20px;line-height:1.7"><li>Keep your login details private and log out on shared devices.</li><li>Enter information accurately; your coach uses it to guide decisions.</li><li>If something won't save or a screen looks wrong, take a screenshot and message your coach.</li><li>Your coach may enable or hide certain features depending on your coaching setup.</li></ul></div>
+ </div>
+ <div id="coachGuideContent" class="hidden">
+  <div class="tile" style="min-height:0;margin:12px 0;border-color:#829e22"><div class="eyebrow">COACH WORKFLOW</div><strong style="font-size:17px;color:var(--white)">A simple weekly workflow</strong><ol class="muted" style="padding-left:20px;line-height:1.7"><li>Review the Overview and today's coaching tasks.</li><li>Open Clients to select a client and review their latest information.</li><li>Check submissions, food diary activity, training and progress.</li><li>Update nutrition or training plans where appropriate.</li><li>Send clear feedback through Messages or check-in reviews.</li></ol></div>
+  <div class="meal-plan-block"><h3>Overview & Clients</h3><p class="muted">Use Overview for priorities and follow-ups. Open Clients to access individual client profiles and their coaching records. This setup is designed for one coach managing the client list.</p></div>
+  <div class="meal-plan-block"><h3>Nutrition & Food diary</h3><p class="muted">Build and update meal plans in Nutrition. Review actual logged intake in Food diary to compare adherence with the plan. Check dates and quantities before making coaching decisions.</p></div>
+  <div class="meal-plan-block"><h3>Training</h3><p class="muted">Create and update programmes, exercise order, sets, reps, rest and technique instructions. Review logged performance and give specific feedback.</p></div>
+  <div class="meal-plan-block"><h3>Progress & Check-ins</h3><p class="muted">Review weight trends, measurements, photos and check-in history together. Look for context and consistency rather than reacting to one data point.</p></div>
+  <div class="meal-plan-block"><h3>Messages & Updates</h3><p class="muted">Use Messages for client conversations and Updates for announcements and notification-related settings. Follow up on unanswered client messages.</p></div>
+  <div class="meal-plan-block"><h3>PED Tracking</h3><p class="muted">This optional record-keeping section can be enabled for individual clients. Treat entries as client-reported information, protect confidentiality, and do not use the feature as a substitute for clinical oversight.</p></div>
+ </div>
+</section>
 <footer>B.COACHED · ONLINE COACHING</footer>
 </main>
 <script type="module">
@@ -761,6 +789,7 @@ onAuthStateChanged(auth,async user=>{
 
    $("authCard").classList.add("hidden");$("app").classList.remove("hidden");
    $("welcome").textContent="Welcome, "+(profile.displayName||"there");
+  $("clientGuideContent").classList.toggle("hidden",currentRole==="coach");$("coachGuideContent").classList.toggle("hidden",currentRole!=="coach");
   if(currentRole!=="coach"){$("clientWelcomeCard").classList.remove("hidden");const firstName=(profile.displayName||user.displayName||"there").trim().split(/\s+/)[0];$("clientWelcomeHeading").textContent="Welcome"+(firstName&&firstName!=="there"?", "+firstName:"")+". Let’s get started.";}else{$("clientWelcomeCard").classList.add("hidden");}
    const coach=currentRole==="coach";
   $("clientOverviewMetrics").classList.toggle("hidden",coach);
@@ -3754,7 +3783,7 @@ $("profileQuickNav")?.addEventListener("change",event=>{
 });
 document.querySelectorAll("#nav button").forEach(btn=>btn.addEventListener("click",()=>{
  document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b===btn));
- ["overview","clients","analytics","pedTracking","nutrition","foodDiary","training","progress","checkins","messages","updates"].forEach(v=>$(v+"View").classList.toggle("hidden",v!==btn.dataset.view));
+ ["overview","clients","analytics","pedTracking","nutrition","foodDiary","training","progress","checkins","messages","updates","guide"].forEach(v=>$(v+"View").classList.toggle("hidden",v!==btn.dataset.view));
  if(btn.dataset.view==="pedTracking"&&currentUser){
   if(currentRole==="coach")loadCoachPedClientOptions();
   else loadPedRecords(currentUser.uid,"client");
