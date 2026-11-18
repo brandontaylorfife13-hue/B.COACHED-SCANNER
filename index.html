@@ -2413,8 +2413,8 @@ async function loadClientMealPlan(){
      consumed.push({id:"plan_"+mi+"_"+fi,meal:meal.name||"Meal "+(mi+1),name:food.name||"Food item",calories:m.calories,proteinG:m.proteinG,carbsG:m.carbsG,fatsG:m.fatsG,fromMealPlan:true});
     });
    });
-   clientMealConsumed=consumed;
-   const loggedNow=foodEntries.concat(consumed).reduce((sum,item)=>sum+(Number(item.calories)||0),0);
+   clientMealConsumed=clientMealPlanMode==="plan"?consumed:[];
+   const loggedNow=foodEntries.concat(clientMealConsumed).reduce((sum,item)=>sum+(Number(item.calories)||0),0);
    const targetData=nutritionTargets||{},highDays=Array.isArray(targetData.highDays)?targetData.highDays:[];
    const selectedDay=new Date(date+"T12:00:00").toLocaleDateString("en-US",{weekday:"long"});
    const dayTargets=highDays.length?(highDays.includes(selectedDay)?targetData.highDay:targetData.lowDay):null;
