@@ -552,7 +552,16 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
     <section id="clientPedCard" class="tile hidden" style="margin:14px 0 18px;min-height:0;padding:15px">
    <div class="eyebrow">PERSONAL HEALTH RECORD</div>
    <div class="section-title" style="margin-top:6px">PED injection record</div>
-   <p class="muted">A private record of entries shared by you and your coach. This is for recordkeeping only, not medical advice.</p>
+   <p class="muted">Add your own injection records here and review the history shared with your coach. This is for recordkeeping only, not medical advice.</p>
+   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-top:12px">
+    <div><label for="clientPedDate">Injection date</label><input id="clientPedDate" type="date"></div>
+    <div><label for="clientPedCompound">Compound recorded</label><select id="clientPedCompound" class="training-select"><option value="">Select compound</option><option>Testosterone</option><option>Nandrolone</option><option>Boldenone</option><option>Trenbolone</option><option>Drostanolone</option><option>Methenolone</option><option>Stanozolol</option><option>Oxandrolone</option><option>Other / not listed</option></select></div>
+    <div><label for="clientPedSite">Injection site recorded</label><select id="clientPedSite" class="training-select"><option value="">Select site</option><option>Left glute</option><option>Right glute</option><option>Left ventrogluteal</option><option>Right ventrogluteal</option><option>Left thigh</option><option>Right thigh</option><option>Left deltoid</option><option>Right deltoid</option><option>Other / not recorded</option></select></div>
+   </div>
+   <div id="clientPedOtherWrap" class="hidden" style="margin-top:10px"><label for="clientPedOther">Other compound</label><input id="clientPedOther" maxlength="80" placeholder="Enter compound name"></div>
+   <button id="saveClientPedRecord" style="width:100%;margin-top:12px">SAVE MY INJECTION RECORD</button>
+   <div id="clientPedRecordStatus" class="status" role="status"></div>
+   <div class="section-title" style="margin-top:18px">My recorded history</div>
    <div id="clientPedRecords" class="muted">Loading records…</div>
   </section>
  </section>
@@ -1852,6 +1861,21 @@ async function loadPedRecords(uid,view){
   });
  }catch(error){host.textContent="Could not load PED records: "+error.message;}
 }
+$("clientPedCompound")?.addEventListener("change",()=> $("clientPedOtherWrap")?.classList.toggle("hidden",$("clientPedCompound").value!=="Other / not listed"));
+$("saveClientPedRecord")?.addEventListener("click",async()=>{
+ if(currentRole==="coach"||!currentUser?.uid)return;
+ const date=$("clientPedDate").value,compound=$("clientPedCompound").value,site=$("clientPedSite").value;
+ const finalCompound=compound==="Other / not listed"?$("clientPedOther").value.trim():compound;
+ if(!date||!finalCompound||!site){$("clientPedRecordStatus").textContent="Please complete the date, compound and injection site.";return;}
+ const button=$("saveClientPedRecord");button.disabled=true;$("clientPedRecordStatus").textContent="Saving your record…";
+ try{
+  await addDoc(collection(db,"users",currentUser.uid,"pedRecords"),{date,compound:finalCompound,site,createdAt:serverTimestamp(),recordedBy:currentUser.uid,recordedByRole:"client"});
+  $("clientPedDate").value="";$("clientPedCompound").value="";$("clientPedSite").value="";$("clientPedOther").value="";$("clientPedOtherWrap").classList.add("hidden");
+  $("clientPedRecordStatus").textContent="Your injection record has been saved.";
+  await loadPedRecords(currentUser.uid,"client");
+ }catch(error){$("clientPedRecordStatus").textContent="Could not save your record: "+error.message;}
+ finally{button.disabled=false;}
+});
 $("pedCompound")?.addEventListener("change",()=> $("pedOtherWrap")?.classList.toggle("hidden",$("pedCompound").value!=="Other / not listed"));
 $("savePedRecord")?.addEventListener("click",async()=>{
  if(currentRole!=="coach"||!$("pedClientSelect")?.value)return;
