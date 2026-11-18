@@ -2309,7 +2309,31 @@ async function loadClientMealPlan(){
    host.append(block);
   });
   const total=document.createElement("div");total.className="tile";total.id="clientPlanTotals";host.prepend(total);
-  const save=document.createElement("button");save.id="saveClientMealChoices";save.textContent="SAVE MY MEAL CHOICES";save.style.width="100%";save.style.marginTop="12px";host.append(save);
+  const save=document.createElement("button");save.id="saveClientMealChoices";save.textContent="SAVE NOW";save.style.width="100%";save.style.marginTop="12px";host.append(save);
+  const saveStatus=document.createElement("div");saveStatus.className="muted";saveStatus.setAttribute("role","status");saveStatus.setAttribute("aria-live","polite");saveStatus.style.cssText="text-align:center;margin-top:6px;font-size:12px";saveStatus.textContent="Changes save automatically";host.append(saveStatus);
+  let saveTimer=null,saveInProgress=false,saveAgain=false,autosaveReady=false;
+  const persistClientMealChoices=async()=>{
+   if(saveInProgress){saveAgain=true;return;}
+   saveInProgress=true;save.disabled=true;saveStatus.textContent="Saving your changes…";save.textContent="SAVING…";
+   try{
+    const map={},custom={};
+    host.querySelectorAll("[data-client-meal]").forEach(x=>map[x.dataset.clientMeal]=Number(x.value));
+    const eatenMap={};host.querySelectorAll("[data-meal-eaten]").forEach(x=>eatenMap[x.dataset.mealEaten]=x.checked);
+    const selections=plan.map((meal,mi)=>{
+     const foods=editedFoods[String(mi)]?.foods||[];
+     custom[String(mi)]={optionIndex:map[mi],foods:foods.map(f=>({...f}))};
+     return {meal:meal.name||("Meal "+(mi+1)),option:(meal.options?.[map[mi]]?.name)||"Option",foods:foods.map(f=>({name:f.name||"",grams:Number(f.grams)||0})),...optionMacros({foods})};
+    });
+    await setDoc(doc(db,"users",currentUser.uid,"mealPlanSelections",date),{date,dayType:type,selectionMap:map,customFoods:custom,eatenMeals:eatenMap,choices:selections,updatedAt:serverTimestamp()},{merge:true});
+    clientMealSelections=map;saveStatus.textContent="All changes saved ✓";save.textContent="SAVE NOW";
+   }catch(e){saveStatus.textContent="Could not save · tap RETRY SAVE";save.textContent="RETRY SAVE";console.error("Client meal plan autosave failed:",e);}
+   finally{saveInProgress=false;save.disabled=false;if(saveAgain){saveAgain=false;scheduleClientMealSave();}}
+  };
+  const scheduleClientMealSave=()=>{
+   if(saveTimer)clearTimeout(saveTimer);
+   saveStatus.textContent="Changes pending…";
+   saveTimer=setTimeout(()=>{saveTimer=null;persistClientMealChoices();},800);
+  };
   const update=()=>{
    const map={},consumed=[];
    host.querySelectorAll("[data-client-meal]").forEach(x=>map[x.dataset.clientMeal]=Number(x.value));
@@ -2369,6 +2393,7 @@ async function loadClientMealPlan(){
    const progressCaption="DAILY CALORIE PROGRESS";
    total.innerHTML=nutritionPlanVisual(daily,mealRows,"YOUR SELECTED MEAL PLAN",progress,progressCaption);
    renderFoodDiary();
+   if(autosaveReady)scheduleClientMealSave();
   };
   host.querySelectorAll("[data-client-meal]").forEach(x=>x.addEventListener("change",update));
   host.querySelectorAll("[data-meal-eaten]").forEach(x=>x.addEventListener("change",async()=>{
@@ -2380,22 +2405,10 @@ async function loadClientMealPlan(){
    catch(e){x.checked=!x.checked;update();if(label)label.textContent="Could not save · try again";$("foodDiaryEntries").textContent="Could not save meal status: "+e.message;}
   }));
   update();
-  save.addEventListener("click",async()=>{
-   save.disabled=true;
-   try{
-    const map={},custom={};
-    host.querySelectorAll("[data-client-meal]").forEach(x=>map[x.dataset.clientMeal]=Number(x.value));
-    const eatenMap={};host.querySelectorAll("[data-meal-eaten]").forEach(x=>eatenMap[x.dataset.mealEaten]=x.checked);
-    const selections=plan.map((meal,mi)=>{
-     const foods=editedFoods[String(mi)]?.foods||[];
-     custom[String(mi)]={optionIndex:map[mi],foods:foods.map(f=>({...f}))};
-     const o={foods};
-     return {meal:meal.name||"Meal "+(mi+1),option:(meal.options?.[map[mi]]?.name)||"Option",foods:foods.map(f=>({name:f.name||"",grams:Number(f.grams)||0})),...optionMacros(o)};
-    });
-    await setDoc(doc(db,"users",currentUser.uid,"mealPlanSelections",date),{date,dayType:type,selectionMap:map,customFoods:custom,eatenMeals:eatenMap,choices:selections,updatedAt:serverTimestamp()},{merge:true});
-    clientMealSelections=map;save.textContent="SAVED ✓";
-   }catch(e){save.textContent="SAVE FAILED: "+e.message;}
-   finally{save.disabled=false;}
+  autosaveReady=true;
+  save.addEventListener("click",()=>{
+   if(saveTimer){clearTimeout(saveTimer);saveTimer=null;}
+   persistClientMealChoices();
   });
  }catch(e){host.textContent="Could not load your meal plan: "+e.message;}
 }
