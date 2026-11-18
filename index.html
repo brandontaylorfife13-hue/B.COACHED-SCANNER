@@ -2309,32 +2309,8 @@ async function loadClientMealPlan(){
    host.append(block);
   });
   const total=document.createElement("div");total.className="tile";total.id="clientPlanTotals";host.prepend(total);
-  const save=document.createElement("button");save.id="saveClientMealChoices";save.textContent="SAVE NOW";save.style.width="100%";save.style.marginTop="12px";host.append(save);
-   const saveStatus=document.createElement("div");saveStatus.className="muted";saveStatus.setAttribute("role","status");saveStatus.setAttribute("aria-live","polite");saveStatus.style.cssText="text-align:center;margin-top:6px;font-size:12px";saveStatus.textContent="Changes save automatically";host.append(saveStatus);
-   let saveTimer=null,saveInProgress=false,saveAgain=false;
-   const persistClientMealChoices=async()=>{
-    if(saveInProgress){saveAgain=true;return;}
-    saveInProgress=true;save.disabled=true;saveStatus.textContent="Saving your changes…";save.textContent="SAVING…";
-    try{
-     const map={},custom={};
-     host.querySelectorAll("[data-client-meal]").forEach(x=>map[x.dataset.clientMeal]=Number(x.value));
-     const eatenMap={};host.querySelectorAll("[data-meal-eaten]").forEach(x=>eatenMap[x.dataset.mealEaten]=x.checked);
-     const selections=plan.map((meal,mi)=>{
-      const foods=editedFoods[String(mi)]?.foods||[];
-      custom[String(mi)]={optionIndex:map[mi],foods:foods.map(f=>({...f}))};
-      return {meal:meal.name||("Meal "+(mi+1)),option:(meal.options?.[map[mi]]?.name)||"Option",foods:foods.map(f=>({name:f.name||"",grams:Number(f.grams)||0})),...optionMacros({foods})};
-     });
-     await setDoc(doc(db,"users",currentUser.uid,"mealPlanSelections",date),{date,dayType:type,selectionMap:map,customFoods:custom,eatenMeals:eatenMap,choices:selections,updatedAt:serverTimestamp()},{merge:true});
-     clientMealSelections=map;saveStatus.textContent="All changes saved ✓";save.textContent="SAVE NOW";
-    }catch(e){saveStatus.textContent="Could not save · tap SAVE NOW to retry";save.textContent="RETRY SAVE";}
-    finally{saveInProgress=false;save.disabled=false;if(saveAgain){saveAgain=false;scheduleClientMealSave();}}
-   };
-   const scheduleClientMealSave=()=>{
-    if(saveTimer)clearTimeout(saveTimer);
-    saveStatus.textContent="Changes pending…";
-    saveTimer=setTimeout(()=>{saveTimer=null;persistClientMealChoices();},650);
-   };
-   const update=()=>{
+  const save=document.createElement("button");save.id="saveClientMealChoices";save.textContent="SAVE MY MEAL CHOICES";save.style.width="100%";save.style.marginTop="12px";host.append(save);
+  const update=()=>{
    const map={},consumed=[];
    host.querySelectorAll("[data-client-meal]").forEach(x=>map[x.dataset.clientMeal]=Number(x.value));
    let daily={calories:0,proteinG:0,carbsG:0,fatsG:0},mealRows=[];
@@ -2393,7 +2369,6 @@ async function loadClientMealPlan(){
    const progressCaption="DAILY CALORIE PROGRESS";
    total.innerHTML=nutritionPlanVisual(daily,mealRows,"YOUR SELECTED MEAL PLAN",progress,progressCaption);
    renderFoodDiary();
-   scheduleClientMealSave();
   };
   host.querySelectorAll("[data-client-meal]").forEach(x=>x.addEventListener("change",update));
   host.querySelectorAll("[data-meal-eaten]").forEach(x=>x.addEventListener("change",async()=>{
@@ -2405,9 +2380,478 @@ async function loadClientMealPlan(){
    catch(e){x.checked=!x.checked;update();if(label)label.textContent="Could not save · try again";$("foodDiaryEntries").textContent="Could not save meal status: "+e.message;}
   }));
   update();
-  save.addEventListener("click",()=>{
-   if(saveTimer){clearTimeout(saveTimer);saveTimer=null;}
-   persistClientMealChoices();
+  save.addEventListener("click",async()=>{
+   save.disabled=true;
+   try{
+    const map={},custom={};
+    host.querySelectorAll("[data-client-meal]").forEach(x=>map[x.dataset.clientMeal]=Number(x.value));
+    const eatenMap={};host.querySelectorAll("[data-meal-eaten]").forEach(x=>eatenMap[x.dataset.mealEaten]=x.checked);
+    const selections=plan.map((meal,mi)=>{
+     const foods=editedFoods[String(mi)]?.foods||[];
+     custom[String(mi)]={optionIndex:map[mi],foods:foods.map(f=>({...f}))};
+     const o={foods};
+     return {meal:meal.name||"Meal "+(mi+1),option:(meal.options?.[map[mi]]?.name)||"Option",foods:foods.map(f=>({name:f.name||"",grams:Number(f.grams)||0})),...optionMacros(o)};
+    });
+    await setDoc(doc(db,"users",currentUser.uid,"mealPlanSelections",date),{date,dayType:type,selectionMap:map,customFoods:custom,eatenMeals:eatenMap,choices:selections,updatedAt:serverTimestamp()},{merge:true});
+    clientMealSelections=map;save.textContent="SAVED ✓";
+   }catch(e){save.textContent="SAVE FAILED: "+e.message;}
+   finally{save.disabled=false;}
+  });
+ }catch(e){host.textContent="Could not load your meal plan: "+e.message;}
+}
+function openCoachPlanDay(type){
+ coachPlanType=type;
+ if(!Array.isArray(coachMealPlan[type])||coachMealPlan[type].length===0){
+  coachMealPlan[type]=[{name:"Meal 1",options:[{name:"Option A",foods:[{name:"",grams:100,calories100:0,protein100:0,carbs100:0,fats100:0}]}]}];
+ }
+ $("coachPlanHigh").classList.toggle("active",type==="highDay");
+ $("coachPlanLow").classList.toggle("active",type==="lowDay");
+ renderCoachMealPlan();
+ refreshCoachPlanInputs();
+ $("mealPlanCoachStatus").textContent=type==="highDay"?"High-day meal plan ready to edit.":"Low-day meal plan ready to edit.";
+}
+$("coachPlanHigh").addEventListener("click",()=>openCoachPlanDay("highDay"));
+$("coachPlanLow").addEventListener("click",()=>openCoachPlanDay("lowDay"));
+$("saveMealPlan").addEventListener("click",saveCoachMealPlan);
+$("coachPlanReviewDate").value=localDateString();$("coachPlanReviewDate").addEventListener("change",loadCoachMealPlanReview);
+
+let foodEntries=[];
+let nutritionTargets=null;
+let clientMealConsumed=[];
+function renderFoodDiary(){
+ const combinedEntries=foodEntries.concat(clientMealConsumed);
+ const totals=combinedEntries.reduce((a,x)=>({calories:a.calories+(Number(x.calories)||0),protein:a.protein+(Number(x.proteinG)||0),carbs:a.carbs+(Number(x.carbsG)||0),fats:a.fats+(Number(x.fatsG)||0)}),{calories:0,protein:0,carbs:0,fats:0});
+ $("foodTotalCalories").textContent=Math.round(totals.calories).toLocaleString();
+ $("foodTotalProtein").textContent=totals.protein.toFixed(1)+"g";
+ $("foodTotalCarbs").textContent=totals.carbs.toFixed(1)+"g";
+ $("foodTotalFats").textContent=totals.fats.toFixed(1)+"g";
+ const targetHost=$("foodTargetSummary");
+ const selectedDate=$("foodDate").value||localDateString();
+ const targetData=nutritionTargets||{};
+ const highDays=Array.isArray(targetData.highDays)?targetData.highDays:[];
+ const dayName=new Date(selectedDate+"T12:00:00").toLocaleDateString("en-US",{weekday:"long"});
+ const targetSet=highDays.length?(highDays.includes(dayName)?targetData.highDay:targetData.lowDay):null;
+ if(!targetSet||["calories","proteinG","carbsG","fatsG"].every(k=>targetSet[k]==null)){
+  targetHost.textContent=highDays.length?"Your coach has not entered targets for this day type yet.":"Your coach has not assigned a weekly target schedule yet.";
+ }else{
+  targetHost.replaceChildren();
+  const names=[["Calories","calories","kcal",totals.calories],["Protein","proteinG","g",totals.protein],["Carbs","carbsG","g",totals.carbs],["Fats","fatsG","g",totals.fats]];
+  names.forEach(([label,key,unit,eaten])=>{
+   const target=targetSet[key];
+   const line=document.createElement("div");line.style.display="flex";line.style.justifyContent="space-between";line.style.gap="10px";line.style.padding="7px 0";line.style.borderBottom="1px solid #343b2c";
+   const left=document.createElement("span");left.textContent=label;
+   const right=document.createElement("strong");right.style.fontSize="13px";
+   if(target==null){right.textContent="Target not set";}
+   else{const remaining=Number(target)-eaten;right.textContent=Math.round(eaten*10)/10+" / "+Number(target)+unit+" · "+(remaining>=0?Math.round(remaining*10)/10+" left":Math.round(Math.abs(remaining)*10)/10+" over");}
+   line.append(left,right);targetHost.append(line);
+  });
+  const dayLabel=document.createElement("div");dayLabel.className="muted";dayLabel.style.marginTop="8px";dayLabel.textContent=(highDays.includes(dayName)?"High day":"Low day")+" · "+dayName;targetHost.append(dayLabel);
+ }
+ const host=$("foodDiaryEntries");host.innerHTML="";
+ if(!foodEntries.length){host.textContent="No food logged for this date yet.";return;}
+ foodEntries.forEach(item=>{
+  const row=document.createElement("div");row.className="tile";row.style.marginBottom="9px";
+  const title=document.createElement("b");title.textContent=(item.meal?item.meal+" · ":"")+item.name;
+  const detail=document.createElement("div");detail.className="muted";detail.textContent=Math.round(Number(item.calories)||0)+" kcal · P "+(Number(item.proteinG)||0)+"g · C "+(Number(item.carbsG)||0)+"g · F "+(Number(item.fatsG)||0)+"g";
+  row.append(title,detail);host.append(row);
+ });
+}
+async function loadFoodDiary(){
+ if(!currentUser||currentRole==="coach")return;
+ const date=$("foodDate").value||localDateString();
+ try{
+  const snap=await getDocs(collection(db,"users",currentUser.uid,"foodLogs",date,"entries"));
+  foodEntries=snap.docs.map(d=>({id:d.id,...d.data()}));
+  renderFoodDiary();
+  await loadClientMealPlan();
+ }catch(e){$("foodDiaryEntries").textContent="Could not load food diary: "+e.message;}
+}
+
+// Camera barcode scanning (works in camera-enabled Safari/Chrome over HTTPS)
+let barcodeReader=null,barcodeControls=null;
+$("startBarcodeScan").addEventListener("click",async()=>{
+ try{
+  if(!navigator.mediaDevices?.getUserMedia)throw new Error("Camera access requires HTTPS and a supported browser.");
+  $("barcodeScanner").classList.remove("hidden");$("barcodeStatus").textContent="Starting camera…";
+  barcodeReader=barcodeReader||new BrowserMultiFormatReader();
+  barcodeControls=await barcodeReader.decodeFromVideoDevice(undefined,$("barcodeVideo"),(result,error,controls)=>{
+   if(result){const code=result.getText();$("foodBarcode").value=code;$("barcodeStatus").textContent="Barcode scanned. Looking up product…";controls?.stop();$("barcodeScanner").classList.add("hidden");$("lookupBarcode").click();}
+  });
+  $("barcodeStatus").textContent="Camera active. Hold the barcode steady inside the camera view.";
+ }catch(e){$("barcodeStatus").textContent="Could not start scanner: "+e.message+" You can still enter the barcode manually.";$("barcodeScanner").classList.add("hidden");}
+});
+$("stopBarcodeScan").addEventListener("click",()=>{if(barcodeControls){barcodeControls.stop();barcodeControls=null;}if(barcodeReader){barcodeReader.reset();} $("barcodeScanner").classList.add("hidden");$("barcodeStatus").textContent="Scanner stopped.";});
+
+$("lookupBarcode").addEventListener("click",async()=>{
+ const code=$("foodBarcode").value.replace(/\D/g,"");
+ $("foodBarcode").value=code;
+ if(!/^\d{8,14}$/.test(code)){$("barcodeStatus").textContent="Enter a barcode containing 8–14 digits. The number entered has "+code.length+" digits.";return;}
+ $("lookupBarcode").disabled=true;$("barcodeStatus").textContent="Searching food database…";
+ try{
+  const response=await fetch("https://world.openfoodfacts.org/api/v2/product/"+encodeURIComponent(code)+".json");
+  if(!response.ok)throw new Error("Food database request failed.");
+  const result=await response.json();
+  if(result.status!==1||!result.product)throw new Error("Product not found. Enter the food manually instead.");
+  const p=result.product,n=p.nutriments||{};
+  $("foodName").value=p.product_name||p.product_name_en||"";
+  $("foodCalories").value=n["energy-kcal_100g"]??(n["energy_100g"]?Math.round(n["energy_100g"]/4.184):"");
+  $("foodProtein").value=n.proteins_100g??"";
+  $("foodCarbs").value=n.carbohydrates_100g??"";
+  $("foodFats").value=n.fat_100g??"";
+  $("barcodeStatus").textContent="Found "+($("foodName").value||"product")+". Values are per 100g; adjust them to your portion before adding.";
+ }catch(e){$("barcodeStatus").textContent=e.message;}
+ finally{$("lookupBarcode").disabled=false;}
+});
+$("addFoodBtn").addEventListener("click",async()=>{
+ if(!currentUser||currentRole==="coach")return;
+ const name=$("foodName").value.trim();
+ if(!name){$("foodStatus").textContent="Enter a food name first.";return;}
+ const ids=["foodCalories","foodProtein","foodCarbs","foodFats"];
+ for(const id of ids){const v=$(id).value.trim();if(v===""||!Number.isFinite(Number(v))||Number(v)<0){$("foodStatus").textContent="Enter valid non-negative values for all macros.";return;}}
+ $("addFoodBtn").disabled=true;$("foodStatus").textContent="Saving food…";
+ try{
+  const date=$("foodDate").value||localDateString();
+  await setDoc(doc(collection(db,"users",currentUser.uid,"foodLogs",date,"entries")) ,{
+   name,meal:$("foodMeal").value.trim(),calories:Number($("foodCalories").value),proteinG:Number($("foodProtein").value),carbsG:Number($("foodCarbs").value),fatsG:Number($("foodFats").value),createdAt:serverTimestamp()
+  });
+  $("foodStatus").textContent="Added to your food diary.";
+  ["foodName","foodCalories","foodProtein","foodCarbs","foodFats","foodMeal","foodBarcode"].forEach(id=>$(id).value="");$("foodGrams").value="100";
+  await loadFoodDiary();
+ }catch(e){$("foodStatus").textContent="Could not save food: "+e.message;}
+ finally{$("addFoodBtn").disabled=false;}
+});
+$("foodDate").addEventListener("change",loadFoodDiary);
+async function loadClientFourWeekReview(){
+ if(!currentUser||currentRole==="coach")return;
+ const ids=["client4WeekCheckins","client4WeekFoodDays","client4WeekTraining","client4WeekWeight","client4WeekRows"];
+ ids.forEach(id=>{const el=$(id);if(el)el.textContent="Loading…";});
+ try{
+  const now=new Date();now.setHours(0,0,0,0);
+  const start=new Date(now);start.setDate(start.getDate()-27);
+  const dates=Array.from({length:28},(_,i)=>{const d=new Date(start);d.setDate(start.getDate()+i);return localDateKey(d);});
+  const [checksSnap,sessionsSnap,weightsSnap,foodSnaps]=await Promise.all([
+   getDocs(collection(db,"users",currentUser.uid,"weeklyCheckins")),
+   getDocs(collection(db,"users",currentUser.uid,"trainingSessions")),
+   getDocs(collection(db,"users",currentUser.uid,"weights")),
+   Promise.all(dates.map(date=>getDocs(collection(db,"users",currentUser.uid,"foodLogs",date,"entries"))))
+  ]);
+  const checks=checksSnap.docs.map(d=>({id:d.id,...d.data()})).filter(x=>{const date=x.weekEnding||x.id;return date>=dates[0]&&date<=dates[27];});
+  const sessions=sessionsSnap.docs.map(d=>({id:d.id,...d.data()})).filter(x=>{const date=x.date||x.id.slice(0,10);return date>=dates[0]&&date<=dates[27]&&(x.completedAt||x.autoSaved===false||x.status==="completed");});
+  const weights=weightsSnap.docs.map(d=>({date:d.id,...d.data()})).map(x=>({...x,value:Number(x.weightKg??x.weight)})).filter(x=>x.date>=dates[0]&&x.date<=dates[27]&&Number.isFinite(x.value)&&x.value>0).sort((a,b)=>a.date.localeCompare(b.date));
+  const logged=foodSnaps.map((snap,i)=>({date:dates[i],entries:snap.size})).filter(x=>x.entries>0);
+  $("client4WeekCheckins").textContent=String(checks.length);
+  $("client4WeekFoodDays").textContent=logged.length+" / 28";
+  $("client4WeekTraining").textContent=String(sessions.length);
+  const delta=weights.length>1?weights[weights.length-1].value-weights[0].value:null;
+  $("client4WeekWeight").textContent=delta===null?"—":(delta>0?"+":"")+delta.toFixed(1)+" kg";
+  const host=$("client4WeekRows");host.replaceChildren();
+  for(let w=0;w<4;w++){
+   const from=dates[w*7],to=dates[w*7+6];
+   const weekSessions=sessions.filter(x=>{const d=x.date||x.id.slice(0,10);return d>=from&&d<=to;}).length;
+   const weekFood=logged.filter(x=>x.date>=from&&x.date<=to).length;
+   const weekChecks=checks.filter(x=>{const d=x.weekEnding||x.id;return d>=from&&d<=to;}).length;
+   const row=document.createElement("div");row.className="tile";row.style.cssText="min-height:0;margin:7px 0;padding:10px";
+   const title=document.createElement("strong");title.textContent="Week "+(w+1)+" · "+new Date(from+"T12:00:00").toLocaleDateString(undefined,{day:"numeric",month:"short"})+" – "+new Date(to+"T12:00:00").toLocaleDateString(undefined,{day:"numeric",month:"short"});
+   const detail=document.createElement("div");detail.className="muted";detail.style.marginTop="6px";detail.textContent=weekChecks+" check-in(s) · "+weekFood+"/7 food diary days · "+weekSessions+" completed workout(s)";
+   row.append(title,detail);host.append(row);
+  }
+  $("client4WeekStatus").textContent="Diary consistency means days with at least one food entry, not proof that every meal was logged. Training counts completed sessions only.";
+ }catch(e){
+  console.error("Four-week client review failed:",e);
+  $("client4WeekRows").textContent="Could not load your four-week review: "+e.message;
+  $("client4WeekStatus").textContent="Your existing records have not been changed.";
+ }
+}
+async function loadClientGoalDashboard(){
+ if(!currentUser||currentRole==="coach")return;
+ const panel=$("clientGoalDashboard");panel.classList.remove("hidden");
+ try{
+  const [detailsSnap,weightsSnap,checksSnap,sessionsSnap]=await Promise.all([
+   getDoc(doc(db,"users",currentUser.uid,"profile","details")),
+   getDocs(collection(db,"users",currentUser.uid,"weights")),
+   getDocs(collection(db,"users",currentUser.uid,"weeklyCheckins")),
+   getDocs(collection(db,"users",currentUser.uid,"trainingSessions"))
+  ]);
+  const d=detailsSnap.exists()?detailsSnap.data():{};
+  const weights=weightsSnap.docs.map(x=>({date:x.id,...x.data()})).filter(x=>Number(x.weightKg??x.weight)>0).sort((a,b)=>a.date.localeCompare(b.date));
+  const latest=weights[weights.length-1],current=latest?Number(latest.weightKg??latest.weight):Number(d.currentWeightKg)||null;
+  const start=Number(d.startingWeightKg)||null,goal=Number(d.goalWeightKg)||null;
+  $("clientDashGoal").textContent=d.primaryGoal||"Your coach hasn't added a main goal yet";
+  $("clientDashGoalDate").textContent=d.goalTargetDate?"Target date: "+new Date(d.goalTargetDate+"T12:00:00").toLocaleDateString():"No target date set";
+  $("clientDashGoalStatus").textContent=d.goalStatus||"Status not set";
+  if(start&&goal&&current!==null&&start!==goal){
+   const pct=Math.max(0,Math.min(100,((current-start)/(goal-start))*100));
+   $("clientDashGoalBar").style.width=pct.toFixed(1)+"%";
+   $("clientDashGoalProgress").textContent=current.toFixed(1)+" kg currently · "+goal.toFixed(1)+" kg target · "+pct.toFixed(0)+"% of the weight change completed";
+  }else{
+   $("clientDashGoalBar").style.width="0%";
+   $("clientDashGoalProgress").textContent="Your coach can add starting and target weights to show weight-goal progress here.";
+  }
+  $("clientDashMilestone").textContent=d.nextMilestone||"No milestone set yet";
+  $("clientDashMilestoneDate").textContent=d.milestoneTargetDate?"Target: "+new Date(d.milestoneTargetDate+"T12:00:00").toLocaleDateString():"Ask your coach to set your next milestone";
+  const checks=checksSnap.docs.map(x=>({id:x.id,...x.data()})).sort((a,b)=>(b.weekEnding||b.id).localeCompare(a.weekEnding||a.id));
+  const latestCheck=checks[0],checkDate=latestCheck?.weekEnding||latestCheck?.id||"";
+  $("clientDashCheckin").textContent=checkDate?new Date(checkDate+"T12:00:00").toLocaleDateString():"Not submitted";
+  const checkAge=checkDate?Date.now()-new Date(checkDate+"T23:59:59").getTime():Infinity;
+  const reminder=$("clientCheckinReminder");
+  const due=(!checkDate||checkAge>=7*86400000)&&window.clientReminderPreferences?.checkin!==false;
+  reminder.classList.toggle("hidden",!due);
+  $("clientCheckinReminderTitle").textContent=!checkDate?"Your first weekly check-in is due":"Your weekly check-in is due";
+  $("clientCheckinReminderText").textContent=!checkDate?"Your coach is waiting for your first update. Complete your check-in to keep your coaching plan up to date.":"It's been "+Math.floor(checkAge/86400000)+" days since your last check-in. Send your coach an update when you're ready.";
+  $("clientDashCheckinNote").textContent=checkDate&&checkAge<7*86400000?"Recent weekly update":"Your weekly update is due";
+
+  const monday=new Date();monday.setHours(0,0,0,0);monday.setDate(monday.getDate()-((monday.getDay()+6)%7));
+  const sessions=sessionsSnap.docs.map(x=>({id:x.id,...x.data()}));
+  $("clientDashWorkouts").textContent=String(sessions.filter(x=>new Date((x.date||x.id.slice(0,10))+"T12:00:00")>=monday).length);
+ }catch(e){
+  $("clientDashGoal").textContent="Your coaching goals couldn't be loaded";
+  $("clientDashGoalProgress").textContent=e.message;
+ }
+}
+async function loadNutritionTargets(coachEditing=false){
+ const uid=coachEditing?selectedClient?.uid:currentUser?.uid;
+ if(!uid)return;
+ try{
+  const snap=await getDoc(doc(db,"users",uid,"nutrition","targets"));
+  const d=snap.exists()?snap.data():{};
+  if(!coachEditing){nutritionTargets=d; if(typeof renderFoodDiary==="function"&&foodEntries)renderFoodDiary();}
+  const high=d.highDay||{calories:d.calories,proteinG:d.proteinG,carbsG:d.carbsG,fatsG:d.fatsG};
+  const low=d.lowDay||{};
+  if(coachEditing){
+   fillMacroInputs("high",high);
+   fillMacroInputs("low",low);
+   $("nutritionCoachNotes").value=d.notes||"";
+   const storedHighDays=Array.isArray(d.highDays)?d.highDays:[];
+   document.querySelectorAll(".highDayCheckbox").forEach(cb=>{cb.checked=storedHighDays.includes(cb.value);});
+   $("nutritionTargetStatus").textContent=snap.exists()
+    ?"Loaded schedule for "+(selectedClient?.displayName||"client")+" · "+(storedHighDays.length?storedHighDays.join(", "):"No high days stored")+" · ID "+uid
+    :"No nutrition targets document found for this client · ID "+uid;
+  }else{
+   displayMacroSet("high",high);
+   displayMacroSet("low",low);
+   $("dashHighCalories").textContent=high.calories==null?"—":Number(high.calories).toLocaleString();
+   $("dashHighProtein").textContent=high.proteinG??"—";
+   $("dashHighCarbs").textContent=high.carbsG??"—";
+   $("dashHighFats").textContent=high.fatsG??"—";
+   $("dashLowCalories").textContent=low.calories==null?"—":Number(low.calories).toLocaleString();
+   $("dashLowProtein").textContent=low.proteinG??"—";
+   $("dashLowCarbs").textContent=low.carbsG??"—";
+   $("dashLowFats").textContent=low.fatsG??"—";
+   const hasTargets=high.calories!=null||low.calories!=null;
+   $("dashboardMacros").classList.toggle("hidden",!hasTargets);
+   $("nutritionNotesDisplay").textContent=d.notes||"";
+   const highDays=Array.isArray(d.highDays)?d.highDays:[];
+   const week=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+   $("nutritionScheduleDisplay").textContent=highDays.length?("High days: "+week.filter(x=>highDays.includes(x)).join(", ")+" · Low days: "+week.filter(x=>!highDays.includes(x)).join(", ")):"Your coach has not assigned your high and low days yet.";
+  }
+ }catch(e){
+  if(coachEditing)$("nutritionTargetStatus").textContent="Could not load nutrition targets: "+e.message;
+  else $("nutritionNotesDisplay").textContent="Unable to load nutrition targets: "+e.message;
+ }
+}
+$("saveNutritionTargets").addEventListener("click",async()=>{
+ if(!selectedClient?.uid)return;
+ const groups=[["highCalories","highProtein","highCarbs","highFats"],["lowCalories","lowProtein","lowCarbs","lowFats"]];
+ for(const group of groups)for(const id of group){
+  const value=$(id).value.trim();
+  if(value!==""&&(!Number.isFinite(Number(value))||Number(value)<0)){
+   $("nutritionTargetStatus").textContent="Enter valid non-negative numbers for all targets.";return;
+  }
+ }
+ $("saveNutritionTargets").disabled=true;$("nutritionTargetStatus").textContent="Saving high and low day targets…";
+ try{
+  const readGroup=ids=>({
+   calories:$(ids[0]).value.trim()===""?null:Number($(ids[0]).value),
+   proteinG:$(ids[1]).value.trim()===""?null:Number($(ids[1]).value),
+   carbsG:$(ids[2]).value.trim()===""?null:Number($(ids[2]).value),
+   fatsG:$(ids[3]).value.trim()===""?null:Number($(ids[3]).value)
+  });
+  const selectedHighDays=Array.from(document.querySelectorAll(".highDayCheckbox:checked")).map(cb=>cb.value);
+  await setDoc(doc(db,"users",selectedClient.uid,"nutrition","targets"),{
+   highDay:readGroup(groups[0]),
+   lowDay:readGroup(groups[1]),
+   highDays:selectedHighDays,
+   notes:$("nutritionCoachNotes").value.trim(),
+   updatedAt:serverTimestamp(),updatedBy:currentUser.uid
+  },{merge:true});
+  const verifyTargets=await getDoc(doc(db,"users",selectedClient.uid,"nutrition","targets"));
+  const savedHighDays=verifyTargets.exists()&&Array.isArray(verifyTargets.data().highDays)?verifyTargets.data().highDays:[];
+  await createClientNotification(selectedClient.uid,"nutrition_targets","Your nutrition targets have been updated","Your coach has updated your calorie and macro targets. Open Nutrition to review your latest targets.");
+  document.querySelectorAll(".highDayCheckbox").forEach(cb=>cb.checked=savedHighDays.includes(cb.value));
+  $("nutritionTargetStatus").textContent="Saved and verified for "+(selectedClient?.displayName||"client")+" · High days: "+(savedHighDays.length?savedHighDays.join(", "):"none selected; all days are low days.")+" · ID "+selectedClient.uid;
+ }catch(e){$("nutritionTargetStatus").textContent="Could not save nutrition targets: "+e.message;}
+ finally{$("saveNutritionTargets").disabled=false;}
+});
+
+
+const exerciseLibrary={
+ "Chest":["Barbell Bench Press","Dumbbell Bench Press","Incline Barbell Press","Incline Dumbbell Press","Flat Machine Press","Incline Machine Press","Chest Press Machine","Smith Machine Bench Press","Cable Fly","Cable Fly with Cuffs","Pec Deck","Weighted Dip","Push-Up"],
+ "Lats":["Lat Pulldown","Neutral-Grip Lat Pulldown","Frontal Plane Lat Pulldown","Single-Arm Cable Pulldown","Straight-Arm Pulldown","Assisted Pull-Up","Weighted Pull-Up","Single-Arm Cable Row","Chest-Supported Lat Row"],
+ "Upper back":["Chest-Supported Row","T-Bar Row","T-Bar Upper Back Row","Seated Cable Row","Wide-Grip Cable Row","Machine High Row","Kelso Shrug","Kelso Shrugs","Reverse Pec Deck"],
+ "Back":["Barbell Row","Pendlay Row","Chest-Supported Row","Seated Cable Row","Machine Row","T-Bar Row","Back Extension"],
+ "Shoulders":["Seated Dumbbell Shoulder Press","Machine Shoulder Press","High/Incline Shoulder Press","Lateral Raise","Cable Lateral Raise","Machine Lateral Raise","Reverse Cable Fly","Rear-Delt Machine Fly","Front Raise"],
+ "Biceps":["Dumbbell Preacher Curl","EZ-Bar Curl","Barbell Curl","Incline Dumbbell Curl","Hammer Curl","Cable Curl","Bayesian Cable Curl","Machine Preacher Curl"],
+ "Triceps":["Cable Pushdown","Rope Pushdown","Straight-Bar Pushdown","Cable Overhead Triceps Extension","Dumbbell Overhead Extension","Skull Crusher","Close-Grip Bench Press","Assisted Dip"],
+ "Quadriceps":["Barbell Squat","Hack Squat","Leg Press","Pendulum Squat","Belt Squat","Leg Extension","Bulgarian Split Squat","Smith Machine Squat"],
+ "Hamstrings":["Seated Hamstring Curl","Lying Hamstring Curl","Unilateral Lying Hamstring Curl","Dumbbell Romanian Deadlift","Barbell Romanian Deadlift","Good Morning","Nordic Curl"],
+ "Glutes":["Hip Thrust","Glute Bridge","Cable Kickback","Smith Machine Glute Bridge","Bulgarian Split Squat","45-Degree Back Extension"],
+ "Calves":["Standing Calf Raise","Seated Calf Raise","Leg Press Calf Raise"],
+ "Abdominals":["Cable Crunch","Machine Crunch","Hanging Knee Raise","Hanging Leg Raise","Reverse Crunch","Ab Wheel"],
+ "Adductors":["Adduction","Adductor Machine","Cable Hip Adduction"],
+ "Abductors":["Abduction","Abductor Machine","Cable Hip Abduction"]
+};
+let coachExerciseFavourites=[],coachExerciseSettingsLoaded=false;
+function exerciseEquipment(name){
+ const n=String(name||"").toLowerCase();
+ if(/smith/.test(n))return "smith";
+ if(/cable|pulldown|pushdown|pec deck cable|bayesian/.test(n))return "cable";
+ if(/dumbbell|db /.test(n))return "dumbbell";
+ if(/barbell|ez-bar|ez bar|olympic/.test(n))return "barbell";
+ if(/bodyweight|push-up|pull-up|pull up|dip|nordic|hanging|ab wheel/.test(n))return "bodyweight";
+ if(/machine|hack squat|leg press|pendulum|belt squat|preacher|adductor|abductor|calf raise|hamstring curl|leg extension|chest press|reverse pec|rear-delt/.test(n))return "machine";
+ return "other";
+}
+function fillExerciseLibrarySelect(select,muscleGroup,equipment="all",favouritesOnly=false){
+ select.replaceChildren();const blank=document.createElement("option");blank.value="";blank.textContent=muscleGroup?"Choose an exercise":"Choose body part first";select.append(blank);
+ let names=(exerciseLibrary[muscleGroup]||[]).slice();
+ if(favouritesOnly)names=names.filter(name=>coachExerciseFavourites.includes(name));
+ if(equipment!=="all")names=names.filter(name=>exerciseEquipment(name)===equipment);
+ coachExerciseFavourites.filter(name=>!names.includes(name)&&!(exerciseLibrary[muscleGroup]||[]).includes(name)).forEach(name=>{if(favouritesOnly&&equipment==="all")names.push(name);});
+ names.forEach(name=>{const option=document.createElement("option");option.value=name;option.textContent=(coachExerciseFavourites.includes(name)?"★ ":"")+name;select.append(option);});
+}
+async function loadCoachExerciseSettings(){
+ if(coachExerciseSettingsLoaded||!currentUser?.uid)return;
+ try{const snap=await getDoc(doc(db,"users",currentUser.uid,"coachSettings","exerciseLibrary"));coachExerciseFavourites=snap.exists()&&Array.isArray(snap.data().favourites)?snap.data().favourites:[];coachExerciseSettingsLoaded=true;}
+ catch(e){console.warn("Could not load saved exercise favourites",e);}
+}
+async function saveCoachExerciseFavourites(){
+ await setDoc(doc(db,"users",currentUser.uid,"coachSettings","exerciseLibrary"),{favourites:coachExerciseFavourites,updatedAt:serverTimestamp()},{merge:true});
+}
+function refreshCoachExerciseOptions(){
+ fillExerciseLibrarySelect($("coachExerciseLibrary"),$("coachExerciseMuscle").value,$("coachExerciseEquipment").value,$("coachExerciseFavouriteOnly").value==="favourites");
+ const selected=$("coachExerciseLibrary").value;
+ $("toggleCoachExerciseFavourite").textContent=selected&&coachExerciseFavourites.includes(selected)?"★ REMOVE FROM FAVOURITES":"☆ SAVE SELECTED AS FAVOURITE";
+}
+
+let coachTrainingProgram={workouts:[]},clientTrainingProgram={workouts:[]},clientTrainingLogs=[],activeClientWorkoutExercises=[];
+function syncCoachWorkoutNames(){
+ $("coachTrainingEditor").querySelectorAll("[data-training-workout-name]").forEach(el=>{
+  const workout=coachTrainingProgram.workouts[Number(el.dataset.trainingWorkoutName)];
+  if(workout)workout.name=el.value.trim()||workout.name;
+ });
+}
+function renderCoachTrainingProgram(){
+ const host=$("coachTrainingEditor");host.replaceChildren();
+ if(!coachTrainingProgram.workouts.length){host.textContent="No workout days added yet.";return;}
+ coachTrainingProgram.workouts.forEach((w,wi)=>{
+  const card=document.createElement("div");card.className="meal-plan-block";
+  const label=document.createElement("div");label.className="eyebrow";label.textContent="WORKOUT "+(wi+1);
+  const name=document.createElement("input");name.value=w.name||"";name.dataset.trainingWorkoutName=wi;name.placeholder="Workout name";card.append(label,name);
+  const dayActions=document.createElement("div");dayActions.className="actions";dayActions.style.margin="8px 0";
+  const duplicate=document.createElement("button");duplicate.type="button";duplicate.className="secondary";duplicate.textContent="DUPLICATE WORKOUT DAY";duplicate.onclick=()=>{syncCoachWorkoutNames();const copy=JSON.parse(JSON.stringify(coachTrainingProgram.workouts[wi]));copy.name=(copy.name||"Workout")+" (Copy)";coachTrainingProgram.workouts.splice(wi+1,0,copy);renderCoachTrainingProgram();$("coachTrainingStatus").textContent="Workout day duplicated. Rename it and save the programme.";};
+  const moveDayUp=document.createElement("button");moveDayUp.type="button";moveDayUp.className="secondary";moveDayUp.textContent="MOVE DAY UP";moveDayUp.disabled=wi===0;moveDayUp.onclick=()=>{syncCoachWorkoutNames();[coachTrainingProgram.workouts[wi-1],coachTrainingProgram.workouts[wi]]=[coachTrainingProgram.workouts[wi],coachTrainingProgram.workouts[wi-1]];renderCoachTrainingProgram();};
+  const moveDayDown=document.createElement("button");moveDayDown.type="button";moveDayDown.className="secondary";moveDayDown.textContent="MOVE DAY DOWN";moveDayDown.disabled=wi===coachTrainingProgram.workouts.length-1;moveDayDown.onclick=()=>{syncCoachWorkoutNames();[coachTrainingProgram.workouts[wi+1],coachTrainingProgram.workouts[wi]]=[coachTrainingProgram.workouts[wi],coachTrainingProgram.workouts[wi+1]];renderCoachTrainingProgram();};
+  dayActions.append(duplicate,moveDayUp,moveDayDown);card.append(dayActions);
+  (w.exercises||[]).forEach((e,ei)=>{
+   const row=document.createElement("div");row.className="training-exercise";row.style.display="flex";row.style.flexWrap="wrap";row.style.alignItems="center";row.style.gap="8px";
+   const details=document.createElement("div");details.style.flex="1 1 150px";
+   const title=document.createElement("strong");title.textContent=e.name;
+   const meta=document.createElement("div");meta.className="muted";meta.textContent=e.muscleGroup+" · "+e.reps+" reps";details.append(title,meta);
+   const controls=document.createElement("div");controls.style.display="flex";controls.style.flexWrap="wrap";controls.style.alignItems="center";controls.style.gap="6px";
+   const setsWrap=document.createElement("label");setsWrap.style.cssText="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700";setsWrap.textContent="SETS";
+   const setsInput=document.createElement("input");setsInput.type="number";setsInput.min="1";setsInput.max="20";setsInput.step="1";setsInput.value=String(Number(e.sets)||1);setsInput.inputMode="numeric";setsInput.setAttribute("aria-label","Working sets for "+e.name);setsInput.style.cssText="width:66px;min-height:40px;padding:7px;border:1px solid var(--line);border-radius:8px;background:#10140d;color:var(--white);font:inherit";
+   setsInput.addEventListener("change",()=>{const value=Number(setsInput.value);if(!Number.isInteger(value)||value<1||value>20){setsInput.value=String(Number(e.sets)||1);$("coachTrainingStatus").textContent="Enter between 1 and 20 working sets.";return;}e.sets=value;$("coachTrainingStatus").textContent=e.name+" updated to "+value+" working sets. Save programme to apply it to the client.";});
+   setsWrap.append(setsInput);
+   const repsWrap=document.createElement("label");repsWrap.style.cssText="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700";repsWrap.textContent="REPS";
+   const repsInput=document.createElement("input");repsInput.type="text";repsInput.value=String(e.reps||"8–12");repsInput.placeholder="8–12";repsInput.setAttribute("aria-label","Rep target for "+e.name);repsInput.style.cssText="width:78px;min-height:40px;padding:7px;border:1px solid var(--line);border-radius:8px;background:#10140d;color:var(--white);font:inherit";
+   repsInput.addEventListener("change",()=>{const value=repsInput.value.trim();if(!value){repsInput.value=String(e.reps||"8–12");$("coachTrainingStatus").textContent="Enter a rep target for "+e.name+".";return;}e.reps=value;meta.textContent=e.muscleGroup+" · "+value+" reps";$("coachTrainingStatus").textContent=e.name+" rep target updated to "+value+". Save programme to apply it to the client.";});
+   repsWrap.append(repsInput);
+   const restWrap=document.createElement("label");restWrap.style.cssText="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700";restWrap.textContent="REST";
+   const restInput=document.createElement("input");restInput.type="text";restInput.value=String(e.rest||"90 sec");restInput.placeholder="90 sec";restInput.setAttribute("aria-label","Rest time for "+e.name);restInput.style.cssText="width:82px;min-height:40px;padding:7px;border:1px solid var(--line);border-radius:8px;background:#10140d;color:var(--white);font:inherit";
+   restInput.addEventListener("change",()=>{const value=restInput.value.trim();if(!value){restInput.value=String(e.rest||"90 sec");$("coachTrainingStatus").textContent="Enter a rest target for "+e.name+".";return;}e.rest=value;$("coachTrainingStatus").textContent=e.name+" rest target updated to "+value+". Save programme to apply it to the client.";});
+   restWrap.append(restInput);
+   const up=document.createElement("button");up.type="button";up.className="secondary";up.textContent="↑ UP";up.title="Move exercise up";up.setAttribute("aria-label","Move "+e.name+" up");up.style.cssText="min-height:42px;min-width:64px;padding:8px 10px;font-weight:700";up.disabled=ei===0;up.onclick=()=>{[w.exercises[ei-1],w.exercises[ei]]=[w.exercises[ei],w.exercises[ei-1]];renderCoachTrainingProgram();$("coachTrainingStatus").textContent=e.name+" moved up. Save the programme to apply the new order.";};
+   const down=document.createElement("button");down.type="button";down.className="secondary";down.textContent="↓ DOWN";down.title="Move exercise down";down.setAttribute("aria-label","Move "+e.name+" down");down.style.cssText="min-height:42px;min-width:78px;padding:8px 10px;font-weight:700";down.disabled=ei===w.exercises.length-1;down.onclick=()=>{[w.exercises[ei+1],w.exercises[ei]]=[w.exercises[ei],w.exercises[ei+1]];renderCoachTrainingProgram();$("coachTrainingStatus").textContent=e.name+" moved down. Save the programme to apply the new order.";};
+   const destination=document.createElement("select");destination.className="training-select";destination.setAttribute("aria-label","Copy "+e.name+" to workout");coachTrainingProgram.workouts.forEach((target,ti)=>{if(ti===wi)return;const option=document.createElement("option");option.value=String(ti);option.textContent="Copy to "+(target.name||"Workout "+(ti+1));destination.append(option);});
+   const copy=document.createElement("button");copy.type="button";copy.className="secondary";copy.textContent="COPY";copy.disabled=destination.options.length===0;copy.onclick=()=>{const target=coachTrainingProgram.workouts[Number(destination.value)];if(!target)return;target.exercises=target.exercises||[];target.exercises.push(JSON.parse(JSON.stringify(e)));renderCoachTrainingProgram();$("coachTrainingStatus").textContent=e.name+" copied to "+target.name+".";};
+   const del=document.createElement("button");del.type="button";del.className="secondary";del.textContent="REMOVE";del.onclick=()=>{w.exercises.splice(ei,1);renderCoachTrainingProgram();};
+   controls.append(setsWrap,repsWrap,restWrap,up,down,destination,copy,del);row.append(details,controls);card.append(row);
+   const instructionsLabel=document.createElement("label");instructionsLabel.textContent="COACHING INSTRUCTIONS / TECHNIQUE CUES";instructionsLabel.style.cssText="display:block;margin-top:12px;font-size:12px;font-weight:800";
+   const instructionsInput=document.createElement("textarea");instructionsInput.value=String(e.instructions||"");instructionsInput.placeholder="e.g. Keep chest supported, control the eccentric for 2–3 seconds, pause briefly in the stretched position…";instructionsInput.rows=3;instructionsInput.setAttribute("aria-label","Coaching instructions for "+e.name);instructionsInput.style.cssText="display:block;width:100%;box-sizing:border-box;margin-top:6px;padding:10px;border:1px solid var(--line);border-radius:9px;background:#10140d;color:var(--white);font:inherit;resize:vertical";
+   instructionsInput.addEventListener("change",()=>{e.instructions=instructionsInput.value.trim();$("coachTrainingStatus").textContent=e.name+" coaching instructions updated. Save programme to apply them to the client.";});
+   instructionsLabel.append(instructionsInput);card.append(instructionsLabel);
+  });
+  const delDay=document.createElement("button");delDay.type="button";delDay.className="secondary";delDay.textContent="REMOVE WORKOUT DAY";delDay.style.width="100%";delDay.onclick=()=>{coachTrainingProgram.workouts.splice(wi,1);renderCoachTrainingProgram();};card.append(delDay);host.append(card);
+ });
+}
+let coachProgressPhotoRows=[];
+async function loadCoachProgressPhotos(){
+ const host=$("coachProgressPhotoGallery"),statusEl=$("coachProgressPhotoStatus");
+ if(!selectedClient?.uid)return;
+ statusEl.textContent="Loading progress photos…";host.replaceChildren();$("coachPhotoComparison").replaceChildren();
+ try{
+  const snap=await getDocs(collection(db,"users",selectedClient.uid,"progressPhotos"));
+  coachProgressPhotoRows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.date||"").localeCompare(b.date||"")||(a.position||"").localeCompare(b.position||""));
+  coachProgressPhotoRows.forEach(photo=>{if(photo.date)coachProgressTimelineItems.push({date:photo.date,kind:"PROGRESS PHOTO",detail:(photo.position||"Photo")+" uploaded"});});
+  renderCoachProgressTimeline();
+  const selects=[$("coachPhotoCompareA"),$("coachPhotoCompareB")];
+  selects.forEach(sel=>{sel.replaceChildren();const blank=document.createElement("option");blank.value="";blank.textContent="Choose photo";sel.append(blank);coachProgressPhotoRows.forEach(photo=>{const option=document.createElement("option");option.value=photo.id;option.textContent=(photo.position||"Photo")+" · "+(photo.date||"Date unknown");sel.append(option);});});
+  if(!coachProgressPhotoRows.length){statusEl.textContent="This client has not uploaded any progress photos yet.";return;}
+  let failed=0;
+  for(const photo of coachProgressPhotoRows.slice().reverse()){
+   const card=document.createElement("div");card.className="tile";card.style.minHeight="0";card.style.padding="8px";
+   const img=document.createElement("img");img.alt=(photo.position||"Progress")+" photo";img.loading="lazy";img.style.width="100%";img.style.aspectRatio="3/4";img.style.objectFit="cover";img.style.borderRadius="8px";
+   try{photo.displayURL=await getPrivatePhotoUrl(photo);img.src=photo.displayURL;}catch(error){failed++;img.alt="Photo unavailable: "+error.message;}
+   const caption=document.createElement("div");caption.className="muted";caption.style.marginTop="6px";caption.textContent=(photo.position||"Photo")+" · "+(photo.date||"Date unknown");card.append(img,caption);host.append(card);
+  }
+  statusEl.textContent=coachProgressPhotoRows.length+" progress photo(s) available."+(failed?" · "+failed+" could not be loaded.":"");
+ }catch(e){statusEl.textContent="Could not load progress photos: "+e.message;}
+}
+let coachPhotoSliderValue=50;
+$("compareCoachPhotos").addEventListener("click",()=>{
+ const a=coachProgressPhotoRows.find(x=>x.id===$("coachPhotoCompareA").value),b=coachProgressPhotoRows.find(x=>x.id===$("coachPhotoCompareB").value),host=$("coachPhotoComparison");host.replaceChildren();
+ if(!a||!b){host.textContent="Choose two photos to compare.";return;}
+ const panel=document.createElement("div");panel.className="tile";panel.style.cssText="padding:12px;min-height:0";
+ const heading=document.createElement("div");heading.style.cssText="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;font-weight:700";heading.textContent="BEFORE & AFTER SLIDER";panel.append(heading);
+ const stage=document.createElement("div");stage.style.cssText="position:relative;width:100%;aspect-ratio:3/4;max-height:620px;overflow:hidden;border-radius:12px;background:#090c07;touch-action:pan-y";
+ const before=document.createElement("img");before.src=a.displayURL||"";before.alt="Earlier progress photo";before.style.cssText="position:absolute;inset:0;width:100%;height:100%;object-fit:contain";
+ const afterWrap=document.createElement("div");afterWrap.style.cssText="position:absolute;inset:0;overflow:hidden;clip-path:inset(0 0 0 50%)";
+ const after=document.createElement("img");after.src=b.displayURL||"";after.alt="Later progress photo";after.style.cssText="position:absolute;inset:0;width:100%;height:100%;object-fit:contain";afterWrap.append(after);
+ const divider=document.createElement("div");divider.style.cssText="position:absolute;top:0;bottom:0;left:50%;width:3px;background:#fff;transform:translateX(-50%);box-shadow:0 0 5px #000";
+ const handle=document.createElement("div");handle.textContent="↔";handle.style.cssText="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:38px;height:38px;border:2px solid white;border-radius:50%;background:#829e22;color:#fff;display:grid;place-items:center;font-size:20px;font-weight:700;box-shadow:0 1px 8px #000";
+ divider.append(handle);stage.append(before,afterWrap,divider);
+ const labels=document.createElement("div");labels.style.cssText="display:flex;justify-content:space-between;gap:10px;margin:9px 0;font-size:12px;font-weight:700";
+ const left=document.createElement("span");left.textContent="EARLIER · "+(a.position||"Photo")+" · "+(a.date||"");
+ const right=document.createElement("span");right.textContent="LATER · "+(b.position||"Photo")+" · "+(b.date||"");right.style.textAlign="right";labels.append(left,right);
+ const range=document.createElement("input");range.type="range";range.min="0";range.max="100";range.value=String(coachPhotoSliderValue);range.setAttribute("aria-label","Slide to compare earlier and later progress photos");range.style.cssText="width:100%;accent-color:#829e22;margin:8px 0";
+ const hint=document.createElement("div");hint.className="muted";hint.style.textAlign="center";hint.textContent="Drag the slider left or right to reveal the later photo.";
+ function update(){const v=Number(range.value);afterWrap.style.clipPath="inset(0 0 0 "+v+"%)";divider.style.left=v+"%";handle.style.left="50%";}
+ range.addEventListener("input",()=>{coachPhotoSliderValue=Number(range.value);update();});
+ panel.append(stage,labels,range,hint);host.append(panel);update();
+});
+async function loadCoachWorkoutReviews(){
+ const host=$("coachWorkoutReviews");
+ if(!selectedClient?.uid)return;
+ host.textContent="Loading workout history…";
+ try{
+  const snap=await getDocs(collection(db,"users",selectedClient.uid,"trainingSessions"));
+  const sessions=snap.docs.map(x=>({id:x.id,...x.data()})).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  host.replaceChildren();
+  if(!sessions.length){host.textContent="No completed workouts have been logged by this client yet.";return;}
+  sessions.forEach(session=>{
+   const card=document.createElement("div");card.className="tile";card.style.minHeight="0";card.style.margin="10px 0";
+   const heading=document.createElement("strong");heading.style.fontSize="15px";heading.textContent=(session.workoutName||"Workout")+" · "+(session.date?new Date(session.date+"T12:00:00").toLocaleDateString():"Date not recorded");card.append(heading);
+   (session.exercises||[]).forEach((ex,exerciseIndex)=>{
+    const exerciseCard=document.createElement("div");exerciseCard.style.cssText="margin-top:12px;padding:10px;border:1px solid var(--line);border-radius:10px";
+    const line=document.createElement("div");line.className="muted";line.style.fontWeight="700";
+    const sets=(ex.sets||[]).map((set,i)=>"Set "+(i+1)+": "+(set.weight||0)+" kg × "+(set.reps||0)+" reps"+(set.rir===null||set.rir===undefined?"":" · RIR "+set.rir)).join(" | ");
+    line.textContent=(ex.name||"Exercise")+(sets?" — "+sets:" — no sets recorded");exerciseCard.append(line);
+    if(ex.clientFeedback){const clientNote=document.createElement("div");clientNote.style.cssText="margin:7px 0;padding:9px 11px;border-left:3px solid #c6ff00;border-radius:6px;background:rgba(198,255,0,.07);white-space:pre-wrap";const label=document.createElement("strong");label.textContent="CLIENT FEEDBACK";label.style.cssText="display:block;margin-bottom:4px;font-size:11px";const body=document.createElement("span");body.textContent=ex.clientFeedback;clientNote.append(label,body);exerciseCard.append(clientNote);}
+    const replyLabel=document.createElement("label");replyLabel.textContent="REPLY TO "+(ex.name||"EXERCISE").toUpperCase();replyLabel.style.cssText="display:block;margin-top:10px;font-size:12px;font-weight:800";
+    const reply=document.createElement("textarea");reply.rows=2;reply.style.cssText="display:block;width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1px solid #4b5540;border-radius:9px;background:#090c07;color:var(--white);font:inherit;resize:vertical";reply.placeholder="Reply to this exercise feedback…";reply.value=ex.coachReply||"";
+    const replySave=document.createElement("button");replySave.className="secondary";replySave.textContent="SAVE EXERCISE REPLY";replySave.style.cssText="width:100%;margin-top:7px";
+    replySave.onclick=async()=>{replySave.disabled=true;replySave.textContent="SAVING…";try{const ref=doc(db,"users",selectedClient.uid,"trainingSessions",session.id);const latest=await getDoc(ref);if(!latest.exists())throw new Error("Workout no longer exists.");const data=latest.data();const exercises=(data.exercises||[]).map((item,i)=>i===exerciseIndex?{...item,coachReply:reply.value.trim(),coachReplyUpdatedAt:Date.now(),coachReplyBy:currentUser.uid}:item);await setDoc(ref,{exercises,updatedAt:serverTimestamp()},{merge:true});session.exercises=exercises;replySave.textContent="REPLY SAVED ✓";}catch(e){replySave.textContent="SAVE FAILED";replySave.title=e.message;}finally{replySave.disabled=false;}};
+    exerciseCard.append(replyLabel,reply,replySave);card.append(exerciseCard);
    });
    const feedbackLabel=document.createElement("label");feedbackLabel.textContent="Overall workout feedback";feedbackLabel.style.display="block";feedbackLabel.style.marginTop="12px";
    const feedback=document.createElement("textarea");feedback.rows=3;feedback.style.cssText="width:100%;padding:12px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit;resize:vertical";feedback.placeholder="General comments on performance, progression or next session…";feedback.value=session.coachFeedback||"";card.append(feedbackLabel,feedback);
