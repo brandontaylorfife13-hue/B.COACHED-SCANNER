@@ -792,13 +792,15 @@ async function loadCoachReviewDashboard(clients){
    const goalNeedsReview=details.goalStatus==="Needs review";
    const milestoneDue=!!milestoneTime&&milestoneTime<=now&&details.goalStatus!=="Achieved"&&details.goalStatus!=="Paused";
    const awaitingReply=!!latestMessage&&latestMessage.senderRole==="client";
+   const latestMessageTime=latestMessage?.createdAt?.toMillis?.()||0;
+   const coachFollowUpDue=!!latestMessage&&latestMessage.senderRole==="coach"&&latestMessageTime>0&&now-latestMessageTime>=72*60*60*1000;
    const inactive=(!sessionTime||sessionTime<cutoff7)&&(!weightTime||weightTime<cutoff14);
    const never=!latestCheck,overdue=!latestCheck||checkTime<cutoff14;
    const needsCheckinReview=!!latestCheck&&latestCheck.coachReviewStatus!=="reviewed";
    const adherenceScore=({"0–25%":12.5,"26–50%":38,"51–75%":63,"76–90%":83,"91–100%":95}[latestCheck?.adherence]??null);
    const lowAdherence=adherenceScore!==null&&adherenceScore<76;
    const weightOverdue=!weightTime||weightTime<cutoff14;
-   return {client,details,latestCheck,checkTime,latestWeight,sessionCount:sessions.size,latestSession,incoming,never,overdue,awaitingReply,inactive,goalNeedsReview,milestoneDue,latestMessage,needsCheckinReview,adherenceScore,lowAdherence,weightOverdue};
+   return {client,details,latestCheck,checkTime,latestWeight,sessionCount:sessions.size,latestSession,incoming,never,overdue,awaitingReply,coachFollowUpDue,latestMessageTime,inactive,goalNeedsReview,milestoneDue,latestMessage,needsCheckinReview,adherenceScore,lowAdherence,weightOverdue};
   }));
   const attention=rows.filter(x=>x.overdue).length,recent=rows.length-attention,never=rows.filter(x=>x.never).length;
   $("overviewClientCount").textContent=String(clients.length);
@@ -812,6 +814,7 @@ async function loadCoachReviewDashboard(clients){
   const tasks=[];
   rows.forEach(row=>{
    if(row.awaitingReply)tasks.push({row,type:"Client message",detail:"A client has sent a message and is awaiting your reply.",target:"profile-messages",priority:0});
+   if(row.coachFollowUpDue)tasks.push({row,type:"Follow-up due",detail:"Your last message was sent at least 3 days ago and the client has not replied.",target:"profile-messages",priority:1});
    if(row.needsCheckinReview)tasks.push({row,type:"Weekly check-in review",detail:"The latest submitted weekly check-in has not been reviewed.",target:"profile-weekly-checkins",priority:1});
    if(row.overdue)tasks.push({row,type:"Overdue check-in",detail:row.never?"No weekly check-in has been submitted yet.":"No check-in in the last 14 days.",target:"profile-weekly-checkins",priority:2});
    if(row.goalNeedsReview)tasks.push({row,type:"Goal review",detail:"The client's goal is marked as needing review.",target:"profile-goal-tracking",priority:3});
@@ -836,7 +839,7 @@ async function loadCoachReviewDashboard(clients){
    if(tasks.length>20){const more=document.createElement("div");more.className="muted";more.textContent="Showing the 20 highest-priority tasks.";overviewHost.append(more);}
   }
   $("reviewAttentionCount").textContent=String(attention);$("reviewRecentCount").textContent=String(recent);$("reviewNeverCount").textContent=String(never);
-  const actionRows=rows.filter(x=>x.awaitingReply||x.inactive||x.goalNeedsReview||x.milestoneDue||x.overdue||x.needsCheckinReview||x.lowAdherence);
+  const actionRows=rows.filter(x=>x.awaitingReply||x.coachFollowUpDue||x.inactive||x.goalNeedsReview||x.milestoneDue||x.overdue||x.needsCheckinReview||x.lowAdherence);
   $("actionTotal").textContent=String(actionRows.length);
   $("actionMessages").textContent=String(rows.filter(x=>x.awaitingReply).length);
   $("actionInactive").textContent=String(rows.filter(x=>x.inactive).length);
@@ -849,7 +852,8 @@ async function loadCoachReviewDashboard(clients){
     const card=document.createElement("div");card.className="tile";card.style.minHeight="0";card.style.margin="9px 0";
     const name=document.createElement("strong");name.style.fontSize="16px";name.textContent=row.client.displayName||row.client.email||"Client";
     const reasons=[];
-    if(row.awaitingReply)reasons.push("Awaiting your reply");
+    if(row.awaitingReply)reasons.push("Client replied — response needed");
+    if(row.coachFollowUpDue)reasons.push("Follow-up due — no client reply for 3+ days");
     if(row.needsCheckinReview)reasons.push("New check-in needs review");
     if(row.lowAdherence)reasons.push("Reported nutrition adherence below 76%");
     if(row.overdue)reasons.push(row.never?"No weekly check-in submitted":"Weekly check-in overdue");
@@ -2835,7 +2839,19 @@ async function loadCoachMessagesInbox(){
   for(const client of clients){const snap=await getDocs(collection(db,"users",client.uid,"messages"));const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.toMillis?.()||0)-(a.createdAt?.toMillis?.()||0));if(rows.length)threads.push({client,last:rows[0],count:rows.length});}
   threads.sort((a,b)=>(b.last.createdAt?.toMillis?.()||0)-(a.last.createdAt?.toMillis?.()||0));inbox.replaceChildren();
   if(!threads.length){inbox.textContent="No client messages yet.";return;}
-  threads.forEach(t=>{const card=document.createElement("div");card.className="tile";card.style.minHeight="0";card.style.margin="8px 0";const title=document.createElement("strong");title.textContent=t.client.displayName||t.client.email||"Client";const preview=document.createElement("p");preview.className="muted";preview.style.margin="6px 0";preview.textContent=(t.last.senderRole==="coach"?"You: ":"Client: ")+(t.last.text||"");const open=document.createElement("button");open.className="secondary";open.style.width="100%";open.textContent="OPEN CONVERSATION ("+t.count+")";open.onclick=()=>{selectedClient=t.client;$("coachInboxSelectedName").textContent="Conversation with "+(t.client.displayName||t.client.email||"client");renderMessageThread(t.client.uid,"coachInboxThread");$("coachInboxStatus").textContent="";};card.append(title,preview,open);inbox.append(card);});
+  threads.forEach(t=>{
+   const card=document.createElement("div");card.className="tile";card.style.minHeight="0";card.style.margin="8px 0";
+   const title=document.createElement("strong");title.textContent=t.client.displayName||t.client.email||"Client";
+   const lastTime=t.last.createdAt?.toMillis?.()||0,age=lastTime?Date.now()-lastTime:0;
+   const status=document.createElement("div");status.className="pill";status.style.marginTop="8px";
+   if(t.last.senderRole==="client"){status.textContent="CLIENT REPLIED · YOUR RESPONSE NEEDED";status.style.borderColor="#829e22";status.style.color="#c6ff00";}
+   else if(lastTime&&age>=72*60*60*1000){status.textContent="FOLLOW-UP DUE · NO REPLY FOR 3+ DAYS";status.style.borderColor="#ffb36b";status.style.color="#ffcf9e";}
+   else{status.textContent="AWAITING CLIENT REPLY";}
+   const preview=document.createElement("p");preview.className="muted";preview.style.margin="6px 0";preview.textContent=(t.last.senderRole==="coach"?"You: ":"Client: ")+(t.last.text||"");
+   const date=document.createElement("div");date.className="muted";date.style.fontSize="11px";date.textContent=lastTime?"Last message · "+new Date(lastTime).toLocaleString():"Message date unavailable";
+   const open=document.createElement("button");open.className="secondary";open.style.width="100%";open.style.marginTop="9px";open.textContent="OPEN CONVERSATION ("+t.count+")";open.onclick=()=>{selectedClient=t.client;$("coachInboxSelectedName").textContent="Conversation with "+(t.client.displayName||t.client.email||"client");renderMessageThread(t.client.uid,"coachInboxThread");$("coachInboxStatus").textContent="";};
+   card.append(title,status,preview,date,open);inbox.append(card);
+  });
  }catch(e){inbox.textContent="Could not load conversations: "+e.message;}
 }
 async function sendCoachInboxReply(){
