@@ -1629,6 +1629,7 @@ async function loadClients(){
  try{
   const result=await getDocs(query(collection(db,"users"),where("role","==","client")));
   const clients=result.docs.map(d=>({uid:d.id,...d.data()})).sort((a,b)=>(a.displayName||"").localeCompare(b.displayName||""));
+  await Promise.all(clients.map(async c=>{try{const setting=await getDoc(doc(db,"users",c.uid,"settings","pedTracking"));c.pedTrackingEnabled=setting.exists()&&setting.data().enabled===true;}catch(e){c.pedTrackingEnabled=false;}}));
   $("clientCount").textContent=String(clients.length);
   $("activeCount").textContent=String(clients.filter(c=>c.accountStatus==="active").length);
   await loadCoachReviewDashboard(clients);
