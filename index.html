@@ -137,7 +137,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <button id="completeOnboardingBtn" style="width:100%;margin-top:16px">SAVE PROFILE & CONTINUE</button>
   <div id="onboardingStatus" class="status" role="status" aria-live="polite"></div>
  </section>
- <nav id="nav"><button class="active" data-view="overview">Overview</button><button id="clientsNav" class="hidden" data-view="clients">Clients</button><button id="analyticsNav" class="hidden" data-view="analytics">Analytics</button><button id="pedTrackingNav" class="hidden" data-view="pedTracking">PED Tracking</button><button data-view="nutrition">Nutrition</button><button id="foodDiaryNav" data-view="foodDiary">Food diary</button><button data-view="training">Training</button><button data-view="progress">Progress</button><button data-view="checkins">Check-ins</button><button data-view="messages">Messages</button><button data-view="updates">Updates</button><button data-view="guide">App guide</button></nav>
+ <nav id="nav"><button class="active" data-view="overview">Overview</button><button id="clientsNav" class="hidden" data-view="clients">Clients</button><button id="templatesNav" class="hidden" data-view="templates">Workout templates</button><button id="analyticsNav" class="hidden" data-view="analytics">Analytics</button><button id="pedTrackingNav" class="hidden" data-view="pedTracking">PED Tracking</button><button data-view="nutrition">Nutrition</button><button id="foodDiaryNav" data-view="foodDiary">Food diary</button><button data-view="training">Training</button><button data-view="progress">Progress</button><button data-view="checkins">Check-ins</button><button data-view="messages">Messages</button><button data-view="updates">Updates</button><button data-view="guide">App guide</button></nav>
  <section class="card" id="overviewView">
   <div class="eyebrow" id="roleLabel">CLIENT DASHBOARD</div><div class="heading" id="overviewHeading">Your daily overview</div>
   <p class="muted">Welcome to your B.COACHED space. Your personal targets and coaching plan will appear here as we build each section.</p>
@@ -389,7 +389,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <p class="muted">Review the client's food diary against their assigned high- and low-day targets. Only logged food is counted; missing diary days are not treated as zero intake.</p>
   <div id="coachClientNutritionAnalytics" class="muted">Loading nutrition adherence…</div>
   <div class="section-title profile-anchor" id="profile-training-program" style="margin-top:28px">Training programme builder</div><p class="muted">Create the client's weekly split and prescribe exercises, target sets, rep ranges and muscle groups. Clients log their working weights and reps against this plan.</p>
-  <div class="tile" style="margin:12px 0"><div class="eyebrow">WORKOUT TEMPLATE LIBRARY</div><p class="muted">Save a client programme as a reusable template, then load a copy for another client. Editing one client will not change the saved template or other clients.</p><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:9px"><div><label for="trainingTemplateName">Template name</label><input id="trainingTemplateName" placeholder="e.g. Megan – Glute & Leg Development"></div><div><label for="trainingTemplateCategory">Template category</label><select id="trainingTemplateCategory" class="training-select"><option>Glute & Legs</option><option>Push / Pull / Legs</option><option>Torso / Limbs</option><option>Upper / Lower</option><option>Full Body</option><option>Women's Training</option><option>Men's Hypertrophy</option><option>Other</option></select></div><button type="button" id="saveTrainingTemplate" class="secondary">SAVE CURRENT PROGRAMME AS TEMPLATE</button></div><div style="margin-top:12px"><label for="trainingTemplateFilter">Filter by category</label><select id="trainingTemplateFilter" class="training-select"><option value="all">All categories</option><option>Glute & Legs</option><option>Push / Pull / Legs</option><option>Torso / Limbs</option><option>Upper / Lower</option><option>Full Body</option><option>Women's Training</option><option>Men's Hypertrophy</option><option>Other</option></select><label for="trainingTemplateSelect" style="margin-top:10px">Saved templates</label><select id="trainingTemplateSelect" class="training-select"><option value="">Choose a saved template</option></select><button type="button" id="loadTrainingTemplate" style="width:100%;margin-top:8px">LOAD SELECTED TEMPLATE</button></div><div style="height:1px;background:var(--line);margin:16px 0"></div><strong style="font-size:15px;color:#f5f7f1">Built-in: Torso / Limb Split</strong><p class="muted">Load the four-session torso/limb programme into this client’s editor.</p><button type="button" id="applyTorsoLimbTemplate" class="secondary" style="width:100%">LOAD TORSO / LIMB TEMPLATE</button><div id="trainingTemplateStatus" class="status"></div></div></div>
+  <div class="tile" style="margin:12px 0"><div class="eyebrow">WORKOUT TEMPLATE LIBRARY</div><p class="muted">Save a client programme as a reusable template, then load a copy for another client. Editing one client will not change the saved template or other clients.</p><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:9px"><div><label for="trainingTemplateName">Template name</label><input id="trainingTemplateName" placeholder="e.g. Megan – Glute & Leg Development"></div><div><label for="trainingTemplateCategory">Template category</label><select id="trainingTemplateCategory" class="training-select"><option>Glute & Legs</option><option>Push / Pull / Legs</option><option>Torso / Limbs</option><option>Upper / Lower</option><option>Full Body</option><option>Women's Training</option><option>Men's Hypertrophy</option><option>Other</option></select></div><button type="button" id="saveTrainingTemplate" class="secondary">SAVE CURRENT PROGRAMME AS TEMPLATE</button></div><div style="margin-top:12px"><label for="trainingTemplateFilter">Filter by category</label><select id="trainingTemplateFilter" class="training-select"><option value="all">All categories</option><option>Glute & Legs</option><option>Push / Pull / Legs</option><option>Torso / Limbs</option><option>Upper / Lower</option><option>Full Body</option><option>Women's Training</option><option>Men's Hypertrophy</option><option>Other</option></select><label for="trainingTemplateSelect" style="margin-top:10px">Saved templates</label><select id="trainingTemplateSelect" class="training-select"><option value="">Choose a saved template</option></select><button type="button" id="loadTrainingTemplate" style="width:100%;margin-top:8px">LOAD SELECTED TEMPLATE</button><button type="button" id="updateTrainingTemplate" class="secondary" style="width:100%;margin-top:8px">UPDATE SELECTED TEMPLATE WITH EDITS</button></div><div style="height:1px;background:var(--line);margin:16px 0"></div><strong style="font-size:15px;color:#f5f7f1">Built-in: Torso / Limb Split</strong><p class="muted">Load the four-session torso/limb programme into this client’s editor.</p><button type="button" id="applyTorsoLimbTemplate" class="secondary" style="width:100%">LOAD TORSO / LIMB TEMPLATE</button><div id="trainingTemplateStatus" class="status"></div></div></div>
   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
   <div><label for="coachWorkoutName">Workout name</label><input id="coachWorkoutName" placeholder="e.g. Push A"></div><div><label for="coachExerciseMuscle">Body part / muscle group</label><select id="coachExerciseMuscle" class="training-select"><option value="">Choose body part</option><option>Chest</option><option>Lats</option><option>Upper back</option><option>Back</option><option>Shoulders</option><option>Biceps</option><option>Triceps</option><option>Quadriceps</option><option>Hamstrings</option><option>Glutes</option><option>Calves</option><option>Abdominals</option><option>Adductors</option><option>Abductors</option></select></div><div><label for="coachExerciseEquipment">Equipment filter</label><select id="coachExerciseEquipment" class="training-select"><option value="all">All equipment</option><option value="machine">Machines</option><option value="cable">Cables</option><option value="dumbbell">Dumbbells</option><option value="barbell">Barbells</option><option value="smith">Smith machine</option><option value="bodyweight">Bodyweight</option><option value="other">Other / mixed</option></select></div><div><label for="coachExerciseLibrary">Choose exercise</label><select id="coachExerciseLibrary" class="training-select"><option value="">Choose body part first</option></select></div><div><label for="coachExerciseName">Exercise name (or custom)</label><input id="coachExerciseName" placeholder="Choose above or type a custom exercise"></div><div><label for="coachExerciseFavouriteOnly">Exercise list</label><select id="coachExerciseFavouriteOnly" class="training-select"><option value="all">All exercises</option><option value="favourites">My favourites</option></select></div><div><button type="button" class="secondary" id="toggleCoachExerciseFavourite" style="width:100%;margin-top:22px">☆ SAVE SELECTED AS FAVOURITE</button></div><div><label for="coachExerciseSets">Working sets</label><input id="coachExerciseSets" type="number" min="1" max="20" value="3"></div><div><label for="coachExerciseReps">Rep target</label><input id="coachExerciseReps" value="8–12" placeholder="e.g. 8–12"></div></div>
   <div class="actions"><button type="button" id="addCoachExercise">ADD EXERCISE TO WORKOUT</button><button type="button" class="secondary" id="addCoachWorkout">ADD WORKOUT DAY</button></div><div id="coachTrainingEditor" style="margin-top:14px"></div><button id="saveTrainingProgram" style="width:100%;margin-top:12px">SAVE TRAINING PROGRAMME</button><div id="coachTrainingStatus" class="status" role="status"></div>
@@ -548,7 +548,8 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 <label for="trainingWorkoutSelect">Choose workout</label><select id="trainingWorkoutSelect" class="training-select"><option value="">Choose a workout</option></select><div id="clientWorkoutLogger"></div><div id="trainingLogStatus" class="status" role="status"></div>
 <div class="section-title" style="margin-top:26px">Strength progression</div><p class="muted">Choose an exercise to see your best logged set over time.</p><label for="trainingExerciseSelect">Exercise</label><select id="trainingExerciseSelect" class="training-select"><option value="">No exercise history yet</option></select><div class="tile" style="min-height:0"><div id="trainingProgressChart" class="muted">Log workouts to build your progression chart.</div></div>
 <div class="section-title" style="margin-top:24px">Training history</div><div id="clientTrainingHistory" class="muted">No workouts logged yet.</div></section>
- <section class="card hidden" id="progressView">
+ <section class="card hidden" id="templatesView"><div class="eyebrow">COACH RESOURCES</div><div class="heading">Workout Template Library</div><p class="muted">Manage your reusable programmes in one place. Rename or remove templates here. To edit exercises, load a template in a client’s Training Programme Builder, make your changes, then save the updated version.</p><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin:14px 0"><div class="tile">SAVED TEMPLATES<strong id="templateLibraryCount">0</strong><span>Reusable programmes</span></div><div class="tile">CATEGORIES<strong id="templateLibraryCategories">0</strong><span>Different training types</span></div></div><label for="templateLibraryFilter">Filter templates</label><select id="templateLibraryFilter" class="training-select"><option value="all">All categories</option><option>Glute & Legs</option><option>Push / Pull / Legs</option><option>Torso / Limbs</option><option>Upper / Lower</option><option>Full Body</option><option>Women's Training</option><option>Men's Hypertrophy</option><option>Other</option></select><div id="templateLibraryList" style="margin-top:14px"><div class="muted">Loading your templates…</div></div><div id="templateLibraryStatus" class="status" role="status"></div></section>
+  <section class="card hidden" id="progressView">
 <div class="eyebrow">PROGRESS</div><div class="heading">Your progress</div>
 <p class="muted">Track your body measurements over time alongside your weight and training performance. Take measurements under similar conditions each time.</p>
 <div class="section-title" style="margin-top:18px">Your progress snapshot</div>
@@ -868,12 +869,12 @@ onAuthStateChanged(auth,async user=>{
   if(coach){$("overviewSteps").textContent="—";$("overviewWater").textContent="—";$("overviewSleep").textContent="—";$("overviewWeight").textContent="—";}
   $("clientsView").classList.add("hidden");$("clientProfileView").classList.add("hidden");$("overviewView").classList.remove("hidden");
   $("roleLabel").textContent=coach?"COACH DASHBOARD":"CLIENT DASHBOARD";
-  $("clientsNav").classList.toggle("hidden",!coach);
+  $("clientsNav").classList.toggle("hidden",!coach);$("templatesNav").classList.toggle("hidden",!coach);
   // Coaches use Overview and Clients only; nutrition, food diary and tracking
   // tabs are client-facing and remain available to client accounts.
   document.querySelectorAll("#nav button[data-view]").forEach(btn=>{
    const view=btn.dataset.view;
-   const hideForRole = view==="clients"||view==="analytics" ? !coach : (coach && !["overview","training","messages","updates","pedTracking"].includes(view));
+   const hideForRole = view==="clients"||view==="analytics"||view==="templates" ? !coach : (coach && !["overview","training","templates","messages","updates","pedTracking"].includes(view));
    btn.classList.toggle("hidden",hideForRole);
   });
   $("dashboardMacros").classList.toggle("hidden",coach);
@@ -2867,6 +2868,53 @@ async function refreshTrainingTemplateOptions(){
  renderTrainingTemplateOptions();
  }catch(e){$("trainingTemplateStatus").textContent="Could not load template library: "+e.message;}
 }
+
+ let selectedTrainingTemplateId="";
+ async function saveCoachTemplateArray(templates){
+  const ref=doc(db,"users",currentUser.uid,"coachSettings","trainingTemplates");
+  await setDoc(ref,{templates,updatedAt:serverTimestamp()},{merge:true});
+  coachTrainingTemplates=templates;renderTrainingTemplateOptions();renderTemplateLibrary();
+ }
+ function renderTemplateLibrary(){
+  const host=$("templateLibraryList");if(!host)return;
+  const filter=$("templateLibraryFilter")?.value||"all";
+  const rows=coachTrainingTemplates.filter(t=>filter==="all"||(t.category||"Other")===filter).slice().sort((a,b)=>(a.name||"").localeCompare(b.name||""));
+  $("templateLibraryCount").textContent=String(coachTrainingTemplates.length);
+  $("templateLibraryCategories").textContent=String(new Set(coachTrainingTemplates.map(t=>t.category||"Other")).size);
+  host.replaceChildren();
+  if(!rows.length){host.textContent=coachTrainingTemplates.length?"No templates in this category yet.":"Your saved workout templates will appear here.";return;}
+  rows.forEach(template=>{
+   const card=document.createElement("div");card.className="tile";card.style.cssText="min-height:0;margin:9px 0;padding:14px";
+   const title=document.createElement("strong");title.style.cssText="display:block;font-size:16px;color:var(--white)";title.textContent=template.name||"Untitled template";
+   const meta=document.createElement("div");meta.className="muted";meta.style.marginTop="5px";meta.textContent=(template.category||"Other")+" · "+(template.workouts||[]).length+" workout days";
+   const actions=document.createElement("div");actions.className="actions";
+   const rename=document.createElement("button");rename.className="secondary";rename.textContent="RENAME";rename.onclick=async()=>{
+    const next=prompt("Enter a new name for this workout template:",template.name||"");if(next===null)return;
+    const name=next.trim();if(!name){$("templateLibraryStatus").textContent="Template name cannot be blank.";return;}
+    try{const latest=await getDoc(doc(db,"users",currentUser.uid,"coachSettings","trainingTemplates"));const list=latest.exists()&&Array.isArray(latest.data().templates)?latest.data().templates:[];const item=list.find(t=>t.id===template.id);if(!item)throw new Error("Template not found.");item.name=name;await saveCoachTemplateArray(list);$("templateLibraryStatus").textContent="Template renamed successfully.";}catch(e){$("templateLibraryStatus").textContent="Could not rename template: "+e.message;}
+   };
+   const remove=document.createElement("button");remove.className="secondary";remove.textContent="DELETE";remove.onclick=async()=>{
+    if(!confirm("Delete “"+(template.name||"this template")+"”? This cannot be undone."))return;
+    try{const latest=await getDoc(doc(db,"users",currentUser.uid,"coachSettings","trainingTemplates"));const list=latest.exists()&&Array.isArray(latest.data().templates)?latest.data().templates:[];await saveCoachTemplateArray(list.filter(t=>t.id!==template.id));$("templateLibraryStatus").textContent="Template deleted.";}catch(e){$("templateLibraryStatus").textContent="Could not delete template: "+e.message;}
+   };
+   const edit=document.createElement("button");edit.textContent="EDIT WORKOUTS";edit.onclick=()=>{$("templateLibraryStatus").textContent="Open a client profile → Training Programme Builder, select “"+(template.name||"template")+"”, load it, make your changes and use UPDATE SELECTED TEMPLATE WITH EDITS.";document.querySelector('#nav button[data-view="clients"]')?.click();};
+   actions.append(rename,remove,edit);card.append(title,meta,actions);host.append(card);
+  });
+ }
+ async function loadTemplateLibrary(){
+  $("templateLibraryStatus").textContent="Loading templates…";
+  try{await refreshTrainingTemplateOptions();renderTemplateLibrary();$("templateLibraryStatus").textContent=coachTrainingTemplates.length?coachTrainingTemplates.length+" saved template(s) ready.":"No templates saved yet — save one from a client’s Training Programme Builder.";}
+  catch(e){$("templateLibraryStatus").textContent="Could not load templates: "+e.message;}
+ }
+ $("templateLibraryFilter").addEventListener("change",renderTemplateLibrary);
+ $("updateTrainingTemplate").addEventListener("click",async()=>{
+  const id=selectedTrainingTemplateId||$("trainingTemplateSelect").value;
+  if(!id){$("trainingTemplateStatus").textContent="Load a saved template first, then edit its workouts.";return;}
+  if(!coachTrainingProgram.workouts.length){$("trainingTemplateStatus").textContent="There are no workouts to save.";return;}
+  const button=$("updateTrainingTemplate");button.disabled=true;
+  try{const ref=doc(db,"users",currentUser.uid,"coachSettings","trainingTemplates");const snap=await getDoc(ref);const templates=snap.exists()&&Array.isArray(snap.data().templates)?snap.data().templates:[];const item=templates.find(t=>t.id===id);if(!item)throw new Error("Saved template not found. Refresh the library and load it again.");syncCoachWorkoutNames();item.workouts=JSON.parse(JSON.stringify(coachTrainingProgram.workouts));item.scheduleNote=coachTrainingProgram.scheduleNote||"";item.progressionNote=coachTrainingProgram.progressionNote||"";item.updatedAt=new Date().toISOString();await saveCoachTemplateArray(templates);$("trainingTemplateStatus").textContent="Updated “"+item.name+"” in your template library. Existing client programmes are unchanged.";}catch(e){$("trainingTemplateStatus").textContent="Could not update template: "+e.message;}finally{button.disabled=false;}
+ });
+
 $("trainingTemplateFilter").addEventListener("change",renderTrainingTemplateOptions);
 $("saveTrainingTemplate").addEventListener("click",async()=>{
  syncCoachWorkoutNames();const name=$("trainingTemplateName").value.trim();
@@ -2879,7 +2927,7 @@ $("saveTrainingTemplate").addEventListener("click",async()=>{
  }catch(e){$("trainingTemplateStatus").textContent="Could not save template: "+e.message;}finally{button.disabled=false;}
 });
 $("loadTrainingTemplate").addEventListener("click",async()=>{
- const id=$("trainingTemplateSelect").value;if(!id||!currentUser){$("trainingTemplateStatus").textContent="Choose a saved template first.";return;}
+ const id=$("trainingTemplateSelect").value;if(!id||!currentUser){$("trainingTemplateStatus").textContent="Choose a saved template first.";return;}selectedTrainingTemplateId=id;
  try{const snap=await getDoc(doc(db,"users",currentUser.uid,"coachSettings","trainingTemplates"));const templates=snap.exists()&&Array.isArray(snap.data().templates)?snap.data().templates:[];const template=templates.find(t=>t.id===id);
  if(!template)throw new Error("That template could not be found. Refresh the library and try again.");
  coachTrainingProgram={workouts:JSON.parse(JSON.stringify(template.workouts||[])),scheduleNote:template.scheduleNote||"",progressionNote:template.progressionNote||""};renderCoachTrainingProgram();$("coachTrainingStatus").textContent="Template loaded into this client’s editor. Review it, then press SAVE TRAINING PROGRAMME to assign it."; $("trainingTemplateStatus").textContent="Loaded “"+template.name+"”. The client’s programme will not change until you save it.";
@@ -3887,12 +3935,13 @@ $("profileQuickNav")?.addEventListener("change",event=>{
 });
 document.querySelectorAll("#nav button").forEach(btn=>btn.addEventListener("click",()=>{
  document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("active",b===btn));
- ["overview","clients","analytics","pedTracking","nutrition","foodDiary","training","progress","checkins","messages","updates","guide"].forEach(v=>$(v+"View").classList.toggle("hidden",v!==btn.dataset.view));
+ ["overview","clients","templates","analytics","pedTracking","nutrition","foodDiary","training","progress","checkins","messages","updates","guide"].forEach(v=>$(v+"View").classList.toggle("hidden",v!==btn.dataset.view));
  if(btn.dataset.view==="pedTracking"&&currentUser){
   if(currentRole==="coach")loadCoachPedClientOptions();
   else loadPedRecords(currentUser.uid,"client");
  }
  if(btn.dataset.view==="clients")loadClients();
+ if(btn.dataset.view==="templates"&&currentUser&&currentRole==="coach")loadTemplateLibrary();
  if(btn.dataset.view==="analytics"&&currentUser&&currentRole==="coach"){loadPerformanceAnalytics();loadTrainingPerformanceCentre();loadCoachConsistencyDashboard();loadCoachCheckinInbox();loadCoachingIntelligence();loadWeeklyCoachingReports();}
  if(btn.dataset.view==="nutrition"&&currentUser)loadNutritionTargets(false);
  if(btn.dataset.view==="foodDiary"&&currentUser){$("foodDate").value=$("foodDate").value||localDateString();loadFoodDiary();}
