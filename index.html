@@ -1722,7 +1722,7 @@ async function loadClients(){
    const pedWrap=document.createElement("label");pedWrap.style.cssText="display:flex;align-items:center;gap:9px;margin-top:12px;font-size:13px";
    const pedToggle=document.createElement("input");pedToggle.type="checkbox";pedToggle.checked=c.pedTrackingEnabled===true;pedToggle.style.width="20px";pedToggle.style.minHeight="20px";pedToggle.style.margin="0";
    const pedText=document.createElement("span");pedText.textContent="Enable PED tracking (client can view)";
-   pedToggle.addEventListener("change",async()=>{pedToggle.disabled=true;try{await setDoc(doc(db,"users",c.uid,"settings","pedTracking"),{enabled:pedToggle.checked,updatedAt:serverTimestamp(),updatedBy:currentUser.uid},{merge:true});c.pedTrackingEnabled=pedToggle.checked;}catch(e){pedToggle.checked=!pedToggle.checked;alert("Could not update PED tracking. "+e.message);}finally{pedToggle.disabled=false;}});
+   pedToggle.addEventListener("change",async()=>{pedToggle.disabled=true;try{await setDoc(doc(db,"users",c.uid,"settings","pedTracking"),{enabled:pedToggle.checked,updatedAt:serverTimestamp(),updatedBy:currentUser.uid},{merge:true});c.pedTrackingEnabled=pedToggle.checked;if(currentRole==="coach")await loadCoachPedClientOptions();}catch(e){pedToggle.checked=!pedToggle.checked;alert("Could not update PED tracking. "+e.message);}finally{pedToggle.disabled=false;}});
    pedWrap.append(pedToggle,pedText);
    const open=document.createElement("button");open.className="secondary";open.textContent="OPEN CLIENT PROFILE";open.style.width="100%";open.style.marginTop="12px";open.addEventListener("click",()=>showClientProfile(c));
    card.append(name,email,state,pedWrap,open);list.append(card);
