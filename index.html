@@ -2574,11 +2574,19 @@ $("lookupBarcode").addEventListener("click",async()=>{
   if(result.status!==1||!result.product)throw new Error("Product not found. Enter the food manually instead.");
   const p=result.product,n=p.nutriments||{};
   $("foodName").value=p.product_name||p.product_name_en||"";
-  $("foodCalories").value=n["energy-kcal_100g"]??(n["energy_100g"]?Math.round(n["energy_100g"]/4.184):"");
-  $("foodProtein").value=n.proteins_100g??"";
-  $("foodCarbs").value=n.carbohydrates_100g??"";
-  $("foodFats").value=n.fat_100g??"";
-  $("barcodeStatus").textContent="Found "+($("foodName").value||"product")+". Values are per 100g; adjust them to your portion before adding.";
+  const per100={
+   name:$("foodName").value,
+   calories:Number(n["energy-kcal_100g"]??(n["energy_100g"]?n["energy_100g"]/4.184:0))||0,
+   protein:Number(n.proteins_100g)||0,
+   carbs:Number(n.carbohydrates_100g)||0,
+   fats:Number(n.fat_100g)||0,
+   source:"Open Food Facts"
+  };
+  // Keep barcode nutrition in the same per-100g lookup cache used by food search.
+  // The portion-size input listener then recalculates the actual logged values.
+  foodLookupCache.set($("foodName").value.trim().toLowerCase(),per100);
+  $("foodGrams").dispatchEvent(new Event("input",{bubbles:true}));
+  $("barcodeStatus").textContent="Found "+($("foodName").value||"product")+". Nutrition has been calculated for "+(Number($("foodGrams").value)||100)+"g. Change the portion size and the values will update automatically.";
  }catch(e){$("barcodeStatus").textContent=e.message;}
  finally{$("lookupBarcode").disabled=false;}
 });
