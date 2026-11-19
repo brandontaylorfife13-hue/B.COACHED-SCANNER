@@ -669,7 +669,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-import { getFirestore, doc, setDoc, updateDoc, getDoc, addDoc, serverTimestamp, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { getFirestore, doc, setDoc, updateDoc, deleteDoc, getDoc, addDoc, serverTimestamp, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging.js";
 import { BrowserMultiFormatReader } from "https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm";
@@ -2491,13 +2491,49 @@ function renderFoodDiary(){
   });
   const dayLabel=document.createElement("div");dayLabel.className="muted";dayLabel.style.marginTop="8px";dayLabel.textContent=(highDays.includes(dayName)?"High day":"Low day")+" · "+dayName;targetHost.append(dayLabel);
  }
- const host=$("foodDiaryEntries");host.innerHTML="";
- if(!foodEntries.length){host.textContent="No food logged for this date yet.";return;}
+ const host=$("foodDiaryEntries");host.replaceChildren();
+ if(!foodEntries.length){host.textContent="No food logged for this date yet.";}
  foodEntries.forEach(item=>{
   const row=document.createElement("div");row.className="tile";row.style.marginBottom="9px";
   const title=document.createElement("b");title.textContent=(item.meal?item.meal+" · ":"")+item.name;
-  const detail=document.createElement("div");detail.className="muted";detail.textContent=Math.round(Number(item.calories)||0)+" kcal · P "+(Number(item.proteinG)||0)+"g · C "+(Number(item.carbsG)||0)+"g · F "+(Number(item.fatsG)||0)+"g";
-  row.append(title,detail);host.append(row);
+  const grams=Number(item.grams)||100;
+  const detail=document.createElement("div");detail.className="muted";
+  detail.textContent=grams+"g · "+Math.round(Number(item.calories)||0)+" kcal · P "+(Number(item.proteinG)||0)+"g · C "+(Number(item.carbsG)||0)+"g · F "+(Number(item.fatsG)||0)+"g";
+  const actions=document.createElement("div");actions.className="actions";actions.style.marginTop="10px";
+  const edit=document.createElement("button");edit.type="button";edit.className="secondary";edit.textContent="EDIT FOOD";
+  const remove=document.createElement("button");remove.type="button";remove.className="secondary";remove.textContent="DELETE";
+  actions.append(edit,remove);row.append(title,detail,actions);host.append(row);
+  edit.addEventListener("click",()=>{
+   if(row.querySelector(".food-entry-editor"))return;
+   const editor=document.createElement("div");editor.className="food-entry-editor";editor.style.cssText="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px";
+   const field=(label,value,type="number",step="0.1")=>{const wrap=document.createElement("label");wrap.style.cssText="margin:0;font-size:11px";wrap.textContent=label;const input=document.createElement("input");input.type=type;input.value=value??"";if(type==="number"){input.min="0";input.step=step;}input.style.cssText="margin-top:5px;padding:10px;font-size:14px";wrap.append(input);editor.append(wrap);return input;};
+   const name=field("FOOD NAME",item.name||"","text"),meal=field("MEAL",item.meal||"","text"),portion=field("GRAMS",grams,"number","1");
+   const kcal=field("CALORIES (KCAL)",Number(item.calories)||0),protein=field("PROTEIN (G)",Number(item.proteinG)||0),carbs=field("CARBS (G)",Number(item.carbsG)||0),fats=field("FATS (G)",Number(item.fatsG)||0);
+   const note=document.createElement("div");note.className="muted";note.style.cssText="grid-column:1/-1;font-size:11px";note.textContent="Changing grams scales the current macros automatically. You can also edit each macro directly.";editor.append(note);
+   const oldGrams=grams,base={calories:Number(item.calories)||0,protein:Number(item.proteinG)||0,carbs:Number(item.carbsG)||0,fats:Number(item.fatsG)||0};
+   portion.addEventListener("input",()=>{const ratio=Math.max(0,Number(portion.value)||0)/oldGrams;kcal.value=(base.calories*ratio).toFixed(1);protein.value=(base.protein*ratio).toFixed(1);carbs.value=(base.carbs*ratio).toFixed(1);fats.value=(base.fats*ratio).toFixed(1);});
+   const save=document.createElement("button");save.type="button";save.textContent="SAVE CHANGES";save.style.gridColumn="1/-1";
+   const cancel=document.createElement("button");cancel.type="button";cancel.className="secondary";cancel.textContent="CANCEL";cancel.style.gridColumn="1/-1";
+   editor.append(save,cancel);row.append(editor);
+   cancel.onclick=()=>editor.remove();
+   save.onclick=async()=>{
+    if(!name.value.trim()||Number(portion.value)<=0){note.textContent="Enter a food name and a portion greater than 0g.";return;}
+    const values=[kcal,protein,carbs,fats].map(x=>Number(x.value));
+    if(values.some(x=>!Number.isFinite(x)||x<0)){note.textContent="Please enter valid non-negative nutrition values.";return;}
+    save.disabled=true;save.textContent="SAVING…";
+    try{
+     const date=$("foodDate").value||localDateString();
+     await updateDoc(doc(db,"users",currentUser.uid,"foodLogs",date,"entries",item.id),{name:name.value.trim(),meal:meal.value.trim(),grams:Number(portion.value),calories:values[0],proteinG:values[1],carbsG:values[2],fatsG:values[3],updatedAt:serverTimestamp()});
+     await loadFoodDiary();
+    }catch(e){note.textContent="Could not save changes: "+e.message;save.disabled=false;save.textContent="SAVE CHANGES";}
+   };
+  });
+  remove.addEventListener("click",async()=>{
+   if(!confirm("Delete "+(item.name||"this food entry")+" from your diary?"))return;
+   remove.disabled=true;remove.textContent="DELETING…";
+   try{const date=$("foodDate").value||localDateString();await deleteDoc(doc(db,"users",currentUser.uid,"foodLogs",date,"entries",item.id));await loadFoodDiary();}
+   catch(e){remove.disabled=false;remove.textContent="DELETE";detail.textContent="Could not delete entry: "+e.message;}
+  });
  });
 }
 async function loadFoodDiary(){
@@ -2556,7 +2592,7 @@ $("addFoodBtn").addEventListener("click",async()=>{
  try{
   const date=$("foodDate").value||localDateString();
   await setDoc(doc(collection(db,"users",currentUser.uid,"foodLogs",date,"entries")) ,{
-   name,meal:$("foodMeal").value.trim(),calories:Number($("foodCalories").value),proteinG:Number($("foodProtein").value),carbsG:Number($("foodCarbs").value),fatsG:Number($("foodFats").value),createdAt:serverTimestamp()
+   name,meal:$("foodMeal").value.trim(),grams:Number($("foodGrams").value)||100,calories:Number($("foodCalories").value),proteinG:Number($("foodProtein").value),carbsG:Number($("foodCarbs").value),fatsG:Number($("foodFats").value),createdAt:serverTimestamp()
   });
   $("foodStatus").textContent="Added to your food diary.";
   ["foodName","foodCalories","foodProtein","foodCarbs","foodFats","foodMeal","foodBarcode"].forEach(id=>$(id).value="");$("foodGrams").value="100";
