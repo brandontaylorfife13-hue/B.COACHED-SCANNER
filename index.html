@@ -213,8 +213,8 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <div id="dashboardMacros" class="hidden" style="margin-top:20px">
    <div class="section-title">Your calorie & macro targets</div>
    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
-    <div class="tile"><div class="eyebrow">HIGH DAY</div><strong id="dashHighCalories">—</strong><span>kcal · P <b id="dashHighProtein">—</b>g · C <b id="dashHighCarbs">—</b>g · F <b id="dashHighFats">—</b>g</span></div>
-    <div class="tile"><div class="eyebrow">LOW DAY</div><strong id="dashLowCalories">—</strong><span>kcal · P <b id="dashLowProtein">—</b>g · C <b id="dashLowCarbs">—</b>g · F <b id="dashLowFats">—</b>g</span></div>
+    <div class="tile"><div class="eyebrow">HIGH DAY · TRAINING</div><strong id="dashHighCalories">—</strong><span>kcal · P <b id="dashHighProtein">—</b>g · C <b id="dashHighCarbs">—</b>g · F <b id="dashHighFats">—</b>g></span></div>
+    <div class="tile"><div class="eyebrow">LOW DAY · REST</div><strong id="dashLowCalories">—</strong><span>kcal · P <b id="dashLowProtein">—</b>g · C <b id="dashLowCarbs">—</b>g · F <b id="dashLowFats">—</b>g></span></div>
    </div>
   </div>
   <div id="clientCheckinReminder" class="tile hidden" style="margin-top:18px;border-color:#829e22"><div class="eyebrow">WEEKLY CHECK-IN REMINDER</div><strong id="clientCheckinReminderTitle" style="font-size:17px;margin-top:8px">Your weekly check-in is due</strong><p id="clientCheckinReminderText" class="muted" style="margin:7px 0 12px">Take a moment to update your coach.</p><button id="clientCheckinReminderBtn" style="width:100%">COMPLETE WEEKLY CHECK-IN</button></div>
@@ -1235,8 +1235,9 @@ async function loadCoachClientNutritionAnalytics(){
    const entries=entriesSnap.docs.map(x=>x.data());
    const totals=entries.reduce((a,x)=>({calories:a.calories+(Number(x.calories)||0),protein:a.protein+(Number(x.proteinG)||0),carbs:a.carbs+(Number(x.carbsG)||0),fats:a.fats+(Number(x.fatsG)||0)}),{calories:0,protein:0,carbs:0,fats:0});
    const dayName=date.toLocaleDateString("en-US",{weekday:"long"});
-   const high=highDays.includes(dayName),target=high?(targets.highDay||{}):(targets.lowDay||{});
    const selection=selectionSnap.exists()?selectionSnap.data():{};
+   const high=selection.dayTypeOverride&&["highDay","lowDay"].includes(selection.dayType)?selection.dayType==="highDay":highDays.includes(dayName);
+   const target=high?(targets.highDay||{}):(targets.lowDay||{});
    const eaten=selection.eatenMeals&&typeof selection.eatenMeals==="object"?Object.values(selection.eatenMeals).filter(Boolean).length:0;
    const planned=selection.eatenMeals&&typeof selection.eatenMeals==="object"?Object.keys(selection.eatenMeals).length:0;
    return {key,date,dayName,entries:entries.length,entryItems:entries,totals,high,target,eaten,planned,hasSelection:selectionSnap.exists(),selection};
@@ -1254,7 +1255,7 @@ async function loadCoachClientNutritionAnalytics(){
    const head=document.createElement("div");head.style.cssText="display:flex;justify-content:space-between;gap:10px;align-items:center";
    const title=document.createElement("strong");title.textContent=day.date.toLocaleDateString("en-US",{weekday:"short",day:"numeric",month:"short"});
    const status=document.createElement("span");status.className="pill";status.textContent=day.entries?day.entries+" food entries":"No diary logged";head.append(title,status);card.append(head);
-   const type=document.createElement("div");type.className="muted";type.style.marginTop="5px";type.textContent=(highDays.length?(day.high?"High day":"Low day"):"Day type not assigned")+(day.planned?" · Meal plan marked "+day.eaten+"/"+day.planned+" eaten":"");card.append(type);
+   const type=document.createElement("div");type.className="muted";type.style.marginTop="5px";type.textContent=(day.selection?.dayTypeOverride?(day.high?"High day · Client selected":"Low day · Client selected"):(highDays.length?(day.high?"High day":"Low day"):"Day type not assigned"))+(day.planned?" · Meal plan marked "+day.eaten+"/"+day.planned+" eaten":"");card.append(type);
    if(day.entries){
     const vals=[["Calories",day.totals.calories,day.target.calories,"kcal"],["Protein",day.totals.protein,day.target.proteinG,"g"],["Carbs",day.totals.carbs,day.target.carbsG,"g"],["Fats",day.totals.fats,day.target.fatsG,"g"]];
     vals.forEach(([label,actual,target,unit])=>{const line=document.createElement("div");line.style.cssText="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid #30372a";const l=document.createElement("span");l.textContent=label;const v=document.createElement("strong");v.textContent=target==null?Math.round(actual*10)/10+unit+" · target not set":Math.round(actual*10)/10+" / "+target+unit;line.append(l,v);card.append(line);});
