@@ -265,6 +265,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
    <div id="clientWeightHistory" class="muted">No weigh-ins yet.</div>
   </div>
   <div id="dailyHabits" class="hidden" style="margin-top:24px">
+   <div id="clientCardioPrescription" class="tile hidden" style="margin-bottom:18px;min-height:0;border-color:#829e22"><div class="eyebrow">YOUR CARDIO PLAN</div><strong id="clientCardioPlanTitle" style="display:block;font-size:17px;margin-top:7px;color:var(--white)">Cardio prescription</strong><div id="clientCardioPlanDetails" class="muted" style="margin-top:8px"></div><div id="clientCardioPlanNotes" class="muted" style="margin-top:8px"></div></div>
    <div class="section-title">Your daily check-in</div>
    <p class="muted">Log your steps, water and sleep. Your entries are saved to your personal coaching profile.</p>
    <label for="habitDate">Date</label><input id="habitDate" type="date">
@@ -423,8 +424,24 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <div id="weightChart" class="tile" style="min-height:180px;overflow:hidden"><span>Add weigh-ins to see the trend.</span></div>
   <div class="section-title" style="margin-top:22px">Weigh-in history</div>
   <div id="weightHistory" class="muted">No weigh-ins recorded.</div>
-  <div class="section-title profile-anchor" id="profile-daily-activity" style="margin-top:26px">Client daily activity</div>
-  <p class="muted">Review the steps, water and sleep entries submitted by this client.</p>
+  <div class="section-title profile-anchor" id="profile-daily-activity" style="margin-top:26px">Client daily activity & cardio plan</div>
+  <p class="muted">Set the cardio prescription for this client. They will see it in their daily check-in area, while their completed cardio remains logged separately.</p>
+  <div class="tile" style="min-height:0;margin:12px 0">
+   <div class="eyebrow">COACH-PRESCRIBED CARDIO</div>
+   <label for="coachCardioType">Cardio type</label><select id="coachCardioType" class="training-select"><option value="">No cardio prescribed</option><option>Incline treadmill</option><option>Treadmill</option><option>Walking</option><option>Outdoor run</option><option>Exercise bike</option><option>Stationary bike</option><option>Cross trainer</option><option>Rowing machine</option><option>Stair climber</option><option>Swimming</option><option>Other</option></select>
+   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(145px,1fr))">
+    <div><label for="coachCardioSessions">Sessions per week</label><input id="coachCardioSessions" type="number" min="0" max="14" step="1" placeholder="e.g. 4"></div>
+    <div><label for="coachCardioMinutes">Duration (minutes)</label><input id="coachCardioMinutes" type="number" min="1" max="1440" step="1" placeholder="e.g. 30"></div>
+    <div><label for="coachCardioIntensity">Intensity</label><select id="coachCardioIntensity" class="training-select"><option value="">Not specified</option><option>Low</option><option>Moderate</option><option>High</option></select></div>
+    <div id="coachCardioSpeedWrap" class="hidden"><label for="coachCardioSpeed">Treadmill speed (km/h)</label><input id="coachCardioSpeed" type="number" min="0" max="40" step="0.1" placeholder="e.g. 5.5"></div>
+    <div id="coachCardioInclineWrap" class="hidden"><label for="coachCardioIncline">Treadmill incline (%)</label><input id="coachCardioIncline" type="number" min="0" max="40" step="0.5" placeholder="e.g. 10"></div>
+    <div><label for="coachCardioStartDate">Start date</label><input id="coachCardioStartDate" type="date"></div>
+   </div>
+   <label for="coachCardioSchedule">Days / schedule (optional)</label><input id="coachCardioSchedule" placeholder="e.g. Monday, Wednesday, Friday">
+   <label for="coachCardioNotes">Coach instructions (optional)</label><textarea id="coachCardioNotes" rows="3" style="width:100%;padding:12px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit" placeholder="Add any specific guidance for the client…"></textarea>
+   <button id="saveCoachCardioPlan" style="width:100%;margin-top:14px">SAVE CARDIO PLAN FOR CLIENT</button><div id="coachCardioStatus" class="status" role="status"></div>
+  </div>
+  <div class="section-title" style="margin-top:20px">Client-submitted daily activity</div>
   <div id="coachDailyLogs" class="muted">Loading daily activity…</div>
   <div class="section-title profile-anchor" id="profile-messages" style="margin-top:26px">Client messages</div><p class="muted">Messages exchanged with this client.</p><button type="button" id="refreshCoachMessages" class="secondary" style="width:100%;margin:8px 0">REFRESH MESSAGES</button><div id="coachMessageHistory" class="muted">Loading messages…</div><label for="coachMessageInput">Reply to client</label><textarea id="coachMessageInput" rows="3" style="width:100%;padding:12px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit" placeholder="Write a reply…"></textarea><button id="sendCoachMessage" style="width:100%;margin-top:10px">SEND REPLY</button><div id="coachMessageStatus" class="status" role="status"></div>
   <div class="section-title profile-anchor" id="profile-weekly-checkins" style="margin-top:26px">Weekly check-ins from client</div><p class="muted">Review submissions and leave feedback.</p><div id="coachCheckinReview" class="muted">Loading check-ins…</div>
@@ -902,7 +919,7 @@ onAuthStateChanged(auth,async user=>{
   $("dailyHabits").classList.toggle("hidden",coach);
   $("clientWeightTracker").classList.toggle("hidden",coach);
   if(!coach){await loadNotificationPreferences();$("clientWeightDate").value=localDateString();await loadClientWeight();}
-  if(!coach){$("habitDate").value=localDateString();await loadDailyHabits();}
+  if(!coach){$("habitDate").value=localDateString();await loadDailyHabits();await loadClientCardioPrescription();}
   $("trainingWorkoutDate").value=localDateString();
   if(coach)await ensurePersonalTrainingProgram();
   await loadClientTrainingDashboard();
@@ -1946,6 +1963,7 @@ async function showClientProfile(client){
   await loadNutritionTargets(true);
   await loadCoachClientNutritionAnalytics();
   await loadCoachDailyLogs();
+  await loadCoachCardioPlan();
   renderMessageThread(selectedClient.uid,"coachMessageHistory");
   await loadCoachCheckins();
   await loadCoachProgressOverview();
@@ -3585,6 +3603,78 @@ async function loadCoachCheckins(){
    card.append(label,reply,save);host.append(card);
   });
  }catch(e){host.textContent="Could not load client check-ins: "+e.message;}
+}
+function updateCoachCardioTreadmillFields(){
+ const show=/treadmill/i.test($("coachCardioType")?.value||"");
+ $("coachCardioSpeedWrap")?.classList.toggle("hidden",!show);
+ $("coachCardioInclineWrap")?.classList.toggle("hidden",!show);
+ if(!show){$("coachCardioSpeed").value="";$("coachCardioIncline").value="";}
+}
+$("coachCardioType")?.addEventListener("change",updateCoachCardioTreadmillFields);
+async function loadCoachCardioPlan(){
+ if(!selectedClient?.uid)return;
+ const ids=["coachCardioType","coachCardioSessions","coachCardioMinutes","coachCardioIntensity","coachCardioSpeed","coachCardioIncline","coachCardioStartDate","coachCardioSchedule","coachCardioNotes"];
+ ids.forEach(id=>$(id).value="");
+ $("coachCardioStatus").textContent="Loading saved cardio plan…";
+ try{
+  const snap=await getDoc(doc(db,"users",selectedClient.uid,"profile","cardioPlan"));
+  if(snap.exists()){
+   const p=snap.data();
+   $("coachCardioType").value=p.cardioType||"";
+   $("coachCardioSessions").value=p.sessionsPerWeek??"";
+   $("coachCardioMinutes").value=p.durationMinutes??"";
+   $("coachCardioIntensity").value=p.intensity||"";
+   $("coachCardioSpeed").value=p.speedKmh??"";
+   $("coachCardioIncline").value=p.inclinePercent??"";
+   $("coachCardioStartDate").value=p.startDate||"";
+   $("coachCardioSchedule").value=p.schedule||"";
+   $("coachCardioNotes").value=p.notes||"";
+  }
+  updateCoachCardioTreadmillFields();
+  $("coachCardioStatus").textContent="";
+ }catch(error){$("coachCardioStatus").textContent="Could not load cardio plan: "+error.message;}
+}
+$("saveCoachCardioPlan")?.addEventListener("click",async()=>{
+ if(!selectedClient?.uid)return;
+ const cardioType=$("coachCardioType").value,sessions=$("coachCardioSessions").value.trim(),minutes=$("coachCardioMinutes").value.trim(),speed=$("coachCardioSpeed").value.trim(),incline=$("coachCardioIncline").value.trim();
+ if(cardioType&&sessions!==""&&(!Number.isInteger(Number(sessions))||Number(sessions)<0||Number(sessions)>14)){$("coachCardioStatus").textContent="Sessions per week must be a whole number from 0 to 14.";return;}
+ if(cardioType&&minutes!==""&&(!Number.isInteger(Number(minutes))||Number(minutes)<1||Number(minutes)>1440)){$("coachCardioStatus").textContent="Enter a valid duration in minutes.";return;}
+ if(speed!==""&&(!Number.isFinite(Number(speed))||Number(speed)<0||Number(speed)>40)){$("coachCardioStatus").textContent="Treadmill speed must be between 0 and 40 km/h.";return;}
+ if(incline!==""&&(!Number.isFinite(Number(incline))||Number(incline)<0||Number(incline)>40)){$("coachCardioStatus").textContent="Treadmill incline must be between 0 and 40%.";return;}
+ const button=$("saveCoachCardioPlan");button.disabled=true;$("coachCardioStatus").textContent="Saving cardio plan…";
+ try{
+  await setDoc(doc(db,"users",selectedClient.uid,"profile","cardioPlan"),{
+   cardioType:cardioType||null,sessionsPerWeek:sessions===""?null:Number(sessions),durationMinutes:minutes===""?null:Number(minutes),
+   intensity:$("coachCardioIntensity").value||null,speedKmh:speed===""?null:Number(speed),inclinePercent:incline===""?null:Number(incline),
+   startDate:$("coachCardioStartDate").value||"",schedule:$("coachCardioSchedule").value.trim(),notes:$("coachCardioNotes").value.trim(),
+   updatedAt:serverTimestamp(),updatedBy:currentUser.uid
+  },{merge:true});
+  $("coachCardioStatus").textContent="Cardio plan saved for "+(selectedClient.displayName||"this client")+".";
+ }catch(error){$("coachCardioStatus").textContent="Could not save cardio plan: "+error.message;}
+ finally{button.disabled=false;}
+});
+async function loadClientCardioPrescription(){
+ if(!currentUser||currentRole==="coach")return;
+ const card=$("clientCardioPrescription");if(!card)return;
+ try{
+  const snap=await getDoc(doc(db,"users",currentUser.uid,"profile","cardioPlan"));
+  if(!snap.exists()||!snap.data().cardioType){card.classList.add("hidden");return;}
+  const p=snap.data();
+  $("clientCardioPlanTitle").textContent=p.cardioType+" prescription";
+  const details=[];
+  if(p.sessionsPerWeek!=null)details.push(p.sessionsPerWeek+" session(s) per week");
+  if(p.durationMinutes!=null)details.push(p.durationMinutes+" minutes per session");
+  if(p.intensity)details.push(p.intensity+" intensity");
+  if(/treadmill/i.test(p.cardioType)){
+   if(p.speedKmh!=null)details.push(Number(p.speedKmh).toFixed(1)+" km/h");
+   if(p.inclinePercent!=null)details.push(Number(p.inclinePercent)+"% incline");
+  }
+  if(p.schedule)details.push("Schedule: "+p.schedule);
+  if(p.startDate)details.push("Starts: "+new Date(p.startDate+"T12:00:00").toLocaleDateString());
+  $("clientCardioPlanDetails").textContent=details.join(" · ");
+  $("clientCardioPlanNotes").textContent=p.notes||"Follow this plan and record completed cardio in your daily check-in below.";
+  card.classList.remove("hidden");
+ }catch(error){console.warn("Could not load coach cardio prescription",error);card.classList.add("hidden");}
 }
 async function loadCoachDailyLogs(){
  const host=$("coachDailyLogs");
