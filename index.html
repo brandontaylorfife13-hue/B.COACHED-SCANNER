@@ -352,7 +352,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <div class="section-title profile-anchor" id="profile-nutrition-targets" style="margin-top:26px">Nutrition targets</div>
   <p class="muted">Set separate targets for higher-calorie and lower-calorie days.</p>
   <div class="tile" style="margin-bottom:12px">
-   <div class="eyebrow">HIGH DAYS</div>
+   <div class="eyebrow">HIGH DAYS</div><p class="muted" style="margin:5px 0 12px">Higher-calorie targets for training days. Clients can switch an individual date to High Day if their training session moves.</p>
    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">
     <div><label for="highCalories">Calories (kcal)</label><input id="highCalories" type="number" min="0" step="1" placeholder="e.g. 2600"></div>
     <div><label for="highProtein">Protein (g)</label><input id="highProtein" type="number" min="0" step="1" placeholder="e.g. 180"></div>
@@ -361,7 +361,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
    </div>
   </div>
   <div class="tile" style="margin-bottom:12px">
-   <div class="eyebrow">LOW DAYS</div>
+   <div class="eyebrow">LOW DAYS</div><p class="muted" style="margin:5px 0 12px">Lower-calorie targets for rest days. Clients can switch an individual date to Low Day if their rest day changes.</p>
    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">
     <div><label for="lowCalories">Calories (kcal)</label><input id="lowCalories" type="number" min="0" step="1" placeholder="e.g. 2200"></div>
     <div><label for="lowProtein">Protein (g)</label><input id="lowProtein" type="number" min="0" step="1" placeholder="e.g. 180"></div>
@@ -369,8 +369,8 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
     <div><label for="lowFats">Fats (g)</label><input id="lowFats" type="number" min="0" step="1" placeholder="e.g. 65"></div>
    </div>
   </div>
-  <div class="section-title" style="margin-top:18px">Weekly high-day schedule</div>
-  <p class="muted">Select the days this client should follow their high-day targets. All unselected days will be treated as low days.</p>
+  <div class="section-title" style="margin-top:18px">Suggested weekly high-day schedule</div>
+  <p class="muted">Select the usual training days as a default. Clients can override the day type on any individual date if their training split moves around or rolls into the next week.</p>
   <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
    <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" class="highDayCheckbox" value="Monday" style="width:auto"> Monday</label>
    <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" class="highDayCheckbox" value="Tuesday" style="width:auto"> Tuesday</label>
@@ -529,6 +529,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <label for="foodDate">Diary date</label><input id="foodDate" type="date">
 
   <div class="section-title" style="margin-top:24px">Today's targets</div>
+  <div class="tile" style="min-height:0;margin-bottom:10px"><strong style="font-size:14px">Choose your day type</strong><p class="muted" style="margin:5px 0 8px">High Day = training day. Low Day = rest day. If your workout moves, change the day type here for this date. Your other dates stay as planned.</p><select id="clientNutritionDayType" class="training-select" style="width:100%"><option value="highDay">High Day · Training</option><option value="lowDay">Low Day · Rest</option></select><div id="clientNutritionDayStatus" class="muted" style="margin-top:6px" role="status"></div></div>
   <div class="tile" id="foodTargetSummary" style="margin-bottom:14px"><div class="muted">Your coach's calorie and macro targets will appear here.</div></div>
   <div class="section-title" style="margin-top:24px">Daily totals</div>
   <div class="grid">
@@ -2338,10 +2339,14 @@ async function loadClientMealPlan(){
   const date=$("foodDate").value||localDateString();
   const dayName=new Date(date+"T12:00:00").toLocaleDateString("en-US",{weekday:"long"});
   const highDays=Array.isArray(targets.highDays)?targets.highDays:[];
-  const type=highDays.includes(dayName)?"highDay":"lowDay";
-  const plan=clientMealPlan[type]||[];
+  const scheduledType=highDays.includes(dayName)?"highDay":"lowDay";
   const saved=await getDoc(doc(db,"users",currentUser.uid,"mealPlanSelections",date));
   const savedData=saved.exists()?saved.data():{};
+  const type=savedData.dayTypeOverride&&["highDay","lowDay"].includes(savedData.dayType)?savedData.dayType:scheduledType;
+  selectedNutritionDayType=savedData.dayTypeOverride?type:null;
+  const picker=$("clientNutritionDayType");if(picker)picker.value=type;
+  const pickerStatus=$("clientNutritionDayStatus");if(pickerStatus)pickerStatus.textContent=savedData.dayTypeOverride?"You have changed this date from your coach’s usual schedule.":"Following your coach’s suggested weekly schedule.";
+  const plan=clientMealPlan[type]||[];
   clientMealSelections=savedData.selectionMap||{};
   const customFoods=savedData.customFoods||{};
   const eatenMeals=savedData.eatenMeals||{};
@@ -2381,7 +2386,7 @@ async function loadClientMealPlan(){
      custom[String(mi)]={optionIndex:map[mi],foods:foods.map(f=>({...f}))};
      return {meal:meal.name||("Meal "+(mi+1)),option:(meal.options?.[map[mi]]?.name)||"Option",foods:foods.map(f=>({name:f.name||"",grams:Number(f.grams)||0})),...optionMacros({foods})};
     });
-    await setDoc(doc(db,"users",currentUser.uid,"mealPlanSelections",date),{date,dayType:type,selectionMap:map,customFoods:custom,eatenMeals:eatenMap,choices:selections,updatedAt:serverTimestamp()},{merge:true});
+    await setDoc(doc(db,"users",currentUser.uid,"mealPlanSelections",date),{date,dayType:type,dayTypeOverride:selectedNutritionDayType===type,selectionMap:map,customFoods:custom,eatenMeals:eatenMap,choices:selections,updatedAt:serverTimestamp()},{merge:true});
     clientMealSelections=map;saveStatus.textContent="All changes saved ✓";save.textContent="SAVE NOW";
    }catch(e){saveStatus.textContent="Could not save · tap RETRY SAVE";save.textContent="RETRY SAVE";console.error("Client meal plan autosave failed:",e);}
    finally{saveInProgress=false;save.disabled=false;if(saveAgain){saveAgain=false;scheduleClientMealSave();}}
@@ -2488,6 +2493,7 @@ $("coachPlanReviewDate").value=localDateString();$("coachPlanReviewDate").addEve
 let foodEntries=[];
 let nutritionTargets=null;
 let clientMealConsumed=[];
+let selectedNutritionDayType=null;
 function renderFoodDiary(){
  const combinedEntries=foodEntries.concat(clientMealConsumed);
  const totals=combinedEntries.reduce((a,x)=>({calories:a.calories+(Number(x.calories)||0),protein:a.protein+(Number(x.proteinG)||0),carbs:a.carbs+(Number(x.carbsG)||0),fats:a.fats+(Number(x.fatsG)||0)}),{calories:0,protein:0,carbs:0,fats:0});
@@ -2500,7 +2506,10 @@ function renderFoodDiary(){
  const targetData=nutritionTargets||{};
  const highDays=Array.isArray(targetData.highDays)?targetData.highDays:[];
  const dayName=new Date(selectedDate+"T12:00:00").toLocaleDateString("en-US",{weekday:"long"});
- const targetSet=highDays.length?(highDays.includes(dayName)?targetData.highDay:targetData.lowDay):null;
+ const scheduledType=highDays.length?(highDays.includes(dayName)?"highDay":"lowDay"):null;
+ const activeType=selectedNutritionDayType||scheduledType;
+ const targetSet=activeType==="highDay"?targetData.highDay:activeType==="lowDay"?targetData.lowDay:null;
+ const dayPicker=$("clientNutritionDayType");if(dayPicker){dayPicker.value=activeType||"lowDay";dayPicker.disabled=!targetData.highDay&&!targetData.lowDay;}
  if(!targetSet||["calories","proteinG","carbsG","fatsG"].every(k=>targetSet[k]==null)){
   targetHost.textContent=highDays.length?"Your coach has not entered targets for this day type yet.":"Your coach has not assigned a weekly target schedule yet.";
  }else{
@@ -2515,7 +2524,7 @@ function renderFoodDiary(){
    else{const remaining=Number(target)-eaten;right.textContent=Math.round(eaten*10)/10+" / "+Number(target)+unit+" · "+(remaining>=0?Math.round(remaining*10)/10+" left":Math.round(Math.abs(remaining)*10)/10+" over");}
    line.append(left,right);targetHost.append(line);
   });
-  const dayLabel=document.createElement("div");dayLabel.className="muted";dayLabel.style.marginTop="8px";dayLabel.textContent=(highDays.includes(dayName)?"High day":"Low day")+" · "+dayName;targetHost.append(dayLabel);
+  const dayLabel=document.createElement("div");dayLabel.className="muted";dayLabel.style.marginTop="8px";dayLabel.textContent=(activeType==="highDay"?"High Day · Training day":"Low Day · Rest day")+" · "+dayName+(selectedNutritionDayType?" · Manually selected":" · Coach schedule");targetHost.append(dayLabel);
  }
  const host=$("foodDiaryEntries");host.replaceChildren();
  if(!foodEntries.length){host.textContent="No food logged for this date yet.";}
@@ -2634,7 +2643,19 @@ $("addFoodBtn").addEventListener("click",async()=>{
  }catch(e){$("foodStatus").textContent="Could not save food: "+e.message;}
  finally{$("addFoodBtn").disabled=false;}
 });
-$("foodDate").addEventListener("change",loadFoodDiary);
+$("foodDate").addEventListener("change",()=>{selectedNutritionDayType=null;loadFoodDiary();});
+$("clientNutritionDayType")?.addEventListener("change",async()=>{
+ if(!currentUser||currentRole==="coach")return;
+ const date=$("foodDate").value||localDateString(),type=$("clientNutritionDayType").value;
+ const status=$("clientNutritionDayStatus");status.textContent="Saving your day type…";
+ try{
+  await setDoc(doc(db,"users",currentUser.uid,"mealPlanSelections",date),{date,dayType:type,dayTypeOverride:true,dayTypeUpdatedAt:serverTimestamp()},{merge:true});
+  selectedNutritionDayType=type;
+  status.textContent=type==="highDay"?"High Day selected for this date · Training targets and meal plan will apply.":"Low Day selected for this date · Rest-day targets and meal plan will apply.";
+  await loadNutritionTargets(false);
+  await loadClientMealPlan();
+ }catch(e){status.textContent="Could not save day type: "+e.message;}
+});
 async function loadClientFourWeekReview(){
  if(!currentUser||currentRole==="coach")return;
  const ids=["client4WeekCheckins","client4WeekFoodDays","client4WeekTraining","client4WeekWeight","client4WeekRows"];
