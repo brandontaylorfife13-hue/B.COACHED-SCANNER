@@ -272,6 +272,8 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
     <div><label for="habitSteps">Steps</label><input id="habitSteps" type="number" min="0" step="1" placeholder="e.g. 8500"></div>
     <div><label for="habitCardioType">Cardio</label><select id="habitCardioType" class="training-select"><option value="">No cardio logged</option><option>Incline treadmill</option><option>Treadmill</option><option>Walking</option><option>Outdoor run</option><option>Exercise bike</option><option>Stationary bike</option><option>Cross trainer</option><option>Rowing machine</option><option>Stair climber</option><option>Swimming</option><option>Other</option></select></div>
     <div><label for="habitCardioMinutes">Cardio duration (minutes)</label><input id="habitCardioMinutes" type="number" min="0" max="1440" step="1" placeholder="e.g. 25"></div>
+    <div id="habitTreadmillSpeedWrap" class="hidden"><label for="habitTreadmillSpeed">Treadmill speed (km/h)</label><input id="habitTreadmillSpeed" type="number" min="0" max="40" step="0.1" placeholder="e.g. 5.5"></div>
+    <div id="habitTreadmillInclineWrap" class="hidden"><label for="habitTreadmillIncline">Treadmill incline (%)</label><input id="habitTreadmillIncline" type="number" min="0" max="40" step="0.5" placeholder="e.g. 10"></div>
     <div><label for="habitCardioIntensity">Cardio intensity</label><select id="habitCardioIntensity" class="training-select"><option value="">Not specified</option><option>Low</option><option>Moderate</option><option>High</option></select></div>
     <div><label for="habitWater">Water (litres)</label><input id="habitWater" type="number" min="0" step="0.1" placeholder="e.g. 2.5"></div>
     <div><label for="habitSleep">Sleep (hours)</label><input id="habitSleep" type="number" min="0" max="24" step="0.1" placeholder="e.g. 7.5"></div>
@@ -3597,7 +3599,7 @@ async function loadCoachDailyLogs(){
    const card=document.createElement("div");card.className="tile";card.style.margin="8px 0";card.style.minHeight="0";
    const date=document.createElement("strong");date.style.fontSize="14px";date.style.color="#f5f7f1";date.textContent=new Date(d.date+"T12:00:00").toLocaleDateString();
    const values=document.createElement("div");values.className="muted";values.style.marginTop="8px";
-   values.textContent=(d.steps==null?"Steps —":Number(d.steps).toLocaleString()+" steps")+"  ·  "+(d.cardioMinutes==null?"No cardio":(d.cardioType||"Cardio")+" "+Number(d.cardioMinutes)+" min"+(d.cardioIntensity?" · "+d.cardioIntensity:""))+"  ·  "+(d.waterLitres==null?"Water —":Number(d.waterLitres).toFixed(1)+" L water")+"  ·  "+(d.sleepHours==null?"Sleep —":Number(d.sleepHours).toFixed(1)+" hrs sleep");
+   values.textContent=(d.steps==null?"Steps —":Number(d.steps).toLocaleString()+" steps")+"  ·  "+(d.cardioMinutes==null?"No cardio":(d.cardioType||"Cardio")+" "+Number(d.cardioMinutes)+" min"+(/treadmill/i.test(d.cardioType||"")?((d.treadmillSpeedKmh!=null?" · "+Number(d.treadmillSpeedKmh).toFixed(1)+" km/h":"")+(d.treadmillInclinePercent!=null?" · "+Number(d.treadmillInclinePercent)+"% incline":"")):"")+(d.cardioIntensity?" · "+d.cardioIntensity:""))+"  ·  "+(d.waterLitres==null?"Water —":Number(d.waterLitres).toFixed(1)+" L water")+"  ·  "+(d.sleepHours==null?"Sleep —":Number(d.sleepHours).toFixed(1)+" hrs sleep");
    card.append(date,values);host.append(card);
   });
  }catch(e){host.textContent="Unable to load daily activity: "+e.message;}
@@ -3742,6 +3744,9 @@ async function loadDailyHabits(){
   $("habitSteps").value=d.steps??"";
   $("habitCardioType").value=d.cardioType??"";
   $("habitCardioMinutes").value=d.cardioMinutes??"";
+  $("habitTreadmillSpeed").value=d.treadmillSpeedKmh??"";
+  $("habitTreadmillIncline").value=d.treadmillInclinePercent??"";
+  updateTreadmillFields();
   $("habitCardioIntensity").value=d.cardioIntensity??"";
   $("habitWater").value=d.waterLitres??"";
   $("habitSleep").value=d.sleepHours??"";
@@ -3762,20 +3767,30 @@ async function renderDailyHistory(){
   rows.forEach(d=>{
    const row=document.createElement("div");row.className="tile";row.style.margin="8px 0";row.style.minHeight="0";
    const date=document.createElement("strong");date.style.fontSize="14px";date.style.color="#f5f7f1";date.textContent=new Date(d.date+"T12:00:00").toLocaleDateString();
-   const values=document.createElement("span");values.textContent=(d.steps==null?"—":Number(d.steps).toLocaleString()+" steps")+" · "+(d.cardioMinutes==null?"No cardio":(d.cardioType||"Cardio")+" "+Number(d.cardioMinutes)+" min"+(d.cardioIntensity?" · "+d.cardioIntensity:""))+" · "+(d.waterLitres==null?"—":Number(d.waterLitres).toFixed(1)+" L water")+" · "+(d.sleepHours==null?"—":Number(d.sleepHours).toFixed(1)+" hrs sleep");
+   const values=document.createElement("span");values.textContent=(d.steps==null?"—":Number(d.steps).toLocaleString()+" steps")+" · "+(d.cardioMinutes==null?"No cardio":(d.cardioType||"Cardio")+" "+Number(d.cardioMinutes)+" min"+(/treadmill/i.test(d.cardioType||"")?((d.treadmillSpeedKmh!=null?" · "+Number(d.treadmillSpeedKmh).toFixed(1)+" km/h":"")+(d.treadmillInclinePercent!=null?" · "+Number(d.treadmillInclinePercent)+"% incline":"")):"")+(d.cardioIntensity?" · "+d.cardioIntensity:""))+" · "+(d.waterLitres==null?"—":Number(d.waterLitres).toFixed(1)+" L water")+" · "+(d.sleepHours==null?"—":Number(d.sleepHours).toFixed(1)+" hrs sleep");
    row.append(date,values);host.append(row);
   });
  }catch(e){host.textContent="Unable to load recent logs.";}
 }
+function updateTreadmillFields(){
+ const type=$("habitCardioType")?.value||"";
+ const show=/treadmill/i.test(type);
+ $("habitTreadmillSpeedWrap")?.classList.toggle("hidden",!show);
+ $("habitTreadmillInclineWrap")?.classList.toggle("hidden",!show);
+ if(!show){$("habitTreadmillSpeed").value="";$("habitTreadmillIncline").value="";}
+}
+$("habitCardioType").addEventListener("change",updateTreadmillFields);
 $("habitDate").addEventListener("change",loadDailyHabits);
 $("saveHabitsBtn").addEventListener("click",async()=>{
  if(!currentUser)return;
  const date=$("habitDate").value;
- const steps=$("habitSteps").value.trim(),cardioType=$("habitCardioType").value,cardioMinutes=$("habitCardioMinutes").value.trim(),cardioIntensity=$("habitCardioIntensity").value,water=$("habitWater").value.trim(),sleep=$("habitSleep").value.trim();
+ const steps=$("habitSteps").value.trim(),cardioType=$("habitCardioType").value,cardioMinutes=$("habitCardioMinutes").value.trim(),cardioIntensity=$("habitCardioIntensity").value,treadmillSpeed=$("habitTreadmillSpeed").value.trim(),treadmillIncline=$("habitTreadmillIncline").value.trim(),water=$("habitWater").value.trim(),sleep=$("habitSleep").value.trim();
  if(!date){$("habitStatus").textContent="Choose a date.";return;}
  if(steps!==""&&(!Number.isInteger(Number(steps))||Number(steps)<0)){ $("habitStatus").textContent="Enter a valid whole number of steps.";return;}
  if(cardioMinutes!==""&&(!Number.isInteger(Number(cardioMinutes))||Number(cardioMinutes)<0||Number(cardioMinutes)>1440)){ $("habitStatus").textContent="Enter a valid cardio duration in minutes.";return;}
  if(cardioMinutes!==""&&!cardioType){$("habitStatus").textContent="Choose a cardio type.";return;}
+ if(treadmillSpeed!==""&&(!Number.isFinite(Number(treadmillSpeed))||Number(treadmillSpeed)<0||Number(treadmillSpeed)>40)){ $("habitStatus").textContent="Enter a treadmill speed between 0 and 40 km/h.";return;}
+ if(treadmillIncline!==""&&(!Number.isFinite(Number(treadmillIncline))||Number(treadmillIncline)<0||Number(treadmillIncline)>40)){ $("habitStatus").textContent="Enter a treadmill incline between 0 and 40%.";return;}
  if(water!==""&&(!Number.isFinite(Number(water))||Number(water)<0)){ $("habitStatus").textContent="Enter a valid water amount.";return;}
  if(sleep!==""&&(!Number.isFinite(Number(sleep))||Number(sleep)<0||Number(sleep)>24)){ $("habitStatus").textContent="Sleep must be between 0 and 24 hours.";return;}
  $("saveHabitsBtn").disabled=true;$("habitStatus").textContent="Saving daily check-in…";
@@ -3785,6 +3800,8 @@ $("saveHabitsBtn").addEventListener("click",async()=>{
    steps:steps===""?null:Number(steps),
    cardioType:cardioType||null,
    cardioMinutes:cardioMinutes===""?null:Number(cardioMinutes),
+   treadmillSpeedKmh:treadmillSpeed===""?null:Number(treadmillSpeed),
+   treadmillInclinePercent:treadmillIncline===""?null:Number(treadmillIncline),
    cardioIntensity:cardioIntensity||null,
    waterLitres:water===""?null:Number(water),
    sleepHours:sleep===""?null:Number(sleep),
