@@ -3225,17 +3225,7 @@ function restoreTrainingDraft(index,date){
  if(!saved)return;
  activeClientWorkoutExercises.forEach((exercise,ei)=>{
   const savedExercise=(saved.exercises||[]).find(x=>x.name===exercise.name);
-  (savedExercise?.sets||[]).forEach((set,si)=>{
-   const weight=document.querySelector('[data-training-weight="'+ei+":"+si+'"]');
-   const reps=document.querySelector('[data-training-reps="'+ei+":"+si+'"]');
-   const rir=document.querySelector('[data-training-rir="'+ei+":"+si+'"]');
-   const assisted=document.querySelector('[data-training-ass="'+ei+":"+si+'"]');
-   if(weight&&set.weight!=null)weight.value=set.weight;
-   if(reps&&set.reps!=null)reps.value=set.reps;
-   if(rir&&set.rir!=null)rir.value=set.rir;
-   if(assisted&&set.assistanceAmount!=null)assisted.value=set.assistanceAmount;
-   // Older logs stored assisted as a yes/no flag; leave the numeric field blank for those entries.
-  });
+  (savedExercise?.sets||[]).forEach((set,si)=>{const row=document.querySelectorAll('[data-training-set-row="'+ei+'"]')[si];if(!row)return;const weight=row.querySelector('[data-training-weight]'),reps=row.querySelector('[data-training-reps]'),rir=row.querySelector('[data-training-rir]'),assisted=row.querySelector('[data-training-ass]');if(weight&&set.weight!=null)weight.value=set.weight;if(reps&&set.reps!=null)reps.value=set.reps;if(rir&&set.rir!=null)rir.value=set.rir;if(assisted&&set.assistanceAmount!=null)assisted.value=set.assistanceAmount;});
   const noteInput=document.querySelector('[data-training-exercise-note="'+ei+'"]');
   if(noteInput)noteInput.value=savedExercise?.notes||exercise.notes||"";
   const feedbackInput=document.querySelector('[data-training-exercise-feedback="'+ei+'"]');
@@ -3313,13 +3303,19 @@ function renderClientWorkoutLogger(){
   const progressionStatus=document.createElement("div");progressionStatus.className="muted";progressionStatus.style.cssText="margin:7px 0;color:#c6ff00;font-weight:700";progressionStatus.textContent=bestHistorical?"ALL-TIME BEST: "+bestHistorical.weight+" kg × "+bestHistorical.reps+" reps (estimated 1RM "+bestHistorical.e1rm.toFixed(1)+" kg)":"Personal best will appear after your first completed session.";card.append(progressionStatus);
   const refreshProgression=()=>{
    let currentBest=null;
-   const setRowsHost=document.createElement("div");setRowsHost.style.marginTop="10px";
+   const workingRows=Array.from(document.querySelectorAll('[data-training-set-row="'+ei+'"]')).filter(row=>row.dataset.trainingSetKind==="working");
+   workingRows.forEach(row=>{const weight=Number(row.querySelector('[data-training-weight]')?.value||0),reps=Number(row.querySelector('[data-training-reps]')?.value||0);if(weight>0&&reps>0){const e1rm=weight*(1+reps/30);if(!currentBest||e1rm>currentBest.e1rm)currentBest={weight,reps,e1rm};}});
+   if(currentBest&&(!bestHistorical||currentBest.e1rm>bestHistorical.e1rm+0.0001)){progressionStatus.textContent="★ NEW PERSONAL BEST · "+currentBest.weight+" kg × "+currentBest.reps+" reps · estimated 1RM "+currentBest.e1rm.toFixed(1)+" kg";progressionStatus.style.color="#c6ff00";}
+   else if(bestHistorical){progressionStatus.textContent="ALL-TIME BEST: "+bestHistorical.weight+" kg × "+bestHistorical.reps+" reps · estimated 1RM "+bestHistorical.e1rm.toFixed(1)+" kg";progressionStatus.style.color="#c6ff00";}
+  };
+  progressionRefreshers.push(refreshProgression);
+  const setRowsHost=document.createElement("div");setRowsHost.style.marginTop="10px";
   const addFeeler=document.createElement("button");addFeeler.type="button";addFeeler.className="secondary";addFeeler.textContent="+ ADD FEELER SET";addFeeler.style.cssText="margin:8px 6px 8px 0";
   const removeFeeler=document.createElement("button");removeFeeler.type="button";removeFeeler.className="secondary";removeFeeler.textContent="− REMOVE FEELER SET";removeFeeler.style.margin="8px 0";
   const makeSetRow=(kind,number)=>{const row=document.createElement("div");row.className="training-set-row";row.dataset.trainingSetRow=ei;row.dataset.trainingSetKind=kind;const lab=document.createElement("span");lab.className="muted";lab.textContent=kind==="feeler"?"Feeler "+number:"Working "+number;const weight=document.createElement("input");weight.type="number";weight.min="0";weight.step="0.5";weight.placeholder="Weight kg";weight.dataset.trainingWeight="";const reps=document.createElement("input");reps.type="number";reps.min="0";reps.step="1";reps.placeholder="Reps";reps.dataset.trainingReps="";const rir=document.createElement("input");rir.type="number";rir.min="0";rir.max="10";rir.step="0.5";rir.placeholder="RIR";rir.title="Reps in reserve (optional)";rir.dataset.trainingRir="";const assisted=document.createElement("input");assisted.type="number";assisted.min="0";assisted.step="0.5";assisted.placeholder="ASS";assisted.title="Assistance amount (enter a number)";assisted.dataset.trainingAss="";[weight,reps,rir,assisted].forEach(input=>input.addEventListener("input",()=>{queueTrainingAutosave();if(kind==="working"&&(input===weight||input===reps))refreshProgression();}));row.append(lab,weight,reps,rir,assisted);return row;};
-  const renderSetRows=()=>{setRowsHost.replaceChildren();for(let n=1;n<=Number(e.feelerSets||0);n++)setRowsHost.append(makeSetRow("feeler",n));for(let n=1;n<=Number(e.sets||0);n++)setRowsHost.append(makeSetRow("working",n));removeFeeler.disabled=Number(e.feelerSets||0)===0;removeFeeler.style.opacity=removeFeeler.disabled?".45":"1";};
+  const renderSetRows=()=>{const prior=Array.from(setRowsHost.children).map(row=>({kind:row.dataset.trainingSetKind,values:["[data-training-weight]","[data-training-reps]","[data-training-rir]","[data-training-ass]"].map(sel=>row.querySelector(sel)?.value||"")}));setRowsHost.replaceChildren();const addRow=(kind,n)=>{const row=makeSetRow(kind,n),priorIndex=kind==="feeler"?n-1:Number(e.feelerSets||0)+n-1,saved=prior[priorIndex];if(saved&&saved.kind===kind)["[data-training-weight]","[data-training-reps]","[data-training-rir]","[data-training-ass]"].forEach((sel,i)=>{const input=row.querySelector(sel);if(input)input.value=saved.values[i];});setRowsHost.append(row);};for(let n=1;n<=Number(e.feelerSets||0);n++)addRow("feeler",n);for(let n=1;n<=Number(e.sets||0);n++)addRow("working",n);removeFeeler.disabled=Number(e.feelerSets||0)===0;removeFeeler.style.opacity=removeFeeler.disabled?".45":"1";};
   addFeeler.onclick=()=>{if(Number(e.feelerSets||0)>=10)return;e.feelerSets=Number(e.feelerSets||0)+1;renderSetRows();queueTrainingAutosave();};
-  removeFeeler.onclick=()=>{if(Number(e.feelerSets||0)<=0)return;e.feelerSets--;renderSetRows();queueTrainingAutosave();};
+  removeFeeler.onclick=()=>{if(Number(e.feelerSets||0)<=0)return;e.feelerSets=Number(e.feelerSets||0)-1;renderSetRows();queueTrainingAutosave();};
   renderSetRows();card.append(addFeeler,removeFeeler,setRowsHost);
   const exerciseNotesLabel=document.createElement("label");exerciseNotesLabel.textContent="Notes for your coach";exerciseNotesLabel.style.display="block";exerciseNotesLabel.style.marginTop="10px";
   const exerciseNotes=document.createElement("textarea");exerciseNotes.rows=2;exerciseNotes.placeholder="Add notes for your coach about this exercise…";exerciseNotes.style.cssText="width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1px solid var(--line);border-radius:9px;background:#10140d;color:var(--white);font:inherit";exerciseNotes.dataset.trainingExerciseNote=ei;exerciseNotes.value=e.notes||"";exerciseNotes.addEventListener("input",queueTrainingAutosave);
