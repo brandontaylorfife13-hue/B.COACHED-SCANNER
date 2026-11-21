@@ -2980,7 +2980,7 @@ async function loadCoachWorkoutReviews(){
    (session.exercises||[]).forEach((ex,exerciseIndex)=>{
     const exerciseCard=document.createElement("div");exerciseCard.style.cssText="margin-top:12px;padding:10px;border:1px solid var(--line);border-radius:10px";
     const line=document.createElement("div");line.className="muted";line.style.fontWeight="700";
-    const sets=(ex.sets||[]).map((set,i)=>"Set "+(i+1)+": "+(set.weight||0)+" kg × "+(set.reps||0)+" reps"+(set.rir===null||set.rir===undefined?"":" · RIR "+set.rir)).join(" | ");
+    const sets=(ex.sets||[]).map((set,i)=>(set.type==="feeler"?"Feeler":"Working")+" "+(set.type==="feeler"?(ex.sets||[]).slice(0,i+1).filter(x=>x.type==="feeler").length:(ex.sets||[]).slice(0,i+1).filter(x=>x.type!=="feeler").length)+": "+(set.weight||0)+" kg × "+(set.reps||0)+" reps"+(set.rir===null||set.rir===undefined?"":" · RIR "+set.rir)).join(" | ");
     line.textContent=(ex.name||"Exercise")+(sets?" — "+sets:" — no sets recorded");exerciseCard.append(line);
     if(ex.notes){const clientExerciseNote=document.createElement("div");clientExerciseNote.style.cssText="margin:7px 0;padding:9px 11px;border-left:3px solid #829e22;border-radius:6px;background:rgba(130,158,34,.09);white-space:pre-wrap";const noteHeading=document.createElement("strong");noteHeading.textContent="CLIENT EXERCISE NOTES";noteHeading.style.cssText="display:block;margin-bottom:4px;font-size:11px";const noteBody=document.createElement("span");noteBody.textContent=ex.notes;clientExerciseNote.append(noteHeading,noteBody);exerciseCard.append(clientExerciseNote);}
     if(ex.clientFeedback){const clientNote=document.createElement("div");clientNote.style.cssText="margin:7px 0;padding:9px 11px;border-left:3px solid #c6ff00;border-radius:6px;background:rgba(198,255,0,.07);white-space:pre-wrap";const label=document.createElement("strong");label.textContent="CLIENT FEEDBACK";label.style.cssText="display:block;margin-bottom:4px;font-size:11px";const body=document.createElement("span");body.textContent=ex.clientFeedback;clientNote.append(label,body);exerciseCard.append(clientNote);}
@@ -3217,14 +3217,7 @@ function readTrainingDraft(){
  const index=$("trainingWorkoutSelect").value,date=$("trainingWorkoutDate").value;
  if(index===""||!date||!currentUser)return null;
  const w=clientTrainingProgram.workouts[Number(index)];if(!w)return null;
- const exercises=(activeClientWorkoutExercises||[]).map((e,ei)=>({name:e.name,muscleGroup:e.muscleGroup,sets:Array.from({length:Number(e.sets||0)},(_,si)=>{
-  const weight=document.querySelector('[data-training-weight="'+ei+":"+si+'"]')?.value??"";
-  const reps=document.querySelector('[data-training-reps="'+ei+":"+si+'"]')?.value??"";
-  const rir=document.querySelector('[data-training-rir="'+ei+":"+si+'"]')?.value??"";
-  const assistedInput=document.querySelector('[data-training-ass="'+ei+":"+si+'"]');
-  const assistanceAmount=assistedInput?.value===""||!assistedInput?null:Number(assistedInput.value);
-  return {weight:weight===""?null:Number(weight),reps:reps===""?null:Number(reps),rir:rir===""?null:Number(rir),assisted:assistanceAmount!==null&&assistanceAmount>0,assistanceAmount};
- }),notes:document.querySelector('[data-training-exercise-note="'+ei+'"]')?.value?.trim()||e.notes||"",clientFeedback:document.querySelector('[data-training-exercise-feedback="'+ei+'"]')?.value?.trim()||e.clientFeedback||"",coachReply:e.coachReply||""}));
+ const exercises=(activeClientWorkoutExercises||[]).map((e,ei)=>({name:e.name,muscleGroup:e.muscleGroup,sets:Array.from(document.querySelectorAll('[data-training-set-row="'+ei+'"]')).map(row=>{const weight=row.querySelector('[data-training-weight]')?.value??"",reps=row.querySelector('[data-training-reps]')?.value??"",rir=row.querySelector('[data-training-rir]')?.value??"",assistedInput=row.querySelector('[data-training-ass]'),assistanceAmount=assistedInput?.value===""||!assistedInput?null:Number(assistedInput.value);return {type:row.dataset.trainingSetKind||"working",weight:weight===""?null:Number(weight),reps:reps===""?null:Number(reps),rir:rir===""?null:Number(rir),assisted:assistanceAmount!==null&&assistanceAmount>0,assistanceAmount};}),feelerSets:Number(e.feelerSets||0),notes:document.querySelector('[data-training-exercise-note="'+ei+'"]')?.value?.trim()||e.notes||"",clientFeedback:document.querySelector('[data-training-exercise-feedback="'+ei+'"]')?.value?.trim()||e.clientFeedback||"",coachReply:e.coachReply||""}));
  return {index:Number(index),date,workoutName:w.name,exercises};
 }
 function restoreTrainingDraft(index,date){
@@ -3320,30 +3313,14 @@ function renderClientWorkoutLogger(){
   const progressionStatus=document.createElement("div");progressionStatus.className="muted";progressionStatus.style.cssText="margin:7px 0;color:#c6ff00;font-weight:700";progressionStatus.textContent=bestHistorical?"ALL-TIME BEST: "+bestHistorical.weight+" kg × "+bestHistorical.reps+" reps (estimated 1RM "+bestHistorical.e1rm.toFixed(1)+" kg)":"Personal best will appear after your first completed session.";card.append(progressionStatus);
   const refreshProgression=()=>{
    let currentBest=null;
-   for(let si=0;si<Number(e.sets||0);si++){
-    const weight=Number(document.querySelector('[data-training-weight="'+ei+":"+si+'"]')?.value||0);
-    const reps=Number(document.querySelector('[data-training-reps="'+ei+":"+si+'"]')?.value||0);
-    if(weight>0&&reps>0){const e1rm=weight*(1+reps/30);if(!currentBest||e1rm>currentBest.e1rm)currentBest={weight,reps,e1rm};}
-   }
-   if(currentBest&&(!bestHistorical||currentBest.e1rm>bestHistorical.e1rm+0.0001)){
-    progressionStatus.textContent="★ NEW PERSONAL BEST · "+currentBest.weight+" kg × "+currentBest.reps+" reps · estimated 1RM "+currentBest.e1rm.toFixed(1)+" kg";
-    progressionStatus.style.color="#c6ff00";
-   }else if(bestHistorical){
-    progressionStatus.textContent="ALL-TIME BEST: "+bestHistorical.weight+" kg × "+bestHistorical.reps+" reps · estimated 1RM "+bestHistorical.e1rm.toFixed(1)+" kg";
-    progressionStatus.style.color="#c6ff00";
-   }
-  };
-  progressionRefreshers.push(refreshProgression);
-  for(let si=0;si<Number(e.sets||0);si++){
-   const row=document.createElement("div");row.className="training-set-row";const lab=document.createElement("span");lab.className="muted";lab.textContent="Set "+(si+1);
-   const weight=document.createElement("input");weight.type="number";weight.min="0";weight.step="0.5";weight.placeholder="Weight kg";weight.dataset.trainingWeight=ei+":"+si;
-   const reps=document.createElement("input");reps.type="number";reps.min="0";reps.step="1";reps.placeholder="Reps";reps.dataset.trainingReps=ei+":"+si;
-   const rir=document.createElement("input");rir.type="number";rir.min="0";rir.max="10";rir.step="0.5";rir.placeholder="RIR";rir.title="Reps in reserve (optional)";rir.dataset.trainingRir=ei+":"+si;
-   const assisted=document.createElement("input");assisted.type="number";assisted.min="0";assisted.step="0.5";assisted.placeholder="ASS";assisted.title="Assistance amount (enter a number)";assisted.setAttribute("aria-label","Assistance amount for set "+(si+1));assisted.dataset.trainingAss=ei+":"+si;
-   [weight,reps,rir,assisted].forEach(input=>input.addEventListener("input",queueTrainingAutosave));
-   [weight,reps].forEach(input=>input.addEventListener("input",refreshProgression));
-   row.append(lab,weight,reps,rir,assisted);card.append(row);
-  }
+   const setRowsHost=document.createElement("div");setRowsHost.style.marginTop="10px";
+  const addFeeler=document.createElement("button");addFeeler.type="button";addFeeler.className="secondary";addFeeler.textContent="+ ADD FEELER SET";addFeeler.style.cssText="margin:8px 6px 8px 0";
+  const removeFeeler=document.createElement("button");removeFeeler.type="button";removeFeeler.className="secondary";removeFeeler.textContent="− REMOVE FEELER SET";removeFeeler.style.margin="8px 0";
+  const makeSetRow=(kind,number)=>{const row=document.createElement("div");row.className="training-set-row";row.dataset.trainingSetRow=ei;row.dataset.trainingSetKind=kind;const lab=document.createElement("span");lab.className="muted";lab.textContent=kind==="feeler"?"Feeler "+number:"Working "+number;const weight=document.createElement("input");weight.type="number";weight.min="0";weight.step="0.5";weight.placeholder="Weight kg";weight.dataset.trainingWeight="";const reps=document.createElement("input");reps.type="number";reps.min="0";reps.step="1";reps.placeholder="Reps";reps.dataset.trainingReps="";const rir=document.createElement("input");rir.type="number";rir.min="0";rir.max="10";rir.step="0.5";rir.placeholder="RIR";rir.title="Reps in reserve (optional)";rir.dataset.trainingRir="";const assisted=document.createElement("input");assisted.type="number";assisted.min="0";assisted.step="0.5";assisted.placeholder="ASS";assisted.title="Assistance amount (enter a number)";assisted.dataset.trainingAss="";[weight,reps,rir,assisted].forEach(input=>input.addEventListener("input",()=>{queueTrainingAutosave();if(kind==="working"&&(input===weight||input===reps))refreshProgression();}));row.append(lab,weight,reps,rir,assisted);return row;};
+  const renderSetRows=()=>{setRowsHost.replaceChildren();for(let n=1;n<=Number(e.feelerSets||0);n++)setRowsHost.append(makeSetRow("feeler",n));for(let n=1;n<=Number(e.sets||0);n++)setRowsHost.append(makeSetRow("working",n));removeFeeler.disabled=Number(e.feelerSets||0)===0;removeFeeler.style.opacity=removeFeeler.disabled?".45":"1";};
+  addFeeler.onclick=()=>{if(Number(e.feelerSets||0)>=10)return;e.feelerSets=Number(e.feelerSets||0)+1;renderSetRows();queueTrainingAutosave();};
+  removeFeeler.onclick=()=>{if(Number(e.feelerSets||0)<=0)return;e.feelerSets--;renderSetRows();queueTrainingAutosave();};
+  renderSetRows();card.append(addFeeler,removeFeeler,setRowsHost);
   const exerciseNotesLabel=document.createElement("label");exerciseNotesLabel.textContent="Notes for your coach";exerciseNotesLabel.style.display="block";exerciseNotesLabel.style.marginTop="10px";
   const exerciseNotes=document.createElement("textarea");exerciseNotes.rows=2;exerciseNotes.placeholder="Add notes for your coach about this exercise…";exerciseNotes.style.cssText="width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1px solid var(--line);border-radius:9px;background:#10140d;color:var(--white);font:inherit";exerciseNotes.dataset.trainingExerciseNote=ei;exerciseNotes.value=e.notes||"";exerciseNotes.addEventListener("input",queueTrainingAutosave);
   card.append(exerciseNotesLabel,exerciseNotes);
@@ -3363,7 +3340,7 @@ $("trainingWorkoutSelect").addEventListener("change",()=>{
  const w=clientTrainingProgram.workouts[Number(index)];if(!w)return;
  const selectedDate=$("trainingWorkoutDate").value;
  const saved=clientTrainingLogs.find(log=>log.id===selectedDate+"_"+index);
- activeClientWorkoutExercises=saved?.exercises?.length?saved.exercises.map(ex=>({name:ex.name,muscleGroup:ex.muscleGroup||"",notes:ex.notes||"",clientFeedback:ex.clientFeedback||"",coachReply:ex.coachReply||"",sets:(ex.sets||[]).length||3,reps:(w.exercises||[]).find(e=>e.name===ex.name)?.reps||"8–12"})):(w.exercises||[]).map(e=>({...e,notes:e.notes||"",coachReply:""}));
+ activeClientWorkoutExercises=saved?.exercises?.length?saved.exercises.map(ex=>({name:ex.name,muscleGroup:ex.muscleGroup||"",notes:ex.notes||"",clientFeedback:ex.clientFeedback||"",coachReply:ex.coachReply||"",sets:(w.exercises||[]).find(e=>e.name===ex.name)?.sets||(ex.sets||[]).filter(z=>z.type!=="feeler").length||3,feelerSets:Number(ex.feelerSets)||((ex.sets||[]).filter(z=>z.type==="feeler").length),reps:(w.exercises||[]).find(e=>e.name===ex.name)?.reps||"8–12"})):(w.exercises||[]).map(e=>({...e,notes:e.notes||"",coachReply:""}));
  renderClientWorkoutLogger();
 });
 $("trainingWorkoutDate").addEventListener("change",()=>{
@@ -3375,7 +3352,7 @@ async function saveClientTrainingSession(){
  // Finish any queued draft save before writing the completed state, so autoSaved:true
  // cannot race with and overwrite the final autoSaved:false marker.
  await trainingAutosaveQueue;
- const exercises=draft.exercises.map(e=>({...e,sets:e.sets.map(z=>({weight:Number(z.weight)||0,reps:Number(z.reps)||0,rir:z.rir}))}));
+ const exercises=draft.exercises.map(e=>({...e,sets:e.sets.map(z=>({...z,weight:Number(z.weight)||0,reps:Number(z.reps)||0,rir:z.rir}))}));
  if(!exercises.some(e=>e.sets.some(z=>z.weight>0&&z.reps>0))){$("trainingLogStatus").textContent="Enter at least one set with both weight and reps.";return;}
  $("trainingLogStatus").textContent="Saving completed workout…";
  try{
