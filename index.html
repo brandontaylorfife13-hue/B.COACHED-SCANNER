@@ -599,7 +599,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <p class="muted" style="margin:6px 0 0">Use as many meals as you need. There is no fixed limit — label them Meal 1, Meal 2, Meal 3 and so on.</p>
   <button id="addFoodBtn" style="width:100%;margin-top:14px">ADD TO FOOD DIARY</button>
   <div id="foodStatus" class="status" role="status"></div></div></details>
-  <div class="section-title" style="margin-top:22px">Today's entries</div>
+  <div class="section-title" style="margin-top:22px">Entries for selected date</div>
   <div id="foodDiaryEntries" class="muted">No food logged yet.</div>
  </section>
  <section class="card hidden" id="trainingView">
@@ -2571,7 +2571,7 @@ function renderFoodDiary(){
   heading.append(mealTitle,mealMeta);mealHost.append(heading);host.append(mealHost);
   items.forEach(item=>{
   const row=document.createElement("div");row.className="tile diary-food-row";row.style.marginBottom="9px";
-  const title=document.createElement("b");title.textContent=(item.meal?item.meal+" · ":"")+item.name;
+  const title=document.createElement("b");title.textContent=item.name;
   const grams=Number(item.grams)||100;
   const detail=document.createElement("div");detail.className="muted";
   detail.textContent=grams+"g · "+Math.round(Number(item.calories)||0)+" kcal · P "+(Number(item.proteinG)||0)+"g · C "+(Number(item.carbsG)||0)+"g · F "+(Number(item.fatsG)||0)+"g";
