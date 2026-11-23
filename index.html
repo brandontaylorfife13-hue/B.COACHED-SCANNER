@@ -1321,15 +1321,24 @@ async function loadCoachClientNutritionAnalytics(){
    if(!day.hasSelection){const empty=document.createElement("div");empty.className="muted";empty.style.marginTop="6px";empty.textContent="No meal-plan choices saved for this date.";card.append(empty);}
    else if(!plan.length){const empty=document.createElement("div");empty.className="muted";empty.style.marginTop="6px";empty.textContent="A meal-plan selection exists, but no matching saved plan was found.";card.append(empty);}
    else{
+    const trackedTotals={calories:0,proteinG:0,carbsG:0,fatsG:0};let trackedMeals=0;
     plan.forEach((meal,mi)=>{
      const oi=Number((selection.selectionMap||{})[mi]??0),option=(meal.options||[])[oi];if(!option)return;
      const custom=(selection.customFoods||{})[String(mi)],foods=custom&&Number(custom.optionIndex)===oi&&Array.isArray(custom.foods)?custom.foods:(option.foods||[]);
+     const mealTotals=foods.reduce((sum,food)=>{const scale=(Number(food.grams)||0)/100;sum.calories+=(Number(food.calories100)||0)*scale;sum.proteinG+=(Number(food.protein100)||0)*scale;sum.carbsG+=(Number(food.carbs100)||0)*scale;sum.fatsG+=(Number(food.fats100)||0)*scale;return sum;},{calories:0,proteinG:0,carbsG:0,fatsG:0});
+     const isEaten=!!selection.eatenMeals?.[String(mi)];
+     if(isEaten){trackedMeals++;Object.keys(trackedTotals).forEach(k=>trackedTotals[k]+=mealTotals[k]);}
      const block=document.createElement("div");block.style.cssText="padding:8px 0;border-bottom:1px solid #30372a";
-     const mealName=document.createElement("strong");mealName.textContent=(meal.name||"Meal "+(mi+1))+" · "+(option.name||"Option "+(oi+1))+(selection.eatenMeals?.[String(mi)]?" · MARKED EATEN":"");block.append(mealName);
-     foods.forEach(food=>{const item=document.createElement("div");item.className="muted";item.textContent=(food.name||"Food item")+" · "+(Number(food.grams)||0)+" g";block.append(item);});
+     const mealName=document.createElement("strong");mealName.textContent=(meal.name||"Meal "+(mi+1))+" · "+(option.name||"Option "+(oi+1))+(isEaten?" · MARKED EATEN":"");block.append(mealName);
+     foods.forEach(food=>{const scale=(Number(food.grams)||0)/100,kcal=(Number(food.calories100)||0)*scale;const item=document.createElement("div");item.className="muted";item.textContent=(food.name||"Food item")+" · "+(Number(food.grams)||0)+" g · "+Math.round(kcal)+" kcal";block.append(item);});
      if(!foods.length){const none=document.createElement("div");none.className="muted";none.textContent="No foods listed in this meal.";block.append(none);}
+     const subtotal=document.createElement("div");subtotal.className="muted";subtotal.style.cssText="margin-top:5px;font-weight:700";subtotal.textContent="Meal total: "+Math.round(mealTotals.calories)+" kcal · P "+fmtMeal(mealTotals.proteinG)+"g · C "+fmtMeal(mealTotals.carbsG)+"g · F "+fmtMeal(mealTotals.fatsG)+"g";block.append(subtotal);
      card.append(block);
     });
+    const daily=document.createElement("div");daily.className="tile";daily.style.cssText="margin-top:10px;padding:10px;background:#151a12;border:1px solid #c6ff00";
+    const dailyTitle=document.createElement("strong");dailyTitle.textContent="TRACKED TOTAL · "+trackedMeals+" MEALS MARKED EATEN";
+    const dailyMacros=document.createElement("div");dailyMacros.style.cssText="margin-top:6px;font-weight:700";dailyMacros.textContent=Math.round(trackedTotals.calories).toLocaleString()+" kcal · Protein "+fmtMeal(trackedTotals.proteinG)+"g · Carbs "+fmtMeal(trackedTotals.carbsG)+"g · Fats "+fmtMeal(trackedTotals.fatsG)+"g";
+    daily.append(dailyTitle,dailyMacros);card.append(daily);
    }
    host.append(card);
   });
