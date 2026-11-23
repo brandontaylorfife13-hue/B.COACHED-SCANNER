@@ -2446,14 +2446,15 @@ async function loadClientMealPlan(){
     const hint=document.createElement("div");hint.className="muted";hint.textContent="Change the grams to match what you actually ate. Your meal macros update automatically.";foodsHost.append(hint);
     if(!foods.length){const empty=document.createElement("div");empty.className="muted";empty.textContent="No foods in this meal yet. Add the foods you actually ate below.";foodsHost.append(empty);}
     foods.forEach((food,fi)=>{
-     const row=document.createElement("div");row.className="client-meal-food-row";row.style.cssText="display:grid;grid-template-columns:minmax(0,1fr) 88px 38px;align-items:center;gap:8px";
+     const row=document.createElement("div");row.className="client-meal-food-row";row.style.cssText="display:grid;grid-template-columns:minmax(0,1fr) 78px 76px 38px;align-items:center;gap:8px";
      const desc=document.createElement("span");desc.textContent=food.name||"Food item";desc.style.cssText="min-width:0;overflow-wrap:anywhere";
      const portion=document.createElement("label");portion.style.cssText="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted)";
      const gramsInput=document.createElement("input");gramsInput.type="number";gramsInput.min="0";gramsInput.step="1";gramsInput.inputMode="decimal";gramsInput.value=Number(food.grams)||0;gramsInput.setAttribute("aria-label","Grams of "+(food.name||"food"));gramsInput.style.cssText="width:62px;min-width:0;padding:7px 4px;text-align:center;margin:0";
      const unit=document.createElement("span");unit.textContent="g";portion.append(gramsInput,unit);
      gramsInput.addEventListener("change",()=>{food.grams=Math.max(0,Number(gramsInput.value)||0);update();});
+     const kcal=document.createElement("span");kcal.textContent=Math.round(foodMacros(food).calories).toLocaleString()+" kcal";kcal.style.cssText="font-size:12px;font-weight:700;text-align:right;white-space:nowrap;color:var(--lime)";kcal.setAttribute("aria-label",Math.round(foodMacros(food).calories)+" calories");
      const remove=document.createElement("button");remove.type="button";remove.className="secondary client-food-remove";remove.textContent="×";remove.setAttribute("aria-label","Remove "+(food.name||"food"));remove.onclick=()=>{foods.splice(fi,1);update();};
-     row.append(desc,portion,remove);foodsHost.append(row);
+     row.append(desc,portion,kcal,remove);foodsHost.append(row);
     });
     const add=document.createElement("details");add.className="client-add-food";
     const summary=document.createElement("summary");summary.textContent="＋ Add food you actually ate";add.append(summary);
