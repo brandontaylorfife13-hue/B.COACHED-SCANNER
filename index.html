@@ -2363,7 +2363,7 @@ async function saveCoachMealPlan(){
 async function renderCoachFoodPreview(){
  const host=$("coachFoodPreview");if(!host||!selectedClient?.uid)return;
  const date=$("coachFoodPreviewDate").value||localDateString();
- host.classList.remove("hidden");host.textContent="Loading the client's food diary…";
+ host.classList.remove("hidden");host.textContent="Loading the client's meal planner…";
  try{
   const [profileSnap,targetSnap,planSnap,logSnap,selectionSnap]=await Promise.all([
    getDoc(doc(db,"users",selectedClient.uid)),
@@ -2375,27 +2375,65 @@ async function renderCoachFoodPreview(){
   const profile=profileSnap.exists()?profileSnap.data():{},targets=targetSnap.exists()?targetSnap.data():{},planData=planSnap.exists()?planSnap.data():{},selection=selectionSnap.exists()?selectionSnap.data():{};
   const dayName=new Date(date+"T12:00:00").toLocaleDateString("en-GB",{weekday:"long"});
   const scheduled=(targets.highDays||[]).includes(dayName)?"highDay":"lowDay";
-  const type=selection.dayTypeOverride&&selection.dayType?selection.dayType:scheduled;
-  const dayTargets=targets[type]||{};
+  const type=selection.dayTypeOverride&&["highDay","lowDay"].includes(selection.dayType)?selection.dayType:scheduled;
+  const plan=JSON.parse(JSON.stringify(Array.isArray(planData[type])?planData[type]:[]));
   const entries=logSnap.docs.map(d=>({id:d.id,...d.data()}));
-  const sums=entries.reduce((a,x)=>{a.calories+=Number(x.calories)||0;a.protein+=Number(x.proteinG)||0;a.carbs+=Number(x.carbsG)||0;a.fats+=Number(x.fatsG)||0;return a;},{calories:0,protein:0,carbs:0,fats:0});
   host.replaceChildren();
   const top=document.createElement("div");top.className="tile";top.style.cssText="padding:13px;margin-bottom:10px";
-  const title=document.createElement("strong");title.textContent=(profile.displayName||selectedClient.displayName||"Client")+"'s food diary";
-  const subtitle=document.createElement("div");subtitle.className="muted";subtitle.textContent=new Date(date+"T12:00:00").toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"})+" · "+(type==="highDay"?"High day":"Low day")+" · Preview only";
-  const totals=document.createElement("div");totals.style.cssText="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px";
-  [["Calories",Math.round(sums.calories)+" / "+(dayTargets.calories??"—")+" kcal"],["Protein",sums.protein.toFixed(1)+" / "+(dayTargets.proteinG??"—")+"g"],["Carbs",sums.carbs.toFixed(1)+" / "+(dayTargets.carbsG??"—")+"g"],["Fats",sums.fats.toFixed(1)+" / "+(dayTargets.fatsG??"—")+"g"]].forEach(([k,v])=>{const box=document.createElement("div");box.className="tile";box.style.cssText="min-height:0;padding:9px";const small=document.createElement("small");small.className="muted";small.textContent=k;const strong=document.createElement("strong");strong.style.display="block";strong.textContent=v;box.append(small,strong);totals.append(box);});
-  top.append(title,subtitle,totals);host.append(top);
-  const diary=document.createElement("div");diary.className="section-title";diary.textContent="Logged meals";host.append(diary);
+  const title=document.createElement("strong");title.textContent=(profile.displayName||selectedClient.displayName||"Client")+"'s meal planner";
+  const subtitle=document.createElement("div");subtitle.className="muted";subtitle.textContent=new Date(date+"T12:00:00").toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"})+" · "+(type==="highDay"?"High day":"Low day")+" · Coach editing view";
+  top.append(title,subtitle);host.append(top);
+  const heading=document.createElement("div");heading.className="section-title";heading.textContent="Tailored meal plan · client view";host.append(heading);
+  const intro=document.createElement("p");intro.className="muted";intro.textContent="Choose meal options and edit food names or portion sizes just as the client can. Changes here update this client's saved meal plan.";host.append(intro);
+  const choiceMap={...(selection.selectionMap||{})};
+  const refreshTotals=()=>{
+   const total=planTotals(plan,choiceMap);
+   const totals=document.createElement("div");totals.className="tile";totals.style.cssText="padding:11px;margin:10px 0";
+   totals.innerHTML='<strong>Selected plan totals</strong><div class="muted">'+Math.round(total.calories)+' kcal · P '+fmtMeal(total.proteinG)+'g · C '+fmtMeal(total.carbsG)+'g · F '+fmtMeal(total.fatsG)+'g</div>';
+   const old=host.querySelector("[data-coach-plan-totals]");if(old)old.replaceWith(totals);else host.insertBefore(totals,host.querySelector("[data-coach-meals]"));
+   totals.dataset.coachPlanTotals="1";
+  };
+  const mealHost=document.createElement("div");mealHost.dataset.coachMeals="1";host.append(mealHost);
+  if(!plan.length){const none=document.createElement("p");none.className="muted";none.textContent="No "+type+" meal plan has been assigned.";mealHost.append(none);}
+  plan.forEach((meal,mi)=>{
+   const block=document.createElement("div");block.className="meal-plan-block";
+   const mealName=document.createElement("input");mealName.value=meal.name||("Meal "+(mi+1));mealName.placeholder="Meal name";mealName.setAttribute("aria-label","Meal name");mealName.style.width="100%";
+   mealName.addEventListener("input",()=>{meal.name=mealName.value;});
+   const select=document.createElement("select");select.className="training-select";select.style.width="100%;";select.style.marginTop="8px";
+   (meal.options||[]).forEach((o,oi)=>{const op=document.createElement("option");op.value=String(oi);op.textContent=o.name||"Option "+(oi+1);select.append(op);});
+   select.value=String(Math.min(Number(choiceMap[mi]??0),Math.max(0,(meal.options||[]).length-1)));
+   const foodHost=document.createElement("div");foodHost.style.marginTop="10px";
+   const drawFoods=()=>{
+    foodHost.replaceChildren();const oi=Number(select.value);choiceMap[mi]=oi;const option=meal.options?.[oi];if(!option)return;
+    const optionName=document.createElement("input");optionName.value=option.name||"";optionName.placeholder="Option name";optionName.setAttribute("aria-label","Option name");optionName.style.width="100%";optionName.addEventListener("input",()=>{option.name=optionName.value;const current=select.options[oi];if(current)current.textContent=option.name||"Option "+(oi+1);});foodHost.append(optionName);
+    (option.foods||[]).forEach((food,fi)=>{
+     const row=document.createElement("div");row.className="food-row";row.style.marginTop="8px";
+     const name=document.createElement("input");name.value=food.name||"";name.placeholder="Food name";name.setAttribute("aria-label","Food name");name.setAttribute("list","foodSearchOptions");name.style.gridColumn="1/-1";
+     const grams=document.createElement("input");grams.type="number";grams.min="0";grams.step="1";grams.value=Number(food.grams)||0;grams.placeholder="Portion (g)";grams.setAttribute("aria-label","Portion in grams");
+     const macro=document.createElement("div");macro.className="muted";macro.style.cssText="grid-column:1/-1;font-size:12px";
+     const update=()=>{food.name=name.value;food.grams=Math.max(0,Number(grams.value)||0);const m=foodMacros(food);macro.textContent=Math.round(m.calories)+" kcal · P "+fmtMeal(m.proteinG)+"g · C "+fmtMeal(m.carbsG)+"g · F "+fmtMeal(m.fatsG)+"g";refreshTotals();};
+     name.addEventListener("input",update);grams.addEventListener("input",update);row.append(name,grams,macro);foodHost.append(row);update();
+    });
+    const addFood=document.createElement("button");addFood.type="button";addFood.className="secondary";addFood.style.marginTop="8px";addFood.textContent="ADD FOOD";addFood.addEventListener("click",()=>{option.foods=option.foods||[];option.foods.push({name:"",grams:100,calories100:0,protein100:0,carbs100:0,fats100:0});drawFoods();});foodHost.append(addFood);
+   };
+   select.addEventListener("change",drawFoods);
+   block.append(mealName,select,foodHost);mealHost.append(block);drawFoods();
+  });
+  refreshTotals();
+  const save=document.createElement("button");save.type="button";save.style.cssText="width:100%;margin-top:12px";save.textContent="SAVE CLIENT MEAL PLAN";
+  const status=document.createElement("div");status.className="status";status.setAttribute("role","status");
+  save.addEventListener("click",async()=>{
+   save.disabled=true;save.textContent="SAVING…";status.textContent="";
+   try{await setDoc(doc(db,"users",selectedClient.uid,"nutrition","mealPlan"),{...planData,[type]:plan,updatedAt:serverTimestamp()},{merge:true});coachMealPlan[type]=JSON.parse(JSON.stringify(plan));status.textContent="Saved. The client's "+(type==="highDay"?"high-day":"low-day")+" meal plan has been updated.";save.textContent="SAVED"; }
+   catch(error){status.textContent="Could not save meal plan: "+error.message;save.textContent="SAVE CLIENT MEAL PLAN";}
+   finally{save.disabled=false;}
+  });
+  host.append(save,status);
+  const diaryHeading=document.createElement("div");diaryHeading.className="section-title";diaryHeading.style.marginTop="20px";diaryHeading.textContent="What the client has logged on this date";host.append(diaryHeading);
+  if(!entries.length){const empty=document.createElement("p");empty.className="muted";empty.textContent="No foods logged for this date.";host.append(empty);}
   const groups=new Map();entries.forEach(x=>{const key=x.meal||"Other / unassigned";if(!groups.has(key))groups.set(key,[]);groups.get(key).push(x);});
-  if(!groups.size){const empty=document.createElement("p");empty.className="muted";empty.textContent="No foods logged for this date.";host.append(empty);}
-  groups.forEach((items,name)=>{const details=document.createElement("details");details.className="diary-meal-group";details.open=false;const summary=document.createElement("summary");summary.className="diary-meal-heading";const sum=items.reduce((a,x)=>a+(Number(x.calories)||0),0);summary.textContent=name+" · "+Math.round(sum)+" kcal";details.append(summary);items.forEach(x=>{const row=document.createElement("div");row.className="tile";row.style.cssText="min-height:0;padding:9px;margin:7px 0";const nm=document.createElement("strong");nm.textContent=x.name||"Food";const detail=document.createElement("div");detail.className="muted";detail.textContent=(Number(x.grams)||0)+"g · "+Math.round(Number(x.calories)||0)+" kcal · P "+(Number(x.proteinG)||0)+"g · C "+(Number(x.carbsG)||0)+"g · F "+(Number(x.fatsG)||0)+"g";row.append(nm,detail);if(x.plannedMeal){const ref=document.createElement("div");ref.className="muted";ref.textContent="Originally planned: "+x.plannedMeal;row.append(ref);}details.append(row);});host.append(details);});
-  const planHeading=document.createElement("div");planHeading.className="section-title";planHeading.textContent="Tailored plan available to client";host.append(planHeading);
-  const plan=Array.isArray(planData[type])?planData[type]:[];
-  if(!plan.length){const none=document.createElement("p");none.className="muted";none.textContent="No "+type+" meal plan has been assigned.";host.append(none);}
-  plan.forEach((meal,mi)=>{const block=document.createElement("div");block.className="meal-plan-block";const h=document.createElement("strong");h.textContent=meal.name||"Meal "+(mi+1);const select=document.createElement("select");select.className="training-select";select.style.width="100%";(meal.options||[]).forEach((o,oi)=>{const op=document.createElement("option");op.value=oi;op.textContent=o.name||"Option "+(oi+1);select.append(op);});select.value=String(selection.selectionMap?.[mi]??0);block.append(h,select);const foods=document.createElement("div");foods.className="muted";foods.style.marginTop="7px";const draw=()=>{foods.replaceChildren();const opt=meal.options?.[Number(select.value)];(opt?.foods||[]).forEach(f=>{const line=document.createElement("div");line.textContent=(f.name||"Food")+" · "+(Number(f.grams)||0)+"g · "+Math.round((Number(f.calories100)||0)*(Number(f.grams)||0)/100)+" kcal";foods.append(line);});};select.addEventListener("change",draw);draw();block.append(foods);host.append(block);});
-  const note=document.createElement("p");note.className="muted";note.style.cssText="font-size:11px;margin-top:12px";note.textContent="This is a read-only preview of the client's food diary and current meal plan. It does not impersonate the client or save test edits.";host.append(note);
- }catch(e){host.textContent="Could not load client preview: "+e.message;}
+  groups.forEach((items,name)=>{const details=document.createElement("details");details.className="diary-meal-group";details.open=false;const summary=document.createElement("summary");summary.className="diary-meal-heading";summary.textContent=name+" · "+Math.round(items.reduce((a,x)=>a+(Number(x.calories)||0),0))+" kcal";details.append(summary);items.forEach(x=>{const row=document.createElement("div");row.className="tile";row.style.cssText="min-height:0;padding:9px;margin:7px 0";const nm=document.createElement("strong");nm.textContent=x.name||"Food";const detail=document.createElement("div");detail.className="muted";detail.textContent=(Number(x.grams)||0)+"g · "+Math.round(Number(x.calories)||0)+" kcal · P "+(Number(x.proteinG)||0)+"g · C "+(Number(x.carbsG)||0)+"g · F "+(Number(x.fatsG)||0)+"g";row.append(nm,detail);if(x.plannedMeal){const ref=document.createElement("div");ref.className="muted";ref.textContent="Originally planned: "+x.plannedMeal;row.append(ref);}details.append(row);});host.append(details);});
+ }catch(e){host.textContent="Could not load client meal planner: "+e.message;}
 }
 $("openCoachFoodPreview")?.addEventListener("click",renderCoachFoodPreview);
 $("coachFoodPreviewDate")?.addEventListener("change",()=>{if(!$("coachFoodPreview").classList.contains("hidden"))renderCoachFoodPreview();});
