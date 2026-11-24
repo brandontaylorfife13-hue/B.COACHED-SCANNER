@@ -2167,15 +2167,15 @@ async function loadWeeklyClientScorecard(clients){
    try{
     const [checkSnap,weightSnap,sessionSnap,nutritionDays]=await Promise.all([
      getDocs(collection(db,"users",client.uid,"weeklyCheckins")),
-     getDocs(query(collection(db,"users",client.uid,"weights"),where("date",">=",startKey))),
-     getDocs(query(collection(db,"users",client.uid,"trainingSessions"),where("date",">=",startKey))),
+     getDocs(collection(db,"users",client.uid,"weights")),
+     getDocs(collection(db,"users",client.uid,"trainingSessions")),
      Promise.all(dates.map(d=>getDocs(collection(db,"users",client.uid,"foodLogs",dateKey(d),"entries")).then(snap=>snap.size>0).catch(()=>false)))
     ]);
     const checks=checkSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.weekEnding||b.id).localeCompare(a.weekEnding||a.id));
     const latest=checks[0],checkDate=latest?.weekEnding||latest?.id||"";
     const checkTime=latest?.submittedAt?.toMillis?.()||(checkDate?new Date(checkDate+"T23:59:59").getTime():0);
     const checkRecent=!!checkTime&&checkTime>=cutoff;
-    const weights=weightSnap.docs.map(d=>({date:d.id,kg:Number(d.data().weightKg??d.data().weight)})).filter(x=>x.kg>0).sort((a,b)=>a.date.localeCompare(b.date));
+    const weights=weightSnap.docs.map(d=>({date:d.data().date||d.id,kg:Number(d.data().weightKg??d.data().weight)})).filter(x=>x.kg>0&&x.date>=startKey&&x.date<=endKey).sort((a,b)=>a.date.localeCompare(b.date));
     const sessions=sessionSnap.docs.filter(d=>{const x=d.data(),date=x.date||d.id.slice(0,10);return date>=startKey&&date<=endKey;});
     const foodCount=nutritionDays.filter(Boolean).length;
     const signals=[
