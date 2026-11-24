@@ -265,6 +265,14 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
    </div>
    <p class="muted">Alerts only assess intake when the minimum number of days is logged. Missing days are never counted as zero. Reviewed markers are saved in this browser.</p>
    <div id="nutritionComplianceList" style="margin-top:10px" class="muted">Loading nutrition compliance…</div>
+   <div class="section-title" style="margin-top:24px">Coaching Intelligence Centre</div>
+   <p class="muted">Highlights weight trends that may deserve a closer look. These are review prompts, not automatic plan changes; check context, adherence and client feedback before adjusting anything.</p>
+   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px">
+    <div class="tile">WEIGHT STALLS<strong id="intelligenceStalls">—</strong><span>Stable trend over 2+ weeks</span></div>
+    <div class="tile">RAPID CHANGES<strong id="intelligenceRapid">—</strong><span>More than 1% per week</span></div>
+    <div class="tile">CLIENTS REVIEW<strong id="intelligenceReview">—</strong><span>Trend needs coach context</span></div>
+   </div>
+   <div id="coachIntelligenceList" class="muted" style="margin-top:10px">Loading coaching insights…</div>
    <div class="section-title" style="margin-top:24px">Coaching workflow</div>
    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(135px,1fr))">
     <div class="tile"><strong style="font-size:16px;color:var(--white)">Review check-ins</strong><span>Open a client profile to review updates and leave feedback.</span></div>
@@ -2075,6 +2083,68 @@ async function loadNutritionComplianceDashboard(clients){
   });
  }catch(error){host.textContent="Could not load nutrition compliance: "+error.message;}
 }
+async function loadCoachIntelligenceCentre(clients){
+ const host=$("coachIntelligenceList");if(!host)return;
+ host.textContent="Reviewing recent weigh-in trends…";
+ ["intelligenceStalls","intelligenceRapid","intelligenceReview"].forEach(id=>{const el=$(id);if(el)el.textContent="—";});
+ try{
+  const active=clients.filter(c=>c.accountStatus!=="inactive"&&c.accountStatus!=="archived");
+  const cutoff=new Date();cutoff.setHours(0,0,0,0);cutoff.setDate(cutoff.getDate()-21);
+  const startKey=[cutoff.getFullYear(),String(cutoff.getMonth()+1).padStart(2,"0"),String(cutoff.getDate()).padStart(2,"0")].join("-");
+  const rows=await Promise.all(active.map(async client=>{
+   try{
+    const [weightsSnap,checkSnap]=await Promise.all([
+     getDocs(query(collection(db,"users",client.uid,"weights"),where("date",">=",startKey))),
+     getDocs(collection(db,"users",client.uid,"weeklyCheckins"))
+    ]);
+    const weights=weightsSnap.docs.map(d=>({date:d.id,...d.data(),kg:Number(d.data().weightKg??d.data().weight)}))
+     .filter(x=>x.kg>0&&/^\d{4}-\d{2}-\d{2}$/.test(x.date)).sort((a,b)=>a.date.localeCompare(b.date));
+    const checkins=checkSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.weekEnding||b.id).localeCompare(a.weekEnding||a.id));
+    let insight=null;
+    if(weights.length>=4){
+     const first=weights.filter(x=>new Date(x.date+"T12:00:00")<=new Date(weights[0].date+"T12:00:00")+(Date.now()-new Date(weights[0].date+"T12:00:00"))/2);
+     const midpoint=new Date(weights[0].date+"T12:00:00").getTime()+(new Date(weights[weights.length-1].date+"T12:00:00").getTime()-new Date(weights[0].date+"T12:00:00").getTime())/2;
+     const early=weights.filter(x=>new Date(x.date+"T12:00:00").getTime()<=midpoint);
+     const late=weights.filter(x=>new Date(x.date+"T12:00:00").getTime()>midpoint);
+     const span=(new Date(weights[weights.length-1].date+"T12:00:00")-new Date(weights[0].date+"T12:00:00"))/86400000;
+     if(early.length>=2&&late.length>=2&&span>=14){
+      const avg=a=>a.reduce((sum,x)=>sum+x.kg,0)/a.length;
+      const a=avg(early),b=avg(late),weeklyPct=((b-a)/a)/(span/7)*100;
+      if(Math.abs(weeklyPct)<0.15)insight={type:"stall",label:"Weight trend looks stable",detail:weights.length+" weigh-ins across "+Math.round(span)+" days; average trend "+(weeklyPct>=0?"+":"")+weeklyPct.toFixed(2)+"% per week.",action:"Check adherence, measurements, training performance and the client's feedback before deciding whether a change is needed."};
+      else if(weeklyPct<=-1)insight={type:"rapid",label:"Rapid weight loss trend",detail:"Estimated change "+weeklyPct.toFixed(2)+"% per week across "+Math.round(span)+" days.",action:"Check rate of loss, recovery, hunger, performance and wellbeing with the client."};
+      else if(weeklyPct>=1)insight={type:"rapid",label:"Rapid weight gain trend",detail:"Estimated change +"+weeklyPct.toFixed(2)+"% per week across "+Math.round(span)+" days.",action:"Check consistency, recent intake changes, fluid shifts and the client's goal before adjusting the plan."};
+     }
+    }
+    const latest=checkins[0];
+    const adherence=({"0–25%":12.5,"26–50%":38,"51–75%":63,"76–90%":83,"91–100%":95}[latest?.adherence]??null);
+    if(!insight&&adherence!==null&&adherence<76)insight={type:"review",label:"Low reported adherence",detail:"Latest weekly check-in reports "+latest.adherence+" adherence.",action:"Explore barriers and agree one practical action with the client."};
+    return insight?{client,insight}:{client,insight:null};
+   }catch(error){return {client,error:true,insight:null};}
+  }));
+  const flagged=rows.filter(x=>x.insight);
+  $("intelligenceStalls").textContent=String(flagged.filter(x=>x.insight.type==="stall").length);
+  $("intelligenceRapid").textContent=String(flagged.filter(x=>x.insight.type==="rapid").length);
+  $("intelligenceReview").textContent=String(flagged.length);
+  host.replaceChildren();
+  if(!active.length){host.textContent="No active clients to analyse yet.";return;}
+  if(!flagged.length){const msg=document.createElement("div");msg.className="tile";msg.style.minHeight="0";msg.textContent="No weight-trend or adherence flags found in the available records. Keep reviewing check-ins and weigh-ins as normal.";host.append(msg);}
+  const order={rapid:0,stall:1,review:2};
+  flagged.sort((a,b)=>(order[a.insight.type]-order[b.insight.type])||(a.client.displayName||"").localeCompare(b.client.displayName||""));
+  flagged.forEach(row=>{
+   const card=document.createElement("div");card.className="tile";card.style.cssText="min-height:0;margin:8px 0;padding:12px";
+   const head=document.createElement("div");head.style.cssText="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap";
+   const title=document.createElement("strong");title.textContent=row.insight.label;
+   const name=document.createElement("span");name.className="pill";name.textContent=row.client.displayName||row.client.email||"Client";head.append(title,name);
+   const detail=document.createElement("div");detail.className="muted";detail.style.marginTop="8px";detail.textContent=row.insight.detail;
+   const action=document.createElement("div");action.style.marginTop="8px";action.textContent="Suggested review: "+row.insight.action;
+   const open=document.createElement("button");open.className="secondary";open.style.width="100%";open.style.marginTop="10px";open.textContent="OPEN CLIENT PROFILE";open.onclick=async()=>{await showClientProfile(row.client);document.getElementById("profile-progress-overview")?.scrollIntoView({behavior:"smooth",block:"start"});};
+   card.append(head,detail,action,open);host.append(card);
+  });
+  const errors=rows.filter(x=>x.error).length;
+  if(errors){const note=document.createElement("div");note.className="muted";note.textContent=errors+" client record(s) could not be analysed. Check their profile data if an insight seems missing.";host.append(note);}
+ }catch(error){host.textContent="Could not load coaching insights: "+error.message;}
+}
+
 async function loadClients(){
  const list=$("clientList");list.textContent="Loading clients…";
  try{
@@ -2086,6 +2156,7 @@ async function loadClients(){
   await loadCoachReviewDashboard(clients);
   await loadClientEngagementPulse(clients);
   await loadNutritionComplianceDashboard(clients);
+  await loadCoachIntelligenceCentre(clients);
   list.replaceChildren();
   if(!clients.length){list.textContent="No client accounts yet.";return;}
   clients.forEach(c=>{
