@@ -140,6 +140,9 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 
 /* Coach client snapshot */
 .profile-snapshot{margin:18px 0 22px;padding:18px;border-color:#465438;background:linear-gradient(145deg,#1a2112,#10140d)}.profile-snapshot-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.profile-snapshot-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:14px}.snapshot-stat{min-width:0;padding:12px;border:1px solid var(--line);border-radius:11px;background:#0b0f08}.snapshot-stat>span{display:block;color:var(--muted);font-size:10px;font-weight:850;letter-spacing:.8px}.snapshot-stat strong{display:block;color:var(--lime);font-size:20px;line-height:1.25;margin:7px 0 3px;overflow-wrap:anywhere}.snapshot-stat small{display:block;color:var(--muted);font-size:11px;line-height:1.4}.snapshot-bottom{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}.snapshot-bottom p{margin:6px 0 0;white-space:pre-wrap}.snapshot-bottom button{flex:0 0 auto;padding:9px 11px;font-size:10px}.snapshot-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:14px}.snapshot-actions button{padding:9px 11px;font-size:10px}.profile-snapshot .pill{font-size:10px}@media(max-width:560px){.profile-snapshot{padding:14px}.profile-snapshot-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.snapshot-stat{padding:10px}.snapshot-stat strong{font-size:18px}.snapshot-bottom{flex-direction:column}.snapshot-bottom button{width:100%}.snapshot-actions button{flex:1 1 28%}}
+
+/* Always-visible meal plan builder totals */
+#coachMealPlanLiveTotals{position:sticky;top:8px;z-index:5;margin:12px 0 16px;padding:13px;background:#1b2410;border:1px solid #789c19;border-radius:13px;box-shadow:0 8px 24px #0008}.coach-meal-live-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}.coach-meal-live-head strong{font-size:12px;letter-spacing:1px;color:var(--lime)}.coach-meal-live-head span{font-size:10px;color:var(--muted)}.coach-meal-live-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}.coach-meal-live-grid>div{min-width:0;padding:9px 8px;background:#0b0f08;border:1px solid #3d4b29;border-radius:9px}.coach-meal-live-grid small{display:block;color:var(--muted);font-size:9px;font-weight:850;letter-spacing:.7px}.coach-meal-live-grid strong{display:block;color:var(--white);font-size:clamp(15px,3.5vw,21px);line-height:1.25;margin-top:5px;overflow-wrap:anywhere}.meal-summary{padding:8px 10px;margin-top:9px;background:#1b2410;border:1px solid #3d4b29;border-radius:8px;line-height:1.5}@media(max-width:390px){.coach-meal-live-grid{gap:5px}.coach-meal-live-grid>div{padding:8px 5px}.coach-meal-live-grid strong{font-size:14px}}
 </style>
 </head>
 <body><main>
@@ -2779,17 +2782,23 @@ $("foodGrams")?.addEventListener("input",()=>{
  $("foodFats").value=(item.fats*scale).toFixed(1);
 });
 function updateCoachMealPlanVisuals(){
- const editor=$("coachMealPlanEditor");if(editor)editor.querySelectorAll("[data-food-preview]").forEach(el=>{const [mi,oi,fi]=el.dataset.foodPreview.split(":").map(Number);const f=coachMealPlan[coachPlanType]?.[mi]?.options?.[oi]?.foods?.[fi];if(f){const m=foodMacros(f);el.textContent="For "+(Number(f.grams)||0)+"g: "+Math.round(m.calories)+" kcal · P "+fmtMeal(m.proteinG)+"g · C "+fmtMeal(m.carbsG)+"g · F "+fmtMeal(m.fatsG)+"g";}});
- const host=$("coachMealPlanVisuals");if(!host)return;
+ const editor=$("coachMealPlanEditor");if(editor){
+  editor.querySelectorAll("[data-food-preview]").forEach(el=>{const [mi,oi,fi]=el.dataset.foodPreview.split(":").map(Number);const f=coachMealPlan[coachPlanType]?.[mi]?.options?.[oi]?.foods?.[fi];if(f){const m=foodMacros(f);el.textContent="For "+(Number(f.grams)||0)+"g: "+Math.round(m.calories)+" kcal · P "+fmtMeal(m.proteinG)+"g · C "+fmtMeal(m.carbsG)+"g · F "+fmtMeal(m.fatsG)+"g";}});
+  editor.querySelectorAll("[data-option-summary]").forEach(el=>{const [mi,oi]=el.dataset.optionSummary.split(":").map(Number),option=coachMealPlan[coachPlanType]?.[mi]?.options?.[oi];if(option){const m=optionMacros(option);el.textContent="OPTION TOTAL · P "+fmtMeal(m.proteinG)+"g · C "+fmtMeal(m.carbsG)+"g · F "+fmtMeal(m.fatsG)+"g · "+Math.round(m.calories)+" kcal";}});
+ }
  const plan=coachMealPlan[coachPlanType]||[],total=planTotals(plan);
  const rows=plan.map((meal,i)=>{const m=optionMacros((meal.options||[])[0]||{foods:[]});return {name:meal.name||("Meal "+(i+1)),...m};});
- host.innerHTML=nutritionPlanVisual(total,rows,coachPlanType==="highDay"?"HIGH DAY OVERVIEW":"LOW DAY OVERVIEW");
+ const live=$("coachMealPlanLiveTotals");
+ if(live){live.querySelector("[data-live-calories]").textContent=Math.round(total.calories).toLocaleString()+" kcal";live.querySelector("[data-live-protein]").textContent=fmtMeal(total.proteinG)+" g";live.querySelector("[data-live-carbs]").textContent=fmtMeal(total.carbsG)+" g";live.querySelector("[data-live-fats]").textContent=fmtMeal(total.fatsG)+" g";}
+ const host=$("coachMealPlanVisuals");if(host)host.innerHTML=nutritionPlanVisual(total,rows,coachPlanType==="highDay"?"HIGH DAY OVERVIEW":"LOW DAY OVERVIEW");
 }
 function renderCoachMealPlan(){
  const host=$("coachMealPlanEditor");if(!host)return;host.replaceChildren();
  const plan=coachMealPlan[coachPlanType]||[];
  const title=document.createElement("div");title.className="pill";title.textContent=coachPlanType==="highDay"?"HIGH DAY BUILDER":"LOW DAY BUILDER";host.append(title);
  const visual=document.createElement("div");visual.id="coachMealPlanVisuals";host.append(visual);
+ const live=document.createElement("div");live.id="coachMealPlanLiveTotals";live.className="coach-meal-live-totals";live.innerHTML='<div class="coach-meal-live-head"><strong>LIVE DAILY TOTAL</strong><span>Updates as you add or edit food</span></div><div class="coach-meal-live-grid"><div><small>CALORIES</small><strong data-live-calories>0 kcal</strong></div><div><small>PROTEIN</small><strong data-live-protein>0 g</strong></div><div><small>CARBS</small><strong data-live-carbs>0 g</strong></div><div><small>FATS</small><strong data-live-fats>0 g</strong></div></div><div class="muted" style="font-size:10px;margin-top:7px">Daily total uses the first option selected for each meal.</div>';host.append(live);
+
  plan.forEach((meal,mi)=>{
   const block=document.createElement("div");block.className="meal-plan-block";
   block.innerHTML='<label>Meal name</label><input data-meal-name="'+mi+'" value="'+escMeal(meal.name)+'" placeholder="e.g. Breakfast"><div data-options="'+mi+'"></div><div class="meal-actions"><button type="button" class="secondary" data-add-option="'+mi+'">ADD OPTION</button><button type="button" class="secondary" data-remove-meal="'+mi+'">REMOVE MEAL</button></div>';
@@ -2797,7 +2806,7 @@ function renderCoachMealPlan(){
   (meal.options||[]).forEach((o,oi)=>{
    const op=document.createElement("div");op.className="meal-option";
    const m=optionMacros(o);
-   op.innerHTML='<label>Option name</label><input data-option-name="'+mi+':'+oi+'" value="'+escMeal(o.name)+'" placeholder="e.g. Chicken and rice"><div class="muted">Food details · values per 100g, with portion in grams</div><div data-foods="'+mi+':'+oi+'"></div><button type="button" class="secondary" data-add-food="'+mi+':'+oi+'">ADD FOOD</button><button type="button" class="secondary" data-remove-option="'+mi+':'+oi+'" style="margin-left:6px">REMOVE OPTION</button><div class="meal-summary">P '+fmtMeal(m.proteinG)+'g · C '+fmtMeal(m.carbsG)+'g · F '+fmtMeal(m.fatsG)+'g · '+Math.round(m.calories)+' kcal</div>';
+   op.innerHTML='<label>Option name</label><input data-option-name="'+mi+':'+oi+'" value="'+escMeal(o.name)+'" placeholder="e.g. Chicken and rice"><div class="muted">Food details · values per 100g, with portion in grams</div><div data-foods="'+mi+':'+oi+'"></div><button type="button" class="secondary" data-add-food="'+mi+':'+oi+'">ADD FOOD</button><button type="button" class="secondary" data-remove-option="'+mi+':'+oi+'" style="margin-left:6px">REMOVE OPTION</button><div class="meal-summary" data-option-summary="'+mi+':'+oi+'">OPTION TOTAL · P '+fmtMeal(m.proteinG)+'g · C '+fmtMeal(m.carbsG)+'g · F '+fmtMeal(m.fatsG)+'g · '+Math.round(m.calories)+' kcal</div>';
    const foods=op.querySelector('[data-foods="'+mi+':'+oi+'"]');
    (o.foods||[]).forEach((f,fi)=>{
     const row=document.createElement("div");row.className="food-row";
