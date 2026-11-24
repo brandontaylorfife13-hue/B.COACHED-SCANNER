@@ -2376,13 +2376,13 @@ async function renderCoachFoodPreview(){
   const scheduled=(targets.highDays||[]).includes(dayName)?"highDay":"lowDay";
   const type=selection.dayTypeOverride&&["highDay","lowDay"].includes(selection.dayType)?selection.dayType:scheduled;
   const plan=JSON.parse(JSON.stringify(Array.isArray(planData[type])?planData[type]:[]));
-  const entries=logSnap.docs.map(d=>({id:d.id,...d.data()})),choiceMap={...(selection.selectionMap||{})};
+  const entries=logSnap.docs.map(d=>({id:d.id,...d.data()})),choiceMap={...(selection.selectionMap||{})},savedCustomFoods=selection.customFoods||{};
   host.replaceChildren();
   const top=document.createElement("div");top.className="tile";top.style.cssText="padding:13px;margin-bottom:10px";
   const title=document.createElement("strong");title.textContent=(profile.displayName||selectedClient.displayName||"Client")+"'s meal planner";
   const subtitle=document.createElement("div");subtitle.className="muted";subtitle.textContent=new Date(date+"T12:00:00").toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"})+" · "+(type==="highDay"?"High day":"Low day")+" · Interactive coach preview";
   top.append(title,subtitle);host.append(top);
-  const intro=document.createElement("p");intro.className="muted";intro.textContent="This uses the client's meal-card layout and controls. Change options, portions or foods below, then save the plan when you're happy. Nothing is saved until you press Save.";host.append(intro);
+  const intro=document.createElement("p");intro.className="muted";intro.textContent="This shows the client's saved options and adjusted portions. You can make changes here and save them to the client's choices without changing the coach's original meal-plan template.";host.append(intro);
   const totalBox=document.createElement("div");totalBox.className="tile";totalBox.style.cssText="padding:11px;margin:10px 0";host.append(totalBox);
   const mealHost=document.createElement("div");host.append(mealHost);
   const draw=()=>{
@@ -2396,7 +2396,7 @@ async function renderCoachFoodPreview(){
     const editor=document.createElement("div");editor.style.marginTop="10px";
     const renderOption=()=>{
      editor.replaceChildren();const oi=Number(select.value),option=meal.options?.[oi];choiceMap[mi]=oi;if(!option)return;
-     const optionName=document.createElement("input");optionName.value=option.name||"";optionName.placeholder="Option name";optionName.setAttribute("aria-label","Option name");optionName.style.width="100%";optionName.addEventListener("input",()=>{option.name=optionName.value;select.options[oi].textContent=option.name||"Option "+(oi+1);});editor.append(optionName);
+     const optionKey=String(mi),savedCustom=savedCustomFoods[optionKey];const foodsForOption=savedCustom&&Number(savedCustom.optionIndex)===oi&&Array.isArray(savedCustom.foods)?savedCustom.foods.map(f=>({...f})):(option.foods||[]).map(f=>({...f}));option.foods=foodsForOption;const optionName=document.createElement("input");optionName.value=option.name||"";optionName.placeholder="Option name";optionName.setAttribute("aria-label","Option name");optionName.style.width="100%";optionName.addEventListener("input",()=>{option.name=optionName.value;select.options[oi].textContent=option.name||"Option "+(oi+1);});editor.append(optionName);
      const foodList=document.createElement("div");foodList.style.marginTop="8px";editor.append(foodList);
      const renderFoods=()=>{
       foodList.replaceChildren();
@@ -2424,9 +2424,17 @@ async function renderCoachFoodPreview(){
    const total=planTotals(plan,choiceMap);totalBox.replaceChildren();const label=document.createElement("strong");label.textContent="Selected plan totals";const value=document.createElement("div");value.className="muted";value.textContent=Math.round(total.calories)+" kcal · P "+fmtMeal(total.proteinG)+"g · C "+fmtMeal(total.carbsG)+"g · F "+fmtMeal(total.fatsG)+"g";totalBox.append(label,value);
   };
   const addMeal=document.createElement("button");addMeal.type="button";addMeal.className="secondary";addMeal.style.width="100%";addMeal.textContent="＋ ADD MEAL";addMeal.addEventListener("click",()=>{plan.push({name:"Meal "+(plan.length+1),options:[{name:"Option A",foods:[]}]});draw();});
-  const save=document.createElement("button");save.type="button";save.style.cssText="width:100%;margin-top:10px";save.textContent="SAVE CLIENT MEAL PLAN";
+  const save=document.createElement("button");save.type="button";save.style.cssText="width:100%;margin-top:10px";save.textContent="SAVE CLIENT CHANGES";
   const status=document.createElement("div");status.className="status";status.setAttribute("role","status");
-  save.addEventListener("click",async()=>{save.disabled=true;save.textContent="SAVING…";status.textContent="";try{await setDoc(doc(db,"users",selectedClient.uid,"nutrition","mealPlan"),{...planData,[type]:plan,updatedAt:serverTimestamp()},{merge:true});coachMealPlan[type]=JSON.parse(JSON.stringify(plan));status.textContent="Saved. The client's "+(type==="highDay"?"high-day":"low-day")+" plan has been updated.";save.textContent="SAVED";}catch(error){status.textContent="Could not save: "+error.message;save.textContent="SAVE CLIENT MEAL PLAN";}finally{save.disabled=false;}});
+  save.addEventListener("click",async()=>{save.disabled=true;save.textContent="SAVING…";status.textContent="";try{
+   const selectionMap={},customFoods={},choices=[];
+   plan.forEach((meal,mi)=>{const selectedIndex=Number(choiceMap[mi]??0),option=(meal.options||[])[selectedIndex]||{foods:[]},foods=(option.foods||[]).map(f=>({...f}));
+    selectionMap[mi]=selectedIndex;customFoods[String(mi)]={optionIndex:selectedIndex,foods};
+    const macros=optionMacros({foods});choices.push({meal:meal.name||("Meal "+(mi+1)),option:option.name||"Option",foods:foods.map(f=>({name:f.name||"",grams:Number(f.grams)||0})),...macros});
+   });
+   await setDoc(doc(db,"users",selectedClient.uid,"mealPlanSelections",date),{date,dayType:type,selectionMap,customFoods,choices,updatedAt:serverTimestamp()},{merge:true});
+   status.textContent="Client's choices and adjusted portions saved. The coach's original meal plan is unchanged.";save.textContent="SAVED";
+  }catch(error){status.textContent="Could not save client choices: "+error.message;save.textContent="SAVE CLIENT CHANGES";}finally{save.disabled=false;}});;
   draw();host.append(addMeal,save,status);
   const diaryHeading=document.createElement("div");diaryHeading.className="section-title";diaryHeading.style.marginTop="20px";diaryHeading.textContent="Client's food diary · read only";host.append(diaryHeading);
   if(!entries.length){const empty=document.createElement("p");empty.className="muted";empty.textContent="No foods logged for this date.";host.append(empty);}
