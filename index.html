@@ -238,6 +238,14 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
    <p class="muted">A live, prioritised list of check-in reviews, client messages and overdue follow-ups. Open each task to take action.</p>
    <div id="overviewActionList" class="muted">Loading your client activity…</div>
    <div class="actions"><button id="overviewAllClients" class="secondary" type="button">VIEW ALL CLIENTS</button><button id="overviewAddClient" type="button">ADD A CLIENT</button></div>
+   <div class="section-title" style="margin-top:24px">Nutrition compliance · last 7 days</div>
+   <p class="muted">Based on food diary entries compared with each client's scheduled high- or low-day targets. Days without entries are shown as missing, not zero intake.</p>
+   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px">
+    <div class="tile">CLIENTS LOGGING<strong id="nutritionComplianceLogging">—</strong><span>At least one diary day</span></div>
+    <div class="tile">AVERAGE CALORIES<strong id="nutritionComplianceCalories">—</strong><span>Per logged day</span></div>
+    <div class="tile">AVERAGE TARGET<strong id="nutritionComplianceTarget">—</strong><span>Calorie target achieved</span></div>
+   </div>
+   <div id="nutritionComplianceList" style="margin-top:10px" class="muted">Loading nutrition compliance…</div>
    <div class="section-title" style="margin-top:24px">Coaching workflow</div>
    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(135px,1fr))">
     <div class="tile"><strong style="font-size:16px;color:var(--white)">Review check-ins</strong><span>Open a client profile to review updates and leave feedback.</span></div>
@@ -1882,6 +1890,80 @@ async function loadClientEngagementPulse(clients){
   card.append(quickLabel,quickActions);host.append(card);
  });
 }
+async function loadNutritionComplianceDashboard(clients){
+ const host=$("nutritionComplianceList");if(!host)return;
+ host.textContent="Loading the last 7 days of nutrition records…";
+ ["nutritionComplianceLogging","nutritionComplianceCalories","nutritionComplianceTarget"].forEach(id=>$(id).textContent="—");
+ try{
+  const today=new Date();today.setHours(0,0,0,0);
+  const dates=Array.from({length:7},(_,i)=>{const d=new Date(today);d.setDate(d.getDate()-(6-i));return d;});
+  const key=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
+  const results=await Promise.all(clients.filter(c=>c.accountStatus!=="inactive"&&c.accountStatus!=="archived").map(async client=>{
+   const safe=async work=>{try{return await work();}catch(error){return {docs:[],error};}};
+   const [targetSnap,days]=await Promise.all([
+    safe(()=>getDoc(doc(db,"users",client.uid,"nutrition","targets"))),
+    Promise.all(dates.map(date=>safe(async()=>{const [logs,selection]=await Promise.all([
+     getDocs(collection(db,"users",client.uid,"foodLogs",key(date),"entries")),
+     getDoc(doc(db,"users",client.uid,"mealPlanSelections",key(date)))
+    ]);return {logs,selection,date};})))
+   ]);
+   const targets=targetSnap.exists?.()?(targetSnap.data()||{}):{};
+   const daily=days.map((item,index)=>{
+    if(item.error||item.logs?.error)return {date:dates[index],key:key(dates[index]),logged:false,error:true};
+    const entries=item.logs.docs.map(d=>d.data());
+    if(!entries.length)return {date:dates[index],key:key(dates[index]),logged:false};
+    const totals=entries.reduce((a,x)=>({calories:a.calories+(Number(x.calories)||0),protein:a.protein+(Number(x.proteinG)||0),carbs:a.carbs+(Number(x.carbsG)||0),fats:a.fats+(Number(x.fatsG)||0)}),{calories:0,protein:0,carbs:0,fats:0});
+    const dayName=dates[index].toLocaleDateString("en-GB",{weekday:"long"});
+    const selection=item.selection?.exists?.()?item.selection.data():{};
+    const highDays=Array.isArray(targets.highDays)?targets.highDays:[];
+    const scheduled=highDays.includes(dayName)?"highDay":"lowDay";
+    const type=selection.dayTypeOverride&&["highDay","lowDay"].includes(selection.dayType)?selection.dayType:scheduled;
+    const target=targets[type]||{};
+    const pct=(actual,goal)=>Number(goal)>0?actual/Number(goal)*100:null;
+    return {date:dates[index],key:key(dates[index]),logged:true,totals,type,target,caloriePct:pct(totals.calories,target.calories),proteinPct:pct(totals.protein,target.proteinG),carbsPct:pct(totals.carbs,target.carbsG),fatsPct:pct(totals.fats,target.fatsG)};
+   });
+   const logged=daily.filter(x=>x.logged);
+   const average=field=>logged.length?logged.reduce((sum,x)=>sum+x.totals[field],0)/logged.length:null;
+   const calorieCompliance=logged.map(x=>x.caloriePct).filter(x=>x!==null);
+   const averagePct=calorieCompliance.length?calorieCompliance.reduce((a,b)=>a+b,0)/calorieCompliance.length:null;
+   return {client,daily,logged:logged.length,averageCalories:average("calories"),averageProtein:average("protein"),averageCarbs:average("carbs"),averageFats:average("fats"),averagePct,errors:daily.some(x=>x.error)||!!targetSnap.error};
+  }));
+  const active=results.length,logging=results.filter(x=>x.logged>0);
+  $("nutritionComplianceLogging").textContent=logging.length+"/"+active;
+  const allDays=logging.flatMap(x=>x.daily.filter(d=>d.logged));
+  const avgCalories=allDays.length?allDays.reduce((a,d)=>a+d.totals.calories,0)/allDays.length:null;
+  $("nutritionComplianceCalories").textContent=avgCalories===null?"—":Math.round(avgCalories).toLocaleString()+" kcal";
+  const pcts=logging.map(x=>x.averagePct).filter(x=>x!==null);
+  $("nutritionComplianceTarget").textContent=pcts.length?(pcts.reduce((a,b)=>a+b,0)/pcts.length).toFixed(0)+"%":"—";
+  host.replaceChildren();
+  if(!active){host.textContent="No active clients found.";return;}
+  results.sort((a,b)=>(a.averagePct===null?1:b.averagePct===null?-1:a.averagePct-b.averagePct)||(a.client.displayName||"").localeCompare(b.client.displayName||""));
+  results.forEach(row=>{
+   const card=document.createElement("div");card.className="tile";card.style.cssText="min-height:0;margin:8px 0;padding:12px";
+   const head=document.createElement("div");head.style.cssText="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap";
+   const name=document.createElement("strong");name.textContent=row.client.displayName||row.client.email||"Client";
+   const status=document.createElement("span");status.className="pill";status.textContent=row.logged+" / 7 days logged";head.append(name,status);card.append(head);
+   if(!row.logged){const empty=document.createElement("div");empty.className="muted";empty.style.marginTop="7px";empty.textContent="No food diary entries recorded in the last 7 days. This is missing data, not zero calorie intake.";card.append(empty);}
+   else{
+    const metrics=document.createElement("div");metrics.className="muted";metrics.style.marginTop="8px";
+    metrics.textContent="Average per logged day: "+Math.round(row.averageCalories).toLocaleString()+" kcal · P "+Math.round(row.averageProtein)+"g · C "+Math.round(row.averageCarbs)+"g · F "+Math.round(row.averageFats)+"g"+(row.averagePct===null?" · No calorie target set":" · "+row.averagePct.toFixed(0)+"% of calorie target");
+    card.append(metrics);
+    const trend=document.createElement("div");trend.style.cssText="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;margin-top:10px";
+    row.daily.forEach(day=>{
+     const cell=document.createElement("div");cell.style.cssText="min-width:0;text-align:center";
+     const bar=document.createElement("div");bar.style.cssText="height:48px;display:flex;align-items:flex-end;background:#252b20;border-radius:5px;overflow:hidden";
+     const fill=document.createElement("div");const pct=day.logged&&day.caloriePct!==null?Math.max(0,Math.min(100,day.caloriePct)):0;fill.style.cssText="width:100%;height:"+pct+"%;background:var(--lime);border-radius:4px 4px 0 0";bar.append(fill);
+     const label=document.createElement("div");label.className="muted";label.style.fontSize="10px";label.textContent=day.date.toLocaleDateString("en-GB",{weekday:"short"}).slice(0,2);
+     const value=document.createElement("div");value.className="muted";value.style.fontSize="9px";value.textContent=!day.logged?"—":day.caloriePct===null?Math.round(day.totals.calories/100)/10+"k":Math.round(day.caloriePct)+"%";
+     cell.append(bar,label,value);trend.append(cell);
+    });
+    card.append(trend);
+   }
+   if(row.errors){const warning=document.createElement("div");warning.className="muted";warning.style.marginTop="7px";warning.textContent="Some records could not be read; this client's figures may be incomplete.";card.append(warning);}
+   const open=document.createElement("button");open.type="button";open.className="secondary";open.style.cssText="width:100%;margin-top:10px";open.textContent="OPEN CLIENT PROFILE";open.onclick=()=>showClientProfile(row.client);card.append(open);host.append(card);
+  });
+ }catch(error){host.textContent="Could not load nutrition compliance: "+error.message;}
+}
 async function loadClients(){
  const list=$("clientList");list.textContent="Loading clients…";
  try{
@@ -1892,6 +1974,7 @@ async function loadClients(){
   $("activeCount").textContent=String(clients.filter(c=>c.accountStatus==="active").length);
   await loadCoachReviewDashboard(clients);
   await loadClientEngagementPulse(clients);
+  await loadNutritionComplianceDashboard(clients);
   list.replaceChildren();
   if(!clients.length){list.textContent="No client accounts yet.";return;}
   clients.forEach(c=>{
