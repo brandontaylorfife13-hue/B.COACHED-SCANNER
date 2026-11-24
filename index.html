@@ -1281,99 +1281,145 @@ function renderTrainingPerformance(host,summary,showDetail=true){
 }
 async function loadCoachClientNutritionAnalytics(){
  if(!selectedClient?.uid)return;
- const host=$("coachClientNutritionAnalytics");if(!host)return;host.textContent="Loading nutrition adherence…";
+ const host=$("coachClientNutritionAnalytics");if(!host)return;
+ host.textContent="Loading nutrition analysis…";
  try{
-  const [targetSnap,planSnap]=await Promise.all([getDoc(doc(db,"users",selectedClient.uid,"nutrition","targets")),getDoc(doc(db,"users",selectedClient.uid,"nutrition","mealPlan"))]);
+  const uid=selectedClient.uid;
+  const [targetSnap,planSnap,weightSnap,notesSnap]=await Promise.all([
+   getDoc(doc(db,"users",uid,"nutrition","targets")),
+   getDoc(doc(db,"users",uid,"nutrition","mealPlan")),
+   getDocs(collection(db,"users",uid,"weights")),
+   getDoc(doc(db,"users",uid,"nutrition","coachAnalysis"))
+  ]);
   const targets=targetSnap.exists()?targetSnap.data():{};
   const mealPlan=planSnap.exists()?planSnap.data():{};
   const highDays=Array.isArray(targets.highDays)?targets.highDays:[];
-  const today=new Date();today.setHours(0,0,0,0);
-  const dates=Array.from({length:7},(_,i)=>{const d=new Date(today);d.setDate(d.getDate()-(6-i));return d;});
-  const days=await Promise.all(dates.map(async date=>{
-   const key=[date.getFullYear(),String(date.getMonth()+1).padStart(2,"0"),String(date.getDate()).padStart(2,"0")].join("-");
-   const [entriesSnap,selectionSnap]=await Promise.all([
-    getDocs(collection(db,"users",selectedClient.uid,"foodLogs",key,"entries")),
-    getDoc(doc(db,"users",selectedClient.uid,"mealPlanSelections",key))
-   ]);
-   const entries=entriesSnap.docs.map(x=>x.data());
-   const totals=entries.reduce((a,x)=>({calories:a.calories+(Number(x.calories)||0),protein:a.protein+(Number(x.proteinG)||0),carbs:a.carbs+(Number(x.carbsG)||0),fats:a.fats+(Number(x.fatsG)||0)}),{calories:0,protein:0,carbs:0,fats:0});
-   const dayName=date.toLocaleDateString("en-US",{weekday:"long"});
-   const selection=selectionSnap.exists()?selectionSnap.data():{};
-   const high=selection.dayTypeOverride&&["highDay","lowDay"].includes(selection.dayType)?selection.dayType==="highDay":highDays.includes(dayName);
-   const target=high?(targets.highDay||{}):(targets.lowDay||{});
-   const eaten=selection.eatenMeals&&typeof selection.eatenMeals==="object"?Object.values(selection.eatenMeals).filter(Boolean).length:0;
-   const planned=selection.eatenMeals&&typeof selection.eatenMeals==="object"?Object.keys(selection.eatenMeals).length:0;
-   return {key,date,dayName,entries:entries.length,entryItems:entries,totals,high,target,eaten,planned,hasSelection:selectionSnap.exists(),selection};
-  }));
-  host.replaceChildren();
-  const logged=days.filter(x=>x.entries>0);
-  const overview=document.createElement("div");overview.className="grid";overview.style.cssText="grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px";
-  const metrics=[["DIARY DAYS",logged.length+" / 7"],["FOOD ENTRIES",days.reduce((n,x)=>n+x.entries,0)],["MEAN CALORIES",logged.length?Math.round(logged.reduce((n,x)=>n+x.totals.calories,0)/logged.length).toLocaleString():"—"],["MEAN PROTEIN",logged.length?(logged.reduce((n,x)=>n+x.totals.protein,0)/logged.length).toFixed(1)+" g":"—"]];
-  metrics.forEach(([label,value])=>{const tile=document.createElement("div");tile.className="tile";tile.style.minHeight="0";const l=document.createElement("div");l.className="eyebrow";l.textContent=label;const v=document.createElement("strong");v.textContent=value;tile.append(l,v);overview.append(tile);});
-  host.append(overview);
-  const note=document.createElement("div");note.className="muted";note.style.margin="10px 0";note.textContent=logged.length?"Averages use diary days with at least one food entry. Compare like-for-like days and check whether entries are complete before making nutrition changes.":"No food diary entries recorded in the last seven days.";host.append(note);
-  const listTitle=document.createElement("div");listTitle.className="eyebrow";listTitle.style.marginTop="14px";listTitle.textContent="DAILY INTAKE VS ASSIGNED TARGET";host.append(listTitle);
-  days.slice().reverse().forEach(day=>{
-   const card=document.createElement("div");card.className="tile";card.style.cssText="min-height:0;margin:8px 0;padding:12px";
-   const head=document.createElement("div");head.style.cssText="display:flex;justify-content:space-between;gap:10px;align-items:center";
-   const title=document.createElement("strong");title.textContent=day.date.toLocaleDateString("en-US",{weekday:"short",day:"numeric",month:"short"});
-   const status=document.createElement("span");status.className="pill";status.textContent=day.entries?day.entries+" food entries":"No diary logged";head.append(title,status);card.append(head);
-   const type=document.createElement("div");type.className="muted";type.style.marginTop="5px";type.textContent=(day.selection?.dayTypeOverride?(day.high?"High day · Client selected":"Low day · Client selected"):(highDays.length?(day.high?"High day":"Low day"):"Day type not assigned"))+(day.planned?" · Meal plan marked "+day.eaten+"/"+day.planned+" eaten":"");card.append(type);
-   if(day.entries){
-    const vals=[["Calories",day.totals.calories,day.target.calories,"kcal"],["Protein",day.totals.protein,day.target.proteinG,"g"],["Carbs",day.totals.carbs,day.target.carbsG,"g"],["Fats",day.totals.fats,day.target.fatsG,"g"]];
-    vals.forEach(([label,actual,target,unit])=>{const line=document.createElement("div");line.style.cssText="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid #30372a";const l=document.createElement("span");l.textContent=label;const v=document.createElement("strong");v.textContent=target==null?Math.round(actual*10)/10+unit+" · target not set":Math.round(actual*10)/10+" / "+target+unit;line.append(l,v);card.append(line);});
-   }else{const empty=document.createElement("div");empty.className="muted";empty.style.marginTop="7px";empty.textContent="No intake recorded. This is missing data, not zero intake.";card.append(empty);}
-   if(day.entryItems.length){
-    const dropdown=document.createElement("details");dropdown.style.cssText="margin-top:12px;border-top:1px solid #30372a;padding-top:10px";
-    const summary=document.createElement("summary");summary.style.cssText="cursor:pointer;color:var(--lime);font-weight:700;padding:5px 0";summary.textContent="VIEW "+day.entryItems.length+" FOOD ENTRIES BY MEAL";dropdown.append(summary);
-    const groups=new Map();day.entryItems.forEach(item=>{const sourceMeal=String(item.meal||"").trim()||"__unassigned__";if(!groups.has(sourceMeal))groups.set(sourceMeal,[]);groups.get(sourceMeal).push(item);});
-    let mealNumber=0;groups.forEach((items,sourceMeal)=>{
-     mealNumber++;
-     const group=document.createElement("div");group.style.cssText="padding:9px 0;border-bottom:1px solid #30372a";
-     const groupName=document.createElement("strong");groupName.textContent="Meal "+mealNumber;group.append(groupName);
-     items.forEach(item=>{
-      const line=document.createElement("div");line.style.cssText="padding:6px 0 2px 10px";
-      const name=document.createElement("div");name.textContent=item.name||"Food item";
-      const portion=document.createElement("div");portion.className="muted";const amount=item.grams??item.quantity??item.amount??item.portion;portion.textContent=(amount!=null?String(amount)+(item.unit||" g")+" · ":"")+Math.round(Number(item.calories)||0)+" kcal · P "+(Number(item.proteinG)||0)+"g · C "+(Number(item.carbsG)||0)+"g · F "+(Number(item.fatsG)||0)+"g";
-      line.append(name,portion);group.append(line);
-     });
-     dropdown.append(group);
-    });
-    card.append(dropdown);
-   }
-   host.append(card);
-  });
-  const planTitle=document.createElement("div");planTitle.className="eyebrow";planTitle.style.marginTop="20px";planTitle.textContent="TAILORED MEAL PLAN · CLIENT'S CHOICES";host.append(planTitle);
-  days.slice().reverse().forEach(day=>{
-   const selection=day.selection||{},type=selection.dayType==="highDay"?"highDay":selection.dayType==="lowDay"?"lowDay":day.high?"highDay":"lowDay";
-   const plan=Array.isArray(mealPlan[type])?mealPlan[type]:[];
-   const card=document.createElement("div");card.className="tile";card.style.cssText="min-height:0;margin:8px 0;padding:12px";
-   const heading=document.createElement("strong");heading.textContent=day.date.toLocaleDateString("en-US",{weekday:"long",day:"numeric",month:"short"})+" · "+(type==="highDay"?"HIGH DAY":"LOW DAY");card.append(heading);
-   if(!day.hasSelection){const empty=document.createElement("div");empty.className="muted";empty.style.marginTop="6px";empty.textContent="No meal-plan choices saved for this date.";card.append(empty);}
-   else if(!plan.length){const empty=document.createElement("div");empty.className="muted";empty.style.marginTop="6px";empty.textContent="A meal-plan selection exists, but no matching saved plan was found.";card.append(empty);}
+  const weights=weightSnap.docs.map(d=>({date:d.id,...d.data()})).filter(x=>Number(x.weightKg??x.weight)>0).sort((a,b)=>a.date.localeCompare(b.date));
+  let period=7;
+  try{period=Number(localStorage.getItem("bcoached:client-nutrition-period")||7);}catch(_){}
+  if(![7,28].includes(period))period=7;
+  const key=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
+  const build=async()=>{
+   host.replaceChildren();
+   const controls=document.createElement("div");controls.style.cssText="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:10px 0 14px";
+   const intro=document.createElement("div");intro.className="muted";intro.textContent="Analysis window";
+   const select=document.createElement("select");select.className="training-select";select.style.cssText="width:auto;min-width:130px";select.innerHTML='<option value="7">Last 7 days</option><option value="28">Last 28 days</option>';select.value=String(period);
+   select.onchange=()=>{period=Number(select.value);try{localStorage.setItem("bcoached:client-nutrition-period",String(period));}catch(_){}build();};
+   controls.append(intro,select);host.append(controls);
+   const today=new Date();today.setHours(0,0,0,0);
+   const dates=Array.from({length:period},(_,i)=>{const d=new Date(today);d.setDate(d.getDate()-(period-1-i));return d;});
+   const days=await Promise.all(dates.map(async date=>{
+    const dateKey=key(date);
+    const [entriesSnap,selectionSnap]=await Promise.all([
+     getDocs(collection(db,"users",uid,"foodLogs",dateKey,"entries")),
+     getDoc(doc(db,"users",uid,"mealPlanSelections",dateKey))
+    ]);
+    const entries=entriesSnap.docs.map(x=>x.data());
+    const totals=entries.reduce((a,x)=>({calories:a.calories+(Number(x.calories)||0),protein:a.protein+(Number(x.proteinG)||0),carbs:a.carbs+(Number(x.carbsG)||0),fats:a.fats+(Number(x.fatsG)||0)}),{calories:0,protein:0,carbs:0,fats:0});
+    const dayName=date.toLocaleDateString("en-US",{weekday:"long"});
+    const selection=selectionSnap.exists()?selectionSnap.data():{};
+    const high=selection.dayTypeOverride&&["highDay","lowDay"].includes(selection.dayType)?selection.dayType==="highDay":highDays.includes(dayName);
+    const target=high?(targets.highDay||{}):(targets.lowDay||{});
+    const eatenMap=selection.eatenMeals&&typeof selection.eatenMeals==="object"?selection.eatenMeals:{};
+    const planned=Object.keys(eatenMap).length,eaten=Object.values(eatenMap).filter(Boolean).length;
+    return {key:dateKey,date,dayName,entries:entries.length,entryItems:entries,totals,high,target,eaten,planned,hasSelection:selectionSnap.exists(),selection};
+   }));
+   const logged=days.filter(x=>x.entries>0);
+   const mean=field=>logged.length?logged.reduce((sum,d)=>sum+d.totals[field],0)/logged.length:null;
+   const pct=(actual,target)=>Number(target)>0?actual/Number(target)*100:null;
+   const compliance=field=>{const values=logged.map(d=>pct(d.totals[field],d.target[field])).filter(x=>x!==null);return values.length?values.reduce((a,b)=>a+b,0)/values.length:null;};
+   const mealDays=days.filter(d=>d.hasSelection&&d.planned>0);
+   const mealRate=mealDays.length?mealDays.reduce((sum,d)=>sum+d.eaten/d.planned,0)/mealDays.length*100:null;
+   const summary=document.createElement("div");summary.className="grid";summary.style.cssText="grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:8px";
+   const metrics=[
+    ["DIARY DAYS",logged.length+" / "+period],
+    ["MEAN CALORIES",mean("calories")===null?"—":Math.round(mean("calories")).toLocaleString()+" kcal"],
+    ["MEAN PROTEIN",mean("protein")===null?"—":Math.round(mean("protein"))+" g"],
+    ["MEAN CARBS / FATS",mean("carbs")===null?"—":Math.round(mean("carbs"))+" / "+Math.round(mean("fats"))+" g"],
+    ["CALORIE TARGET",compliance("calories")===null?"—":Math.round(compliance("calories"))+"%"],
+    ["PROTEIN TARGET",compliance("protein")===null?"—":Math.round(compliance("protein"))+"%"],
+    ["MEALS MARKED EATEN",mealRate===null?"—":Math.round(mealRate)+"%"]
+   ];
+   metrics.forEach(([label,value])=>{const tile=document.createElement("div");tile.className="tile";tile.style.minHeight="0";tile.style.padding="12px";const l=document.createElement("div");l.className="eyebrow";l.textContent=label;const v=document.createElement("strong");v.style.fontSize="clamp(17px,3vw,23px)";v.textContent=value;tile.append(l,v);summary.append(tile);});
+   host.append(summary);
+   const caveat=document.createElement("div");caveat.className="muted";caveat.style.margin="10px 0 16px";caveat.textContent=logged.length+" logged days included. Daily averages and target percentages exclude days with no food entries. Meal completion is based only on dates where a meal checklist was saved; marked eaten is not proof of full intake.";host.append(caveat);
+   const trendTitle=document.createElement("div");trendTitle.className="eyebrow";trendTitle.textContent="CALORIE INTAKE VS TARGET";trendTitle.style.margin="18px 0 8px";host.append(trendTitle);
+   const trend=document.createElement("div");trend.className="tile";trend.style.cssText="min-height:0;padding:12px";
+   const rows=days.filter(d=>d.entries>0);
+   if(!rows.length){trend.textContent="No logged food days in this period.";}
    else{
-    const trackedTotals={calories:0,proteinG:0,carbsG:0,fatsG:0};let trackedMeals=0;
-    plan.forEach((meal,mi)=>{
-     const oi=Number((selection.selectionMap||{})[mi]??0),option=(meal.options||[])[oi];if(!option)return;
-     const custom=(selection.customFoods||{})[String(mi)],foods=custom&&Number(custom.optionIndex)===oi&&Array.isArray(custom.foods)?custom.foods:(option.foods||[]);
-     const mealTotals=foods.reduce((sum,food)=>{const scale=(Number(food.grams)||0)/100;sum.calories+=(Number(food.calories100)||0)*scale;sum.proteinG+=(Number(food.protein100)||0)*scale;sum.carbsG+=(Number(food.carbs100)||0)*scale;sum.fatsG+=(Number(food.fats100)||0)*scale;return sum;},{calories:0,proteinG:0,carbsG:0,fatsG:0});
-     const isEaten=!!selection.eatenMeals?.[String(mi)];
-     if(isEaten){trackedMeals++;Object.keys(trackedTotals).forEach(k=>trackedTotals[k]+=mealTotals[k]);}
-     const block=document.createElement("div");block.style.cssText="padding:8px 0;border-bottom:1px solid #30372a";
-     const mealName=document.createElement("strong");mealName.textContent=(meal.name||"Meal "+(mi+1))+" · "+(option.name||"Option "+(oi+1))+(isEaten?" · MARKED EATEN":"");block.append(mealName);
-     foods.forEach(food=>{const scale=(Number(food.grams)||0)/100,kcal=(Number(food.calories100)||0)*scale;const item=document.createElement("div");item.className="muted";item.textContent=(food.name||"Food item")+" · "+(Number(food.grams)||0)+" g · "+Math.round(kcal)+" kcal";block.append(item);});
-     if(!foods.length){const none=document.createElement("div");none.className="muted";none.textContent="No foods listed in this meal.";block.append(none);}
-     const subtotal=document.createElement("div");subtotal.className="muted";subtotal.style.cssText="margin-top:5px;font-weight:700";subtotal.textContent="Meal total: "+Math.round(mealTotals.calories)+" kcal · P "+fmtMeal(mealTotals.proteinG)+"g · C "+fmtMeal(mealTotals.carbsG)+"g · F "+fmtMeal(mealTotals.fatsG)+"g";block.append(subtotal);
-     card.append(block);
+    const max=Math.max(1,...rows.map(d=>Math.max(d.totals.calories,Number(d.target.calories)||0)));
+    const chart=document.createElement("div");chart.style.cssText="display:flex;align-items:flex-end;gap:4px;height:150px;padding:8px 0 0;border-bottom:1px solid #566148";
+    rows.forEach(d=>{
+     const wrap=document.createElement("div");wrap.title=d.key+" · "+Math.round(d.totals.calories)+" kcal"+(d.target.calories?" / "+d.target.calories+" target":"");wrap.style.cssText="flex:1;min-width:0;height:100%;display:flex;align-items:flex-end;justify-content:center;gap:2px";
+     const actual=document.createElement("div");actual.style.cssText="width:45%;max-width:18px;height:"+Math.max(2,d.totals.calories/max*100)+"%;background:var(--lime);border-radius:4px 4px 0 0";
+     const goal=document.createElement("div");goal.style.cssText="width:45%;max-width:18px;height:"+Math.max(2,(Number(d.target.calories)||0)/max*100)+"%;background:#586344;border-radius:4px 4px 0 0";
+     wrap.append(actual,goal);chart.append(wrap);
     });
-    const daily=document.createElement("div");daily.className="tile";daily.style.cssText="margin-top:10px;padding:10px;background:#151a12;border:1px solid #c6ff00";
-    const dailyTitle=document.createElement("strong");dailyTitle.textContent="TRACKED TOTAL · "+trackedMeals+" MEALS MARKED EATEN";
-    const dailyMacros=document.createElement("div");dailyMacros.style.cssText="margin-top:6px;font-weight:700";dailyMacros.textContent=Math.round(trackedTotals.calories).toLocaleString()+" kcal · Protein "+fmtMeal(trackedTotals.proteinG)+"g · Carbs "+fmtMeal(trackedTotals.carbsG)+"g · Fats "+fmtMeal(trackedTotals.fatsG)+"g";
-    daily.append(dailyTitle,dailyMacros);card.append(daily);
+    trend.append(chart);
+    const legend=document.createElement("div");legend.className="muted";legend.style.marginTop="8px";legend.textContent="Lime = logged calories · Grey = assigned calorie target · Only logged days are plotted";trend.append(legend);
    }
-   host.append(card);
-  });
- }catch(e){host.textContent="Could not load nutrition adherence: "+e.message;}
+   host.append(trend);
+   const weightTitle=document.createElement("div");weightTitle.className="eyebrow";weightTitle.style.margin="18px 0 8px";weightTitle.textContent="WEIGHT TREND · SAME DATE RANGE";host.append(weightTitle);
+   const startKey=key(dates[0]),endKey=key(dates[dates.length-1]);
+   const weightRows=weights.filter(w=>w.date>=startKey&&w.date<=endKey);
+   const weightCard=document.createElement("div");weightCard.className="tile";weightCard.style.cssText="min-height:0;padding:12px";
+   if(!weightRows.length)weightCard.textContent="No weigh-ins recorded in this date range.";
+   else{
+    const first=Number(weightRows[0].weightKg??weightRows[0].weight),last=Number(weightRows[weightRows.length-1].weightKg??weightRows[weightRows.length-1].weight);
+    const heading=document.createElement("div");heading.style.cssText="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap";
+    const count=document.createElement("span");count.className="muted";count.textContent=weightRows.length+" weigh-ins";
+    const change=document.createElement("strong");change.textContent=(last-first>0?"+":"")+(last-first).toFixed(2)+" kg across recorded dates";heading.append(count,change);weightCard.append(heading);
+    const values=weightRows.map(w=>Number(w.weightKg??w.weight)),min=Math.min(...values),maxW=Math.max(...values),range=maxW-min||1;
+    const points=values.map((v,i)=>({x:16+i*328/Math.max(1,values.length-1),y:110-(v-min)/range*85}));
+    const poly=points.map(p=>p.x+","+p.y).join(" ");
+    const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");svg.setAttribute("viewBox","0 0 360 130");svg.setAttribute("role","img");svg.setAttribute("aria-label","Client weight trend");svg.style.cssText="width:100%;height:auto;display:block;margin-top:8px";
+    const line=document.createElementNS("http://www.w3.org/2000/svg","polyline");line.setAttribute("points",poly);line.setAttribute("fill","none");line.setAttribute("stroke","#c6ff00");line.setAttribute("stroke-width","3");line.setAttribute("stroke-linecap","round");line.setAttribute("stroke-linejoin","round");svg.append(line);
+    points.forEach((p,i)=>{const dot=document.createElementNS("http://www.w3.org/2000/svg","circle");dot.setAttribute("cx",p.x);dot.setAttribute("cy",p.y);dot.setAttribute("r","3.5");dot.setAttribute("fill","#c6ff00");const tip=document.createElementNS("http://www.w3.org/2000/svg","title");tip.textContent=weightRows[i].date+" · "+values[i].toFixed(1)+" kg";dot.append(tip);svg.append(dot);});
+    weightCard.append(svg);
+    const labels=document.createElement("div");labels.className="muted";labels.textContent=weightRows[0].date+" · "+first.toFixed(1)+" kg  →  "+weightRows[weightRows.length-1].date+" · "+last.toFixed(1)+" kg";weightCard.append(labels);
+   }
+   host.append(weightCard);
+   const mealTitle=document.createElement("div");mealTitle.className="eyebrow";mealTitle.style.margin="18px 0 8px";mealTitle.textContent="MEAL PLAN COMPLETION";host.append(mealTitle);
+   const mealCard=document.createElement("div");mealCard.className="tile";mealCard.style.cssText="min-height:0;padding:12px";
+   if(!mealDays.length)mealCard.textContent="No saved meal checklist data in this period.";
+   else{
+    const line=document.createElement("div");line.style.cssText="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap";const label=document.createElement("span");label.textContent="Meals marked eaten";const value=document.createElement("strong");value.textContent=mealDays.reduce((sum,d)=>sum+d.eaten,0)+" / "+mealDays.reduce((sum,d)=>sum+d.planned,0)+" ("+Math.round(mealRate)+"%)";line.append(label,value);mealCard.append(line);
+    const detail=document.createElement("div");detail.className="muted";detail.style.marginTop="7px";detail.textContent=mealDays.length+" days had saved meal checklist activity.";mealCard.append(detail);
+   }
+   host.append(mealCard);
+   const extremesTitle=document.createElement("div");extremesTitle.className="eyebrow";extremesTitle.style.margin="18px 0 8px";extremesTitle.textContent="BEST & LOWEST CALORIE ADHERENCE DAYS";host.append(extremesTitle);
+   const scored=logged.map(d=>({...d,score:pct(d.totals.calories,d.target.calories)})).filter(d=>d.score!==null);
+   const extremes=document.createElement("div");extremes.className="grid";extremes.style.cssText="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px";
+   [["Closest to target",scored.slice().sort((a,b)=>Math.abs(a.score-100)-Math.abs(b.score-100))[0]],["Furthest from target",scored.slice().sort((a,b)=>Math.abs(b.score-100)-Math.abs(a.score-100))[0]]].forEach(([label,d])=>{const tile=document.createElement("div");tile.className="tile";tile.style.minHeight="0";const title=document.createElement("div");title.className="eyebrow";title.textContent=label;const value=document.createElement("strong");value.style.fontSize="20px";value.textContent=d?Math.round(d.score)+"% of target":"—";const desc=document.createElement("div");desc.className="muted";desc.textContent=d?d.date.toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"}):"No calorie target data";tile.append(title,value,desc);extremes.append(tile);});
+   host.append(extremes);
+   const dailyTitle=document.createElement("div");dailyTitle.className="eyebrow";dailyTitle.style.margin="20px 0 8px";dailyTitle.textContent="DAILY INTAKE DETAIL";host.append(dailyTitle);
+   days.slice().reverse().forEach(day=>{
+    const card=document.createElement("div");card.className="tile";card.style.cssText="min-height:0;margin:8px 0;padding:12px";
+    const head=document.createElement("div");head.style.cssText="display:flex;justify-content:space-between;gap:10px;align-items:center";
+    const title=document.createElement("strong");title.textContent=day.date.toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"});
+    const status=document.createElement("span");status.className="pill";status.textContent=day.entries?day.entries+" food entries":"No diary logged";head.append(title,status);card.append(head);
+    const type=document.createElement("div");type.className="muted";type.style.marginTop="5px";type.textContent=(day.selection?.dayTypeOverride?(day.high?"High day · Client selected":"Low day · Client selected"):(highDays.length?(day.high?"High day":"Low day"):"Day type not assigned"))+(day.planned?" · Meals marked "+day.eaten+"/"+day.planned+" eaten":"");card.append(type);
+    if(day.entries){
+     [["Calories",day.totals.calories,day.target.calories,"kcal"],["Protein",day.totals.protein,day.target.proteinG,"g"],["Carbs",day.totals.carbs,day.target.carbsG,"g"],["Fats",day.totals.fats,day.target.fatsG,"g"]].forEach(([label,actual,target,unit])=>{const row=document.createElement("div");row.style.cssText="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid #30372a";const l=document.createElement("span");l.textContent=label;const v=document.createElement("strong");v.textContent=target==null?Math.round(actual*10)/10+unit+" · target not set":Math.round(actual*10)/10+" / "+target+unit;row.append(l,v);card.append(row);});
+     const dropdown=document.createElement("details");dropdown.style.cssText="margin-top:10px;border-top:1px solid #30372a;padding-top:8px";const summary=document.createElement("summary");summary.style.cssText="cursor:pointer;color:var(--lime);font-weight:700";summary.textContent="VIEW "+day.entryItems.length+" FOOD ENTRIES";dropdown.append(summary);
+     const groups=new Map();day.entryItems.forEach(item=>{const meal=String(item.meal||"Unassigned meal").trim()||"Unassigned meal";if(!groups.has(meal))groups.set(meal,[]);groups.get(meal).push(item);});
+     groups.forEach((items,meal)=>{const heading=document.createElement("strong");heading.style.display="block";heading.style.marginTop="9px";heading.textContent=meal;dropdown.append(heading);items.forEach(item=>{const line=document.createElement("div");line.className="muted";line.textContent=(item.name||"Food item")+" · "+Math.round(Number(item.calories)||0)+" kcal · P "+(Number(item.proteinG)||0)+"g · C "+(Number(item.carbsG)||0)+"g · F "+(Number(item.fatsG)||0)+"g";dropdown.append(line);});});
+     card.append(dropdown);
+    }else{const empty=document.createElement("div");empty.className="muted";empty.style.marginTop="7px";empty.textContent="No intake recorded. Missing data is not zero intake.";card.append(empty);}
+    host.append(card);
+   });
+  };
+  await build();
+  const notesWrap=document.createElement("div");notesWrap.className="tile";notesWrap.style.cssText="min-height:0;margin-top:18px";
+  const notesTitle=document.createElement("div");notesTitle.className="eyebrow";notesTitle.textContent="COACH NUTRITION REVIEW";
+  const notesHelp=document.createElement("p");notesHelp.className="muted";notesHelp.textContent="Record your interpretation, agreed adjustments and follow-up actions. These notes are saved to this client's nutrition record and are not shown in the client view.";
+  const notes=document.createElement("textarea");notes.id="coachNutritionAnalysisNotes";notes.rows=4;notes.style.cssText="width:100%;padding:12px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit;resize:vertical";notes.placeholder="e.g. Review weekend consistency, keep targets unchanged this week, reassess average weight next check-in…";notes.value=notesSnap.exists()?(notesSnap.data().notes||""):"";
+  const save=document.createElement("button");save.type="button";save.style.cssText="width:100%;margin-top:10px";save.textContent="SAVE NUTRITION REVIEW";
+  const status=document.createElement("div");status.className="status";status.setAttribute("role","status");
+  save.onclick=async()=>{save.disabled=true;status.textContent="Saving review…";try{await setDoc(doc(db,"users",uid,"nutrition","coachAnalysis"),{notes:notes.value.trim(),updatedAt:serverTimestamp(),updatedBy:currentUser.uid},{merge:true});status.textContent="Nutrition review saved."; }catch(error){status.textContent="Could not save nutrition review: "+error.message;}finally{save.disabled=false;}};
+  notesWrap.append(notesTitle,notesHelp,notes,save,status);host.append(notesWrap);
+ }catch(e){host.textContent="Could not load nutrition analysis: "+e.message;}
 }
 async function loadCoachClientTrainingAnalytics(){
  if(!selectedClient?.uid)return;
