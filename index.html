@@ -2436,6 +2436,21 @@ async function renderCoachFoodPreview(){
    status.textContent="Client's choices and adjusted portions saved. The coach's original meal plan is unchanged.";save.textContent="SAVED";
   }catch(error){status.textContent="Could not save client choices: "+error.message;save.textContent="SAVE CLIENT CHANGES";}finally{save.disabled=false;}});;
   draw();host.append(addMeal,save,status);
+  const loggedTotals=entries.reduce((sum,item)=>({calories:sum.calories+(Number(item.calories)||0),proteinG:sum.proteinG+(Number(item.proteinG)||0),carbsG:sum.carbsG+(Number(item.carbsG)||0),fatsG:sum.fatsG+(Number(item.fatsG)||0)}),{calories:0,proteinG:0,carbsG:0,fatsG:0});
+  const targetSet=targets[type]||{};
+  const summary=document.createElement("div");summary.className="tile";summary.style.cssText="padding:13px;margin:12px 0";
+  const summaryTitle=document.createElement("strong");summaryTitle.textContent="Daily nutrition · logged so far";summary.append(summaryTitle);
+  const metricGrid=document.createElement("div");metricGrid.style.cssText="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:10px";
+  [["Calories","calories","kcal"],["Protein","proteinG","g"],["Carbs","carbsG","g"],["Fat","fatsG","g"]].forEach(([label,key,unit])=>{
+   const logged=Math.round(loggedTotals[key]),target=Number(targetSet[key])||0,remaining=target>0?Math.round(target-logged):null;
+   const cell=document.createElement("div");cell.style.cssText="padding:10px;border:1px solid var(--border);border-radius:10px;min-width:0";
+   const caption=document.createElement("div");caption.className="muted";caption.style.fontSize="12px";caption.textContent=label;
+   const amount=document.createElement("strong");amount.style.cssText="display:block;font-size:18px;margin:3px 0";amount.textContent=logged.toLocaleString()+" "+unit;
+   const detail=document.createElement("div");detail.className="muted";detail.style.fontSize="12px";
+   detail.textContent=target>0?(remaining>=0?remaining.toLocaleString()+" "+unit+" remaining":" "+Math.abs(remaining).toLocaleString()+" "+unit+" over")+" · target "+target.toLocaleString(): "No "+label.toLowerCase()+" target set";
+   cell.append(caption,amount,detail);metricGrid.append(cell);
+  });
+  summary.append(metricGrid);host.append(summary);
   const diaryHeading=document.createElement("div");diaryHeading.className="section-title";diaryHeading.style.marginTop="20px";diaryHeading.textContent="Client's food diary · read only";host.append(diaryHeading);
   if(!entries.length){const empty=document.createElement("p");empty.className="muted";empty.textContent="No foods logged for this date.";host.append(empty);}
   const groups=new Map();entries.forEach(x=>{const key=x.meal||"Other / unassigned";if(!groups.has(key))groups.set(key,[]);groups.get(key).push(x);});
