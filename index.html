@@ -2578,7 +2578,7 @@ function renderFoodDiary(){
  const mealGroups=new Map();foodEntries.forEach(item=>{const key=(item.meal||"Other / unassigned").trim()||"Other / unassigned";if(!mealGroups.has(key))mealGroups.set(key,[]);mealGroups.get(key).push(item);});
  mealGroups.forEach((items,mealName)=>{
   const mealHost=document.createElement("section");mealHost.className="diary-meal-group";
-  const heading=document.createElement("details");heading.className="diary-meal-dropdown";heading.open=true;
+  const heading=document.createElement("details");heading.className="diary-meal-dropdown";heading.open=false;
   const summary=document.createElement("summary");summary.className="diary-meal-heading";
   const mealTitle=document.createElement("strong");mealTitle.textContent=mealName;
   const mealCalories=items.reduce((sum,item)=>sum+(Number(item.calories)||0),0);
@@ -2590,10 +2590,14 @@ function renderFoodDiary(){
   const grams=Number(item.grams)||100;
   const detail=document.createElement("div");detail.className="muted";
   detail.textContent=grams+"g · "+Math.round(Number(item.calories)||0)+" kcal · P "+(Number(item.proteinG)||0)+"g · C "+(Number(item.carbsG)||0)+"g · F "+(Number(item.fatsG)||0)+"g";
+  row.append(title,detail);
+  if(item.plannedMeal){const origin=document.createElement("div");origin.className="muted";origin.style.cssText="font-size:11px;margin-top:5px;color:var(--lime)";origin.textContent="Originally planned: "+item.plannedMeal+(item.plannedOption?" · "+item.plannedOption:"");row.append(origin);}
   const actions=document.createElement("div");actions.className="actions";actions.style.marginTop="10px";
   const edit=document.createElement("button");edit.type="button";edit.className="secondary";edit.textContent="EDIT FOOD";
+  const move=document.createElement("button");move.type="button";move.className="secondary";move.textContent="MOVE TO MEAL";
   const remove=document.createElement("button");remove.type="button";remove.className="secondary";remove.textContent="DELETE";
-  actions.append(edit,remove);row.append(title,detail,actions);heading.append(row);
+  actions.append(edit,move,remove);row.append(actions);heading.append(row);
+  move.addEventListener("click",()=>{heading.open=true;edit.click();setTimeout(()=>{const field=row.querySelector(".food-entry-editor input[type=text]:nth-of-type(2)");const inputs=row.querySelectorAll(".food-entry-editor input");if(inputs[1]){inputs[1].focus();inputs[1].select();}},0);});
   edit.addEventListener("click",()=>{
    if(row.querySelector(".food-entry-editor"))return;
    const editor=document.createElement("div");editor.className="food-entry-editor";editor.style.cssText="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px";
