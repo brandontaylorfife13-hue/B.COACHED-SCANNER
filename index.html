@@ -2405,9 +2405,12 @@ $("inviteBtn").addEventListener("click",async()=>{
  }catch(e){$("inviteStatus").textContent="Could not create invitation. Check your coach permissions and published Firestore rules.";}
  finally{$("inviteBtn").disabled=false;}
 });
-let selectedClient=null;
+let selectedClient=null,clientProfileLoadToken=0,coachMealPlanLoadToken=0;
 async function showClientProfile(client){
+ const profileToken=++clientProfileLoadToken;
  selectedClient=client;
+ // Clear the previous client's meal totals immediately while the next profile loads.
+ coachMealPlan={highDay:[],lowDay:[]};coachPlanType="highDay";renderCoachMealPlan();
  await loadCoachExerciseSettings();
  coachProgressTimelineItems=[];coachProgressPhotoRows=[];
  $("clientsView").classList.add("hidden");
@@ -2838,9 +2841,21 @@ function refreshCoachPlanInputs(){
  };
 }
 async function loadCoachMealPlan(){
- if(!selectedClient?.uid)return;
- try{const snap=await getDoc(doc(db,"users",selectedClient.uid,"nutrition","mealPlan"));const d=snap.exists()?snap.data():{};coachMealPlan={highDay:Array.isArray(d.highDay)?d.highDay:[],lowDay:Array.isArray(d.lowDay)?d.lowDay:[]};coachPlanType="highDay";renderCoachMealPlan();refreshCoachPlanInputs();$("coachPlanHigh").classList.add("active");$("coachPlanLow").classList.remove("active");await loadCoachMealPlanReview();}
- catch(e){$("mealPlanCoachStatus").textContent="Could not load meal plan: "+e.message;}
+ const clientUid=selectedClient?.uid;if(!clientUid)return;
+ const requestToken=++coachMealPlanLoadToken;
+ // Show an empty total rather than leaving the previous client's calories on screen.
+ coachMealPlan={highDay:[],lowDay:[]};coachPlanType="highDay";renderCoachMealPlan();
+ try{
+  const snap=await getDoc(doc(db,"users",clientUid,"nutrition","mealPlan"));
+  // Ignore a slower response if the coach has already switched to another client.
+  if(requestToken!==coachMealPlanLoadToken||selectedClient?.uid!==clientUid)return;
+  const d=snap.exists()?snap.data():{};
+  coachMealPlan={highDay:Array.isArray(d.highDay)?d.highDay:[],lowDay:Array.isArray(d.lowDay)?d.lowDay:[]};
+  coachPlanType="highDay";renderCoachMealPlan();refreshCoachPlanInputs();$("coachPlanHigh").classList.add("active");$("coachPlanLow").classList.remove("active");
+  await loadCoachMealPlanReview();
+ }catch(e){
+  if(requestToken===coachMealPlanLoadToken&&selectedClient?.uid===clientUid)$("mealPlanCoachStatus").textContent="Could not load meal plan: "+e.message;
+ }
 }
 async function saveCoachMealPlan(){
  if(!selectedClient?.uid)return;
