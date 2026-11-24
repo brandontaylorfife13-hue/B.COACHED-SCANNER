@@ -3625,7 +3625,40 @@ async function loadClientPlanChangeHistory(){
    const body=document.createElement("div");body.style.cssText="padding:10px 12px;border-top:1px solid var(--line)";
    const category=document.createElement("div");category.className="eyebrow";category.textContent=(row.category||"PLAN").replace(/_/g," ").toUpperCase();body.append(category);
    const summaryText=document.createElement("p");summaryText.style.cssText="margin:7px 0;white-space:pre-wrap";summaryText.textContent=row.summary||"Plan details updated.";body.append(summaryText);
-   const who=document.createElement("div");who.className="muted";who.textContent="Updated by "+(row.createdByName||"Coach");body.append(who);
+   const formatSnapshot=(category,data)=>{
+    if(!data)return "No previous version recorded.";
+    if(category==="nutrition_targets"){
+     const describe=(label,g)=>label+": Calories "+(g?.calories??"—")+" kcal · Protein "+(g?.proteinG??"—")+" g · Carbs "+(g?.carbsG??"—")+" g · Fats "+(g?.fatsG??"—")+" g";
+     return describe("High day",data.highDay)+"\n"+describe("Low day",data.lowDay)+"\nHigh days: "+((data.highDays||[]).join(", ")||"None");
+    }
+    if(category==="meal_plan"){
+     const describe=(label,meals)=>{
+      const lines=(meals||[]).map((meal,i)=>{
+       const options=(meal.options||[]).map(option=>{
+        const foods=(option.foods||[]).map(food=>(food.name||"Food")+(food.grams!=null?" "+food.grams+"g":""));
+        return (option.name||"Option")+" ["+foods.join(", ")+"]";
+       });
+       return "  "+(meal.name||"Meal "+(i+1))+": "+options.join(" / ");
+      });
+      return label+":\n"+(lines.join("\n")||"  No meals");
+     };
+     return describe("High day",data.highDay)+"\n"+describe("Low day",data.lowDay);
+    }
+    if(category==="training_program"){
+     const lines=(data.workouts||[]).map((workout,i)=>{
+      const exercises=(workout.exercises||[]).map(ex=>(ex.name||"Exercise")+" ("+(ex.sets??"—")+" sets, "+(ex.reps||"—")+" reps)");
+      return (workout.name||"Workout "+(i+1))+": "+exercises.join(", ");
+     });
+     return lines.join("\n")+"\nSchedule: "+(data.scheduleNote||"—")+"\nProgression: "+(data.progressionNote||"—");
+    }
+    return "Plan details recorded.";
+   };
+   const versions=document.createElement("details");versions.style.cssText="margin-top:9px;border-top:1px solid var(--line);padding-top:8px";
+   const versionsTitle=document.createElement("summary");versionsTitle.textContent="VIEW EXACT BEFORE / AFTER";versionsTitle.style.cssText="cursor:pointer;font-size:11px;font-weight:900;color:#c6ff00";
+   const before=document.createElement("div");before.style.cssText="margin-top:8px;padding:9px;border-radius:8px;background:rgba(255,255,255,.03);white-space:pre-wrap;font-size:12px";before.textContent="BEFORE\n"+formatSnapshot(row.category,row.before);
+   const after=document.createElement("div");after.style.cssText="margin-top:7px;padding:9px;border-radius:8px;background:rgba(198,255,0,.05);white-space:pre-wrap;font-size:12px";after.textContent="AFTER\n"+formatSnapshot(row.category,row.after);
+   versions.append(versionsTitle,before,after);body.append(versions);
+   const who=document.createElement("div");who.className="muted";who.style.marginTop="8px";who.textContent="Updated by "+(row.createdByName||"Coach");body.append(who);
    details.append(body);host.append(details);
   });
  }catch(error){host.textContent="Could not load plan change history: "+error.message;}
