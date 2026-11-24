@@ -127,6 +127,8 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 #clientMealPlan .meal-plan-block{padding:13px;margin:10px 0}
 #clientMealPlan .meal-plan-block h3{margin:0 0 12px;font-size:18px}
 #clientMealPlan .client-meal-check-row{display:flex;align-items:center;gap:9px;padding:10px 12px;margin:0 0 12px;border:1px solid #414b35;border-radius:11px;background:#11170e;cursor:pointer}
+#clientMealPlan .meal-plan-block label[style*="letter-spacing"]{font-weight:800;color:var(--lime)!important}
+#clientMealPlan .meal-plan-block select.training-select{border:1px solid #64734d;background:#151b11;color:#f4f5ef}
 #clientMealPlan .client-meal-check-row input{width:20px;height:20px;accent-color:var(--lime);flex:0 0 auto}
 #clientMealPlan .client-meal-check-row span{font-size:13px;font-weight:700;flex:1}
 #clientMealPlan .client-meal-check-row small{font-size:10px;color:var(--muted)}
@@ -3023,6 +3025,7 @@ async function loadClientMealPlan(){
   const customFoods=savedData.customFoods||{};
   const eatenMeals=savedData.eatenMeals||{};
   const completedMeals=savedData.completedMeals||{};
+  const mealDestinations=savedData.mealDestinations||{};
   const editedFoods={};
   clientMealConsumed=[];
   host.replaceChildren();
@@ -3072,11 +3075,13 @@ async function loadClientMealPlan(){
    const eaten=document.createElement("input");eaten.type="checkbox";eaten.checked=!!eatenMeals[String(mi)];eaten.dataset.mealEaten=mi;
    const eatenText=document.createElement("span");eatenText.textContent="Plan reference only · use Add to diary to log what you ate";eatenLabel.append(eaten,eatenText);eatenLabel.style.display="none";block.append(eatenLabel);
    const destinationWrap=document.createElement("div");destinationWrap.style.cssText="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:9px;align-items:end;margin-top:12px";
-   const destinationLabel=document.createElement("label");destinationLabel.textContent="ADD THIS MEAL TO";destinationLabel.style.cssText="font-size:10px;letter-spacing:1px;color:var(--muted);display:block";
+   const destinationLabel=document.createElement("label");destinationLabel.textContent="MOVE THIS MEAL TO";destinationLabel.style.cssText="font-size:10px;letter-spacing:1px;color:var(--muted);display:block";
    const destination=document.createElement("select");destination.className="training-select";destination.style.cssText="width:100%;margin-top:5px";
    ["Breakfast","Lunch","Dinner","Snacks"].forEach(slot=>{const op=document.createElement("option");op.value=slot;op.textContent=slot;destination.append(op);});
    const defaultSlot=/breakfast|morning/i.test(meal.name||"")?"Breakfast":/lunch|midday/i.test(meal.name||"")?"Lunch":/dinner|evening/i.test(meal.name||"")?"Dinner":/snack/i.test(meal.name||"")?"Snacks":"Lunch";
-   destination.value=defaultSlot;destinationLabel.append(destination);
+   destination.value=mealDestinations[String(mi)]||defaultSlot;destinationLabel.append(destination);
+   destination.dataset.mealDestination=mi;
+   destination.addEventListener("change",()=>scheduleClientMealSave());
    const addPlanned=document.createElement("button");addPlanned.type="button";addPlanned.className="primary";addPlanned.style.cssText="width:100%;margin:0;min-height:46px";addPlanned.textContent="ADD MEAL";
    destinationWrap.append(destinationLabel,addPlanned);
    addPlanned.addEventListener("click",async()=>{
@@ -3106,12 +3111,13 @@ async function loadClientMealPlan(){
     host.querySelectorAll("[data-client-meal]").forEach(x=>map[x.dataset.clientMeal]=Number(x.value));
     const eatenMap={};host.querySelectorAll("[data-meal-eaten]").forEach(x=>eatenMap[x.dataset.mealEaten]=x.checked);
     const completedMap={};host.querySelectorAll("[data-meal-completed]").forEach(x=>completedMap[x.dataset.mealCompleted]=x.checked);
+    const destinationMap={};host.querySelectorAll("[data-meal-destination]").forEach(x=>destinationMap[x.dataset.mealDestination]=x.value);
     const selections=plan.map((meal,mi)=>{
      const foods=editedFoods[String(mi)]?.foods||[];
      custom[String(mi)]={optionIndex:map[mi],foods:foods.map(f=>({...f}))};
      return {meal:meal.name||("Meal "+(mi+1)),option:(meal.options?.[map[mi]]?.name)||"Option",foods:foods.map(f=>({name:f.name||"",grams:Number(f.grams)||0})),...optionMacros({foods})};
     });
-    await setDoc(doc(db,"users",currentUser.uid,"mealPlanSelections",date),{date,dayType:type,dayTypeOverride:selectedNutritionDayType===type,selectionMap:map,customFoods:custom,eatenMeals:eatenMap,completedMeals:completedMap,choices:selections,updatedAt:serverTimestamp()},{merge:true});
+    await setDoc(doc(db,"users",currentUser.uid,"mealPlanSelections",date),{date,dayType:type,dayTypeOverride:selectedNutritionDayType===type,selectionMap:map,customFoods:custom,eatenMeals:eatenMap,completedMeals:completedMap,mealDestinations:destinationMap,choices:selections,updatedAt:serverTimestamp()},{merge:true});
     clientMealSelections=map;saveStatus.textContent="All changes saved ✓";save.textContent="SAVE NOW";
    }catch(e){saveStatus.textContent="Could not save · tap RETRY SAVE";save.textContent="RETRY SAVE";console.error("Client meal plan autosave failed:",e);}
    finally{saveInProgress=false;save.disabled=false;if(saveAgain){saveAgain=false;scheduleClientMealSave();}}
