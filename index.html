@@ -1911,6 +1911,15 @@ async function loadClientEngagementPulse(clients){
 }
 async function loadNutritionComplianceDashboard(clients){
  const host=$("nutritionComplianceList");if(!host)return;
+ const toleranceControl=$("nutritionComplianceTolerance"),daysControl=$("nutritionComplianceMinDays");
+ try{
+  const savedTolerance=localStorage.getItem("bcoached:nutrition-tolerance");
+  const savedDays=localStorage.getItem("bcoached:nutrition-min-days");
+  if(savedTolerance&&toleranceControl) toleranceControl.value=savedTolerance;
+  if(savedDays&&daysControl) daysControl.value=savedDays;
+ }catch(_){}
+ if(toleranceControl)toleranceControl.onchange=()=>{try{localStorage.setItem("bcoached:nutrition-tolerance",toleranceControl.value);}catch(_){}loadNutritionComplianceDashboard(clients);};
+ if(daysControl)daysControl.onchange=()=>{try{localStorage.setItem("bcoached:nutrition-min-days",daysControl.value);}catch(_){}loadNutritionComplianceDashboard(clients);};
  host.textContent="Loading the last 7 days of nutrition records…";
  ["nutritionComplianceLogging","nutritionComplianceCalories","nutritionComplianceTarget"].forEach(id=>$(id).textContent="—");
  try{
