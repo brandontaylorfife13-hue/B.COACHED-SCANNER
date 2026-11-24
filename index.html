@@ -113,6 +113,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 .nutrition-accordion-body{padding:12px}
 .nutrition-accordion-body>.section-title{margin-top:4px!important}
 .nutrition-accordion-body>label:first-of-type{margin-top:6px}
+.diary-meal-dropdown{width:100%}.diary-meal-dropdown>summary{list-style:none;cursor:pointer}.diary-meal-dropdown>summary::-webkit-details-marker{display:none}.diary-meal-dropdown>summary:after{content:"＋";color:var(--lime);font-weight:700;margin-left:auto}.diary-meal-dropdown[open]>summary:after{content:"−"}.diary-meal-dropdown>.diary-food-row{margin-top:8px!important}.diary-meal-dropdown{padding-bottom:4px}
 #foodDiaryEntries .diary-meal-group{margin:12px 0;padding:12px;background:#10140d;border:1px solid var(--line);border-radius:13px}
 .diary-meal-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 9px;font-size:13px}
 .diary-meal-heading strong{color:var(--lime);font-size:14px}
@@ -573,16 +574,10 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
    <div class="tile">FATS<strong id="foodTotalFats">0g</strong><span>grams</span></div>
   </div>
 
-  <div class="section-title" style="margin-top:22px">Meal tracking preference</div>
-  <p class="muted">Choose how you want to track your food. You can switch back at any time.</p>
-  <div class="grid" style="grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-   <button type="button" id="mealModePlan" class="secondary">USE MY MEAL PLAN</button>
-   <button type="button" id="mealModeManual" class="secondary">LOG MY OWN FOOD</button>
-  </div>
-  <div id="clientMealPlanSection">
-   <p class="muted">Choose one approved option for each meal. Your planned macros and calories update automatically. Your coach can see your choices.</p>
-   <div id="clientMealPlan"></div>
-  </div>
+  <details class="nutrition-accordion" id="clientMealPlanSection" style="margin:14px 0">
+   <summary><span><strong>ADD FROM MY TAILORED MEAL PLAN</strong><small>Choose a planned meal and add it straight to today's diary</small></span><span class="accordion-mark">+</span></summary>
+   <div class="nutrition-accordion-body"><p class="muted">Your coach's original plan stays intact. Choose a planned meal, then add it to any diary meal slot. The diary records what you actually ate and remembers which planned meal it came from.</p><div id="clientMealPlan"></div></div>
+  </details>
   <details class="nutrition-accordion"><summary><span><strong>Find a packaged food</strong><small>Scan a barcode or enter the product number</small></span><span class="accordion-mark">+</span></summary><div class="nutrition-accordion-body"><div class="section-title" style="margin-top:20px">Find a packaged food</div>
   <label for="foodBarcode">Barcode number (optional manual entry)</label><input id="foodBarcode" inputmode="numeric" placeholder="Scan with camera or enter barcode"> <button type="button" id="startBarcodeScan" class="secondary" style="width:100%;margin-top:8px">OPEN CAMERA BARCODE SCANNER</button><div id="barcodeScanner" class="hidden" style="margin-top:10px"><video id="barcodeVideo" class="scan-video" playsinline muted></video><button type="button" id="stopBarcodeScan" class="secondary" style="width:100%;margin-top:8px">STOP SCANNER</button></div>
   <button id="lookupBarcode" class="secondary" style="width:100%;margin-top:10px">LOOK UP BARCODE</button>
@@ -595,11 +590,11 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
    <div><label for="foodCarbs">Carbs (g)</label><input id="foodCarbs" type="number" min="0" step="0.1" placeholder="0"></div>
    <div><label for="foodFats">Fats (g)</label><input id="foodFats" type="number" min="0" step="0.1" placeholder="0"></div>
   </div>
-  <label for="foodMeal">Meal number</label><input id="foodMeal" placeholder="Meal 1, Meal 2, Meal 3...">
+  <label for="foodMeal">Add to diary meal</label><input id="foodMeal" list="diaryMealOptions" placeholder="Breakfast, Lunch, Dinner, Snacks..."><datalist id="diaryMealOptions"><option>Breakfast</option><option>Lunch</option><option>Dinner</option><option>Snacks</option></datalist>
   <p class="muted" style="margin:6px 0 0">Use as many meals as you need. There is no fixed limit — label them Meal 1, Meal 2, Meal 3 and so on.</p>
   <button id="addFoodBtn" style="width:100%;margin-top:14px">ADD TO FOOD DIARY</button>
   <div id="foodStatus" class="status" role="status"></div></div></details>
-  <div class="section-title" style="margin-top:22px">Entries for selected date</div>
+  <div class="section-title" style="margin-top:22px">Your meals · tap to expand</div>
   <div id="foodDiaryEntries" class="muted">No food logged yet.</div>
  </section>
  <section class="card hidden" id="trainingView">
@@ -2154,15 +2149,8 @@ function displayMacroSet(prefix,data){
 // ---------------- Tailored meal planner ----------------
 let coachMealPlan={highDay:[],lowDay:[]},coachPlanType="highDay",clientMealPlan={highDay:[],lowDay:[]},clientMealSelections={};
 let clientMealPlanMode="plan";
-function renderClientMealMode(){
- const section=$("clientMealPlanSection"),planBtn=$("mealModePlan"),manualBtn=$("mealModeManual");
- if(!section||!planBtn||!manualBtn)return;
- const usePlan=clientMealPlanMode==="plan";
- section.classList.toggle("hidden",!usePlan);
- planBtn.classList.toggle("active",usePlan);manualBtn.classList.toggle("active",!usePlan);
- planBtn.setAttribute("aria-pressed",String(usePlan));manualBtn.setAttribute("aria-pressed",String(!usePlan));
- if(!usePlan){clientMealConsumed=[];renderFoodDiary();}
-}
+function renderClientMealMode(){const section=$("clientMealPlanSection");if(section)section.classList.remove("hidden");}
+
 $("mealModePlan")?.addEventListener("click",async()=>{
  if(!currentUser||currentRole==="coach")return;
  clientMealPlanMode="plan";renderClientMealMode();
@@ -2409,8 +2397,24 @@ async function loadClientMealPlan(){
    const info=document.createElement("div");info.className="muted";info.dataset.clientMealMacros=mi;info.style.marginTop="10px";block.append(info);
    const eatenLabel=document.createElement("label");eatenLabel.className="client-meal-eaten";
    const eaten=document.createElement("input");eaten.type="checkbox";eaten.checked=!!eatenMeals[String(mi)];eaten.dataset.mealEaten=mi;
-   const eatenText=document.createElement("span");eatenText.textContent="I've eaten this meal";eatenLabel.append(eaten,eatenText);block.append(eatenLabel);
-   host.append(block);
+   const eatenText=document.createElement("span");eatenText.textContent="Plan reference only · use Add to diary to log what you ate";eatenLabel.append(eaten,eatenText);eatenLabel.style.display="none";block.append(eatenLabel);
+   const addPlanned=document.createElement("button");addPlanned.type="button";addPlanned.className="secondary";addPlanned.style.cssText="width:100%;margin-top:10px";addPlanned.textContent="ADD THIS MEAL TO FOOD DIARY";
+   addPlanned.addEventListener("click",async()=>{
+    const selectedOption=(meal.options||[])[Number(select.value)]||{foods:[]};
+    const key=String(mi),custom=editedFoods[key],foods=custom&&custom.optionIndex===Number(select.value)?custom.foods:(customFoods[key]?.optionIndex===Number(select.value)?customFoods[key].foods:selectedOption.foods||[]);
+    if(!foods.length){saveStatus.textContent="This meal has no foods to add.";return;}
+    const destination=prompt("Where did you eat this meal? Enter Breakfast, Lunch, Dinner, Snacks or another meal name.",meal.name||"Meal "+(mi+1));
+    if(destination===null)return;
+    const mealName=destination.trim();if(!mealName){saveStatus.textContent="Enter a diary meal name.";return;}
+    addPlanned.disabled=true;addPlanned.textContent="ADDING TO DIARY…";
+    try{
+     const batchItems=foods.map(food=>{const m=foodMacros(food);return {name:food.name||"Food item",meal:mealName,grams:Number(food.grams)||0,calories:m.calories,proteinG:m.proteinG,carbsG:m.carbsG,fatsG:m.fatsG,plannedMeal:meal.name||("Meal "+(mi+1)),plannedOption:selectedOption.name||"Option",planDayType:type,source:"tailoredMealPlan",createdAt:serverTimestamp()};});
+     for(const entry of batchItems)await addDoc(collection(db,"users",currentUser.uid,"foodLogs",date,"entries"),entry);
+     const eatenBox=host.querySelector('[data-meal-eaten="'+mi+'"]');if(eatenBox)eatenBox.checked=false;
+     await loadFoodDiary();saveStatus.textContent="Meal added to "+mealName+" in your food diary.";
+    }catch(error){saveStatus.textContent="Could not add meal: "+error.message;addPlanned.disabled=false;addPlanned.textContent="ADD THIS MEAL TO FOOD DIARY";}
+   });
+   block.append(addPlanned);host.append(block);
   });
   const total=document.createElement("div");total.className="tile";total.id="clientPlanTotals";host.prepend(total);
   const save=document.createElement("button");save.id="saveClientMealChoices";save.textContent="SAVE NOW";save.style.width="100%";save.style.marginTop="12px";host.append(save);
@@ -2574,11 +2578,12 @@ function renderFoodDiary(){
  const mealGroups=new Map();foodEntries.forEach(item=>{const key=(item.meal||"Other / unassigned").trim()||"Other / unassigned";if(!mealGroups.has(key))mealGroups.set(key,[]);mealGroups.get(key).push(item);});
  mealGroups.forEach((items,mealName)=>{
   const mealHost=document.createElement("section");mealHost.className="diary-meal-group";
-  const heading=document.createElement("div");heading.className="diary-meal-heading";
+  const heading=document.createElement("details");heading.className="diary-meal-dropdown";heading.open=true;
+  const summary=document.createElement("summary");summary.className="diary-meal-heading";
   const mealTitle=document.createElement("strong");mealTitle.textContent=mealName;
   const mealCalories=items.reduce((sum,item)=>sum+(Number(item.calories)||0),0);
   const mealMeta=document.createElement("span");mealMeta.textContent=items.length+" item"+(items.length===1?"":"s")+" · "+Math.round(mealCalories)+" kcal";
-  heading.append(mealTitle,mealMeta);mealHost.append(heading);host.append(mealHost);
+  summary.append(mealTitle,mealMeta);heading.append(summary);mealHost.append(heading);host.append(mealHost);
   items.forEach(item=>{
   const row=document.createElement("div");row.className="tile diary-food-row";row.style.marginBottom="9px";
   const title=document.createElement("b");title.textContent=item.name;
@@ -2588,7 +2593,7 @@ function renderFoodDiary(){
   const actions=document.createElement("div");actions.className="actions";actions.style.marginTop="10px";
   const edit=document.createElement("button");edit.type="button";edit.className="secondary";edit.textContent="EDIT FOOD";
   const remove=document.createElement("button");remove.type="button";remove.className="secondary";remove.textContent="DELETE";
-  actions.append(edit,remove);row.append(title,detail,actions);mealHost.append(row);
+  actions.append(edit,remove);row.append(title,detail,actions);heading.append(row);
   edit.addEventListener("click",()=>{
    if(row.querySelector(".food-entry-editor"))return;
    const editor=document.createElement("div");editor.className="food-entry-editor";editor.style.cssText="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px";
