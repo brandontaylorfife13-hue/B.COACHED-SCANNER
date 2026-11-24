@@ -3077,9 +3077,12 @@ async function loadClientMealPlan(){
    const destinationWrap=document.createElement("div");destinationWrap.style.cssText="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:9px;align-items:end;margin-top:12px";
    const destinationLabel=document.createElement("label");destinationLabel.textContent="MOVE THIS MEAL TO";destinationLabel.style.cssText="font-size:10px;letter-spacing:1px;color:var(--muted);display:block";
    const destination=document.createElement("select");destination.className="training-select";destination.style.cssText="width:100%;margin-top:5px";
-   ["Breakfast","Lunch","Dinner","Snacks"].forEach(slot=>{const op=document.createElement("option");op.value=slot;op.textContent=slot;destination.append(op);});
-   const defaultSlot=/breakfast|morning/i.test(meal.name||"")?"Breakfast":/lunch|midday/i.test(meal.name||"")?"Lunch":/dinner|evening/i.test(meal.name||"")?"Dinner":/snack/i.test(meal.name||"")?"Snacks":"Lunch";
-   destination.value=mealDestinations[String(mi)]||defaultSlot;destinationLabel.append(destination);
+   const mealSlotCount=Math.max(plan.length,6);
+   for(let slot=1;slot<=mealSlotCount;slot++){const name="Meal "+slot;const op=document.createElement("option");op.value=name;op.textContent=name;destination.append(op);}
+   const defaultSlot="Meal "+(mi+1);
+   const savedDestination=mealDestinations[String(mi)];
+   destination.value=savedDestination&&Array.from(destination.options).some(op=>op.value===savedDestination)?savedDestination:defaultSlot;
+   destinationLabel.append(destination);
    destination.dataset.mealDestination=mi;
    destination.addEventListener("change",()=>scheduleClientMealSave());
    const addPlanned=document.createElement("button");addPlanned.type="button";addPlanned.className="primary";addPlanned.style.cssText="width:100%;margin:0;min-height:46px";addPlanned.textContent="ADD MEAL";
