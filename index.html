@@ -1971,7 +1971,7 @@ async function loadNutritionComplianceDashboard(clients){
     if(row.averagePct!==null&&row.averagePct<lower)row.flags.push({type:"under",label:"Under calorie target"});
     if(row.averagePct!==null&&row.averagePct>upper)row.flags.push({type:"over",label:"Over calorie target"});
     if(row.averageProteinPct!==null&&row.averageProteinPct<lower)row.flags.push({type:"protein",label:"Protein below target"});
-    if(row.averagePct===null&&row.averageProteinPct===null)row.flags.push({type:"target",label:"Targets not set"});
+    if(row.averagePct===null||row.averageProteinPct===null)row.flags.push({type:"target",label:"Some targets not set"});
     if(!row.flags.length)row.flags.push({type:"good",label:"On track"});
    }
    row.reviewed=!!reviewed[row.client.uid];
