@@ -2251,6 +2251,7 @@ function initialiseWeeklyCoachReport(clients){
 async function generateWeeklyCoachReport(clients){
  const host=$("weeklyCoachReport"),status=$("weeklyCoachReportStatus");
  const start=$("weeklyReportStart")?.value,end=$("weeklyReportEnd")?.value;
+ const key=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
  if(!start||!end||start>end){status.textContent="Choose a valid date range.";return;}
  status.textContent="Building client reports…";host.textContent="Loading report data…";latestWeeklyCoachReport=[];
  const active=clients.filter(c=>c.accountStatus!=="inactive"&&c.accountStatus!=="archived");
@@ -2281,7 +2282,7 @@ async function generateWeeklyCoachReport(clients){
     const noteSnap=await getDoc(doc(db,"users",currentUser.uid,"weeklyCoachReports",client.uid+"_"+start+"_"+end));
     if(noteSnap.exists())report.coachNote=noteSnap.data().coachNote||"";
     return report;
-   }catch(error){return {uid:client.uid,name:client.displayName||client.email||"Client",error:error.message,checks:[],weights:[],sessions:[],diaryDays:0,sessionCount:0,coachNote:""};}
+   }catch(error){return {uid:client.uid,name:client.displayName||client.email||"Client",error:error.message,checks:[],checkCount:0,weights:[],sessions:[],diaryDays:0,sessionCount:0,coachNote:""};}
   }));
   latestWeeklyCoachReport=rows;
   host.replaceChildren();
