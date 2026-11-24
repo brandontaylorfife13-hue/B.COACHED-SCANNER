@@ -126,6 +126,12 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 #foodDate{margin-bottom:4px}
 #clientMealPlan .meal-plan-block{padding:13px;margin:10px 0}
 #clientMealPlan .meal-plan-block h3{margin:0 0 12px;font-size:18px}
+#clientMealPlan .client-meal-check-row{display:flex;align-items:center;gap:9px;padding:10px 12px;margin:0 0 12px;border:1px solid #414b35;border-radius:11px;background:#11170e;cursor:pointer}
+#clientMealPlan .client-meal-check-row input{width:20px;height:20px;accent-color:var(--lime);flex:0 0 auto}
+#clientMealPlan .client-meal-check-row span{font-size:13px;font-weight:700;flex:1}
+#clientMealPlan .client-meal-check-row small{font-size:10px;color:var(--muted)}
+#clientMealPlan .meal-plan-block.client-meal-complete{border-color:var(--lime);background:linear-gradient(145deg,#18200f,#10140d)}
+#clientMealPlan .meal-plan-block.client-meal-complete .client-meal-check-row{border-color:var(--lime)}
 #clientMealPlan .meal-plan-block select{min-height:48px;padding:11px;border-radius:12px}
 #clientMealPlan .client-meal-food-row{padding:10px 0;border-bottom:1px solid #343b2c}
 @media(max-width:420px){#clientMealPlan .client-meal-food-row{grid-template-columns:minmax(0,1fr) 76px 68px 34px!important;gap:5px!important}#clientMealPlan .client-meal-food-row span:first-child{font-size:13px}#clientMealPlan .client-meal-food-row input{font-size:14px!important}#clientMealPlan .client-meal-food-row button{min-width:34px;padding:7px!important}#clientMealPlan .meal-plan-block>div[style*="grid-template-columns"]{grid-template-columns:1fr!important}}
@@ -3016,14 +3022,45 @@ async function loadClientMealPlan(){
   clientMealSelections=savedData.selectionMap||{};
   const customFoods=savedData.customFoods||{};
   const eatenMeals=savedData.eatenMeals||{};
+  const completedMeals=savedData.completedMeals||{};
   const editedFoods={};
   clientMealConsumed=[];
   host.replaceChildren();
   if(!plan.length){host.textContent="Your coach has not added a meal plan for this "+(type==="highDay"?"high":"low")+" day yet. You can still log your own food above.";if(clientMealPlanMode==="plan")clientMealPlanMode="manual";renderClientMealMode();renderFoodDiary();return;}
   const label=document.createElement("div");label.className="pill";label.textContent=(type==="highDay"?"HIGH DAY":"LOW DAY")+" · "+dayName;host.append(label);
+  const progressCard=document.createElement("div");progressCard.className="tile client-meal-progress";progressCard.style.cssText="margin:12px 0;padding:14px;min-height:0";
+  const progressHeading=document.createElement("div");progressHeading.style.cssText="display:flex;justify-content:space-between;gap:10px;align-items:center";
+  const progressTitle=document.createElement("strong");progressTitle.textContent="TODAY'S MEAL CHECKLIST";
+  const progressCount=document.createElement("strong");progressCount.style.color="var(--lime)";
+  progressHeading.append(progressTitle,progressCount);
+  const progressTrack=document.createElement("div");progressTrack.style.cssText="height:8px;border-radius:20px;background:#343b2c;overflow:hidden;margin-top:10px";
+  const progressFill=document.createElement("div");progressFill.style.cssText="height:100%;width:0;background:var(--lime);border-radius:20px;transition:width .2s";
+  progressTrack.append(progressFill);
+  const progressHint=document.createElement("div");progressHint.className="muted";progressHint.style.cssText="font-size:12px;margin-top:7px";progressHint.textContent="Tick each meal when you've had it. Your coach's plan won't be changed.";
+  progressCard.append(progressHeading,progressTrack,progressHint);host.append(progressCard);
+  const updateMealChecklist=()=>{
+   const done=host.querySelectorAll("[data-meal-completed]:checked").length,totalMeals=plan.length;
+   progressCount.textContent=done+" / "+totalMeals+" complete";
+   progressFill.style.width=(totalMeals?done/totalMeals*100:0)+"%";
+   host.querySelectorAll("[data-meal-completed]").forEach(cb=>{
+    const card=cb.closest(".meal-plan-block");if(card)card.classList.toggle("client-meal-complete",cb.checked);
+    const status=card?.querySelector("[data-meal-status]");if(status)status.textContent=cb.checked?"Meal completed":"Not completed yet";
+   });
+  };
   plan.forEach((meal,mi)=>{
    const block=document.createElement("div");block.className="meal-plan-block";
    const heading=document.createElement("h3");heading.textContent=meal.name||"Meal "+(mi+1);block.append(heading);
+   const completionRow=document.createElement("label");completionRow.className="client-meal-check-row";
+   const completion=document.createElement("input");completion.type="checkbox";completion.checked=!!completedMeals[String(mi)];completion.dataset.mealCompleted=mi;
+   const completionCopy=document.createElement("span");completionCopy.textContent="I've had this meal";
+   const completionStatus=document.createElement("small");completionStatus.dataset.mealStatus="";completionRow.append(completion,completionCopy,completionStatus);block.append(completionRow);
+   completion.addEventListener("change",()=>{
+    updateMealChecklist();
+    const map={};host.querySelectorAll("[data-meal-completed]").forEach(cb=>map[cb.dataset.mealCompleted]=cb.checked);
+    setDoc(doc(db,"users",currentUser.uid,"mealPlanSelections",date),{date,dayType:type,completedMeals:map,updatedAt:serverTimestamp()},{merge:true})
+     .then(()=>{saveStatus.textContent="Meal checklist saved ✓";})
+     .catch(error=>{completion.checked=!completion.checked;updateMealChecklist();saveStatus.textContent="Could not save meal checklist: "+error.message;});
+   });
    const select=document.createElement("select");select.dataset.clientMeal=mi;select.style.width="100%";
    (meal.options||[]).forEach((o,oi)=>{const op=document.createElement("option");op.value=oi;op.textContent=o.name||"Option "+(oi+1);select.append(op);});
    const savedChoice=Number(clientMealSelections[mi]??0);
@@ -3068,12 +3105,13 @@ async function loadClientMealPlan(){
     const map={},custom={};
     host.querySelectorAll("[data-client-meal]").forEach(x=>map[x.dataset.clientMeal]=Number(x.value));
     const eatenMap={};host.querySelectorAll("[data-meal-eaten]").forEach(x=>eatenMap[x.dataset.mealEaten]=x.checked);
+    const completedMap={};host.querySelectorAll("[data-meal-completed]").forEach(x=>completedMap[x.dataset.mealCompleted]=x.checked);
     const selections=plan.map((meal,mi)=>{
      const foods=editedFoods[String(mi)]?.foods||[];
      custom[String(mi)]={optionIndex:map[mi],foods:foods.map(f=>({...f}))};
      return {meal:meal.name||("Meal "+(mi+1)),option:(meal.options?.[map[mi]]?.name)||"Option",foods:foods.map(f=>({name:f.name||"",grams:Number(f.grams)||0})),...optionMacros({foods})};
     });
-    await setDoc(doc(db,"users",currentUser.uid,"mealPlanSelections",date),{date,dayType:type,dayTypeOverride:selectedNutritionDayType===type,selectionMap:map,customFoods:custom,eatenMeals:eatenMap,choices:selections,updatedAt:serverTimestamp()},{merge:true});
+    await setDoc(doc(db,"users",currentUser.uid,"mealPlanSelections",date),{date,dayType:type,dayTypeOverride:selectedNutritionDayType===type,selectionMap:map,customFoods:custom,eatenMeals:eatenMap,completedMeals:completedMap,choices:selections,updatedAt:serverTimestamp()},{merge:true});
     clientMealSelections=map;saveStatus.textContent="All changes saved ✓";save.textContent="SAVE NOW";
    }catch(e){saveStatus.textContent="Could not save · tap RETRY SAVE";save.textContent="RETRY SAVE";console.error("Client meal plan autosave failed:",e);}
    finally{saveInProgress=false;save.disabled=false;if(saveAgain){saveAgain=false;scheduleClientMealSave();}}
@@ -3155,6 +3193,7 @@ async function loadClientMealPlan(){
    catch(e){x.checked=!x.checked;update();if(label)label.textContent="Could not save · try again";$("foodDiaryEntries").textContent="Could not save meal status: "+e.message;}
   }));
   update();
+  updateMealChecklist();
   autosaveReady=true;
   save.addEventListener("click",()=>{
    if(saveTimer){clearTimeout(saveTimer);saveTimer=null;}
