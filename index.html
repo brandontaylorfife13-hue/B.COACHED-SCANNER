@@ -1304,7 +1304,7 @@ async function loadCoachClientNutritionAnalytics(){
    const controls=document.createElement("div");controls.style.cssText="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:10px 0 14px";
    const intro=document.createElement("div");intro.className="muted";intro.textContent="Analysis window";
    const select=document.createElement("select");select.className="training-select";select.style.cssText="width:auto;min-width:130px";select.innerHTML='<option value="7">Last 7 days</option><option value="28">Last 28 days</option>';select.value=String(period);
-   select.onchange=()=>{period=Number(select.value);try{localStorage.setItem("bcoached:client-nutrition-period",String(period));}catch(_){}build();};
+   select.onchange=()=>{period=Number(select.value);try{localStorage.setItem("bcoached:client-nutrition-period",String(period));}catch(_){}build().then(()=>host.append(notesWrap));};
    controls.append(intro,select);host.append(controls);
    const today=new Date();today.setHours(0,0,0,0);
    const dates=Array.from({length:period},(_,i)=>{const d=new Date(today);d.setDate(d.getDate()-(period-1-i));return d;});
