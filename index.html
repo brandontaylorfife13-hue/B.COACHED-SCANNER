@@ -3485,44 +3485,44 @@ $("compareCoachPhotos").addEventListener("click",()=>{
 async function loadCoachWorkoutReviews(){
  const host=$("coachWorkoutReviews");
  if(!selectedClient?.uid)return;
- host.textContent="Loading workout history…";
+ host.textContent="Loading client feedback…";
  try{
   const snap=await getDocs(collection(db,"users",selectedClient.uid,"trainingSessions"));
-  const sessions=snap.docs.map(x=>({id:x.id,...x.data()})).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const sessions=snap.docs.map(x=>({id:x.id,...x.data()}))
+   .map(session=>({...session,feedbackExercises:(session.exercises||[]).map((ex,index)=>({...ex,_index:index})).filter(ex=>String(ex.notes||"").trim()||String(ex.clientFeedback||"").trim())}))
+   .filter(session=>session.feedbackExercises.length)
+   .sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   host.replaceChildren();
-  if(!sessions.length){host.textContent="No completed workouts have been logged by this client yet.";return;}
+  if(!sessions.length){host.textContent="No client exercise notes or feedback have been left yet.";return;}
+  const intro=document.createElement("div");intro.className="muted";intro.style.marginBottom="8px";intro.textContent=sessions.length+" workout"+(sessions.length===1?"":"s")+" with client feedback. Workouts without feedback are hidden.";host.append(intro);
   sessions.forEach(session=>{
-   const card=document.createElement("div");card.className="tile";card.style.minHeight="0";card.style.margin="10px 0";
-   const heading=document.createElement("strong");heading.style.fontSize="15px";heading.textContent=(session.workoutName||"Workout")+" · "+(session.date?new Date(session.date+"T12:00:00").toLocaleDateString():"Date not recorded");card.append(heading);
-   (session.exercises||[]).forEach((ex,exerciseIndex)=>{
-    const exerciseCard=document.createElement("div");exerciseCard.style.cssText="margin-top:12px;padding:10px;border:1px solid var(--line);border-radius:10px";
-    const line=document.createElement("div");line.className="muted";line.style.fontWeight="700";
-    const sets=(ex.sets||[]).map((set,i)=>(set.type==="feeler"?"Feeler":"Working")+" "+(set.type==="feeler"?(ex.sets||[]).slice(0,i+1).filter(x=>x.type==="feeler").length:(ex.sets||[]).slice(0,i+1).filter(x=>x.type!=="feeler").length)+": "+(set.weight||0)+" kg × "+(set.reps||0)+" reps"+(set.rir===null||set.rir===undefined?"":" · RIR "+set.rir)).join(" | ");
-    line.textContent=(ex.name||"Exercise")+(sets?" — "+sets:" — no sets recorded");exerciseCard.append(line);
-    const hasClientNote=!!String(ex.notes||"").trim(),hasClientFeedback=!!String(ex.clientFeedback||"").trim();
-    if(hasClientNote||hasClientFeedback){
-     const noteDetails=document.createElement("details");noteDetails.style.cssText="margin:8px 0;border:1px solid rgba(198,255,0,.28);border-radius:9px;background:rgba(198,255,0,.035);overflow:hidden";
-     const noteSummary=document.createElement("summary");noteSummary.style.cssText="cursor:pointer;list-style:none;padding:10px 12px;font-size:12px;font-weight:900;color:#c6ff00;display:flex;justify-content:space-between;gap:8px;align-items:center";
-     noteSummary.textContent="CLIENT FEEDBACK & NOTES · "+(Number(hasClientNote)+Number(hasClientFeedback))+" item"+(Number(hasClientNote)+Number(hasClientFeedback)===1?"":"s");
-     const flag=document.createElement("span");flag.className="pill";flag.textContent="REVIEW";flag.style.cssText="color:#c6ff00;border-color:#829e22";noteSummary.append(flag);noteDetails.append(noteSummary);
-     if(hasClientNote){const noteBlock=document.createElement("div");noteBlock.style.cssText="padding:9px 12px;border-top:1px solid var(--line);white-space:pre-wrap";const noteHeading=document.createElement("strong");noteHeading.textContent="CLIENT EXERCISE NOTES";noteHeading.style.cssText="display:block;margin-bottom:5px;font-size:11px;color:#a7c76a";const noteBody=document.createElement("span");noteBody.textContent=ex.notes;noteBlock.append(noteHeading,noteBody);noteDetails.append(noteBlock);}
-     if(hasClientFeedback){const feedbackBlock=document.createElement("div");feedbackBlock.style.cssText="padding:9px 12px;border-top:1px solid var(--line);white-space:pre-wrap";const feedbackHeading=document.createElement("strong");feedbackHeading.textContent="CLIENT FEEDBACK";feedbackHeading.style.cssText="display:block;margin-bottom:5px;font-size:11px;color:#c6ff00";const feedbackBody=document.createElement("span");feedbackBody.textContent=ex.clientFeedback;feedbackBlock.append(feedbackHeading,feedbackBody);noteDetails.append(feedbackBlock);}
-     exerciseCard.append(noteDetails);
+   const details=document.createElement("details");details.style.cssText="margin:9px 0;border:1px solid var(--line);border-radius:11px;background:rgba(255,255,255,.02);overflow:hidden";
+   const summary=document.createElement("summary");summary.style.cssText="cursor:pointer;list-style:none;padding:13px;font-weight:800;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap";
+   const date=session.date?new Date(session.date+"T12:00:00").toLocaleDateString():"Date not recorded";
+   const title=document.createElement("span");title.textContent=(session.workoutName||"Workout")+" · "+date;
+   const count=document.createElement("span");count.className="pill";count.textContent=session.feedbackExercises.length+" flagged";count.style.color="#c6ff00";summary.append(title,count);details.append(summary);
+   session.feedbackExercises.forEach(ex=>{
+    const exercise=document.createElement("div");exercise.style.cssText="padding:12px;border-top:1px solid var(--line)";
+    const name=document.createElement("strong");name.textContent=ex.name||"Exercise";name.style.display="block";exercise.append(name);
+    if(String(ex.notes||"").trim()){
+     const note=document.createElement("details");note.style.cssText="margin-top:8px;border:1px solid rgba(130,158,34,.35);border-radius:8px;overflow:hidden";
+     const sum=document.createElement("summary");sum.textContent="CLIENT EXERCISE NOTES";sum.style.cssText="padding:9px;cursor:pointer;font-size:11px;font-weight:900;color:#a7c76a";const body=document.createElement("div");body.textContent=ex.notes;body.style.cssText="padding:9px;border-top:1px solid var(--line);white-space:pre-wrap";note.append(sum,body);exercise.append(note);
     }
-    const replyLabel=document.createElement("label");replyLabel.textContent="REPLY TO "+(ex.name||"EXERCISE").toUpperCase();replyLabel.style.cssText="display:block;margin-top:10px;font-size:12px;font-weight:800";
-    const reply=document.createElement("textarea");reply.rows=2;reply.style.cssText="display:block;width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1px solid #4b5540;border-radius:9px;background:#090c07;color:var(--white);font:inherit;resize:vertical";reply.placeholder="Reply to this exercise feedback…";reply.value=ex.coachReply||"";
-    const replySave=document.createElement("button");replySave.className="secondary";replySave.textContent="SAVE EXERCISE REPLY";replySave.style.cssText="width:100%;margin-top:7px";
-    replySave.onclick=async()=>{replySave.disabled=true;replySave.textContent="SAVING…";try{const ref=doc(db,"users",selectedClient.uid,"trainingSessions",session.id);const latest=await getDoc(ref);if(!latest.exists())throw new Error("Workout no longer exists.");const data=latest.data();const exercises=(data.exercises||[]).map((item,i)=>i===exerciseIndex?{...item,coachReply:reply.value.trim(),coachReplyUpdatedAt:Date.now(),coachReplyBy:currentUser.uid}:item);await setDoc(ref,{exercises,updatedAt:serverTimestamp()},{merge:true});session.exercises=exercises;replySave.textContent="REPLY SAVED ✓";}catch(e){replySave.textContent="SAVE FAILED";replySave.title=e.message;}finally{replySave.disabled=false;}};
-    exerciseCard.append(replyLabel,reply,replySave);card.append(exerciseCard);
+    if(String(ex.clientFeedback||"").trim()){
+     const note=document.createElement("details");note.style.cssText="margin-top:8px;border:1px solid rgba(198,255,0,.3);border-radius:8px;overflow:hidden";
+     const sum=document.createElement("summary");sum.textContent="CLIENT FEEDBACK";sum.style.cssText="padding:9px;cursor:pointer;font-size:11px;font-weight:900;color:#c6ff00";const body=document.createElement("div");body.textContent=ex.clientFeedback;body.style.cssText="padding:9px;border-top:1px solid var(--line);white-space:pre-wrap";note.append(sum,body);exercise.append(note);
+    }
+    const replyLabel=document.createElement("label");replyLabel.textContent="COACH REPLY";replyLabel.style.cssText="display:block;margin-top:10px;font-size:11px;font-weight:900";
+    const reply=document.createElement("textarea");reply.rows=2;reply.style.cssText="display:block;width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1px solid #4b5540;border-radius:9px;background:#090c07;color:var(--white);font:inherit;resize:vertical";reply.placeholder="Reply to this feedback…";reply.value=ex.coachReply||"";
+    const save=document.createElement("button");save.className="secondary";save.textContent="SAVE REPLY";save.style.cssText="width:100%;margin-top:7px";
+    save.onclick=async()=>{save.disabled=true;save.textContent="SAVING…";try{const ref=doc(db,"users",selectedClient.uid,"trainingSessions",session.id);const latest=await getDoc(ref);if(!latest.exists())throw new Error("Workout no longer exists.");const data=latest.data();const exercises=(data.exercises||[]).map((item,i)=>i===ex._index?{...item,coachReply:reply.value.trim(),coachReplyUpdatedAt:Date.now(),coachReplyBy:currentUser.uid}:item);await setDoc(ref,{exercises,updatedAt:serverTimestamp()},{merge:true});ex.coachReply=reply.value.trim();save.textContent="SAVED ✓";}catch(error){save.textContent="SAVE FAILED";save.title=error.message;}finally{save.disabled=false;}};
+    exercise.append(replyLabel,reply,save);details.append(exercise);
    });
-   const feedbackLabel=document.createElement("label");feedbackLabel.textContent="Overall workout feedback";feedbackLabel.style.display="block";feedbackLabel.style.marginTop="12px";
-   const feedback=document.createElement("textarea");feedback.rows=3;feedback.style.cssText="width:100%;padding:12px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit;resize:vertical";feedback.placeholder="General comments on performance, progression or next session…";feedback.value=session.coachFeedback||"";card.append(feedbackLabel,feedback);
-   const save=document.createElement("button");save.textContent="SAVE WORKOUT FEEDBACK";save.style.width="100%";save.style.marginTop="9px";
-   save.onclick=async()=>{save.disabled=true;save.textContent="SAVING…";try{await setDoc(doc(db,"users",selectedClient.uid,"trainingSessions",session.id),{coachFeedback:feedback.value.trim(),feedbackUpdatedAt:serverTimestamp(),feedbackBy:currentUser.uid},{merge:true});session.coachFeedback=feedback.value.trim();save.textContent="FEEDBACK SAVED";}catch(e){save.textContent="SAVE FAILED";}finally{save.disabled=false;}};
-   card.append(save);host.append(card);
+   host.append(details);
   });
- }catch(e){host.textContent="Could not load workout reviews: "+e.message;}
+ }catch(error){host.textContent="Could not load client feedback: "+error.message;}
 }
+
 let coachTrainingTemplates=[];
 function renderTrainingTemplateOptions(){
  const select=$("trainingTemplateSelect");if(!select)return;
