@@ -281,6 +281,15 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
     <div class="tile">NO RECENT DATA<strong id="weeklyScorecardNoData">—</strong><span>Limited weekly activity</span></div>
    </div>
    <div id="weeklyClientScorecard" class="muted" style="margin-top:10px">Loading weekly scorecards…</div>
+   <div class="section-title" style="margin-top:26px">Weekly Coach Report</div>
+   <p class="muted">Create a client-by-client summary for any date range, add private coaching notes and print or save the report as a PDF.</p>
+   <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:9px">
+    <div><label for="weeklyReportStart">From</label><input id="weeklyReportStart" type="date"></div>
+    <div><label for="weeklyReportEnd">To</label><input id="weeklyReportEnd" type="date"></div>
+   </div>
+   <div class="actions"><button id="generateWeeklyCoachReport" type="button">GENERATE WEEKLY REPORT</button><button id="printWeeklyCoachReport" class="secondary" type="button">PRINT / SAVE AS PDF</button></div>
+   <div id="weeklyCoachReportStatus" class="status" role="status"></div>
+   <div id="weeklyCoachReport" style="margin-top:12px" class="muted">Choose a date range and generate your coach report.</div>
    <div class="section-title" style="margin-top:24px">Coaching workflow</div>
    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(135px,1fr))">
     <div class="tile"><strong style="font-size:16px;color:var(--white)">Review check-ins</strong><span>Open a client profile to review updates and leave feedback.</span></div>
@@ -2227,6 +2236,92 @@ async function loadWeeklyClientScorecard(clients){
  }catch(error){host.textContent="Could not load weekly scorecards: "+error.message;}
 }
 
+let latestWeeklyCoachReport=[];
+function initialiseWeeklyCoachReport(clients){
+ const start=$("weeklyReportStart"),end=$("weeklyReportEnd"),generate=$("generateWeeklyCoachReport"),print=$("printWeeklyCoachReport");
+ if(!start||!end||!generate||!print)return;
+ const today=new Date();today.setHours(0,0,0,0);
+ const key=d=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
+ if(!end.value)end.value=key(today);
+ if(!start.value){const prior=new Date(today);prior.setDate(prior.getDate()-6);start.value=key(prior);}
+ generate.onclick=()=>generateWeeklyCoachReport(clients);
+ print.onclick=()=>printLatestWeeklyCoachReport();
+ generateWeeklyCoachReport(clients);
+}
+async function generateWeeklyCoachReport(clients){
+ const host=$("weeklyCoachReport"),status=$("weeklyCoachReportStatus");
+ const start=$("weeklyReportStart")?.value,end=$("weeklyReportEnd")?.value;
+ if(!start||!end||start>end){status.textContent="Choose a valid date range.";return;}
+ status.textContent="Building client reports…";host.textContent="Loading report data…";latestWeeklyCoachReport=[];
+ const active=clients.filter(c=>c.accountStatus!=="inactive"&&c.accountStatus!=="archived");
+ const dateBetween=value=>!!value&&value>=start&&value<=end;
+ try{
+  const rows=await Promise.all(active.map(async client=>{
+   try{
+    const [checksSnap,weightsSnap,sessionsSnap,targetsSnap,detailsSnap]=await Promise.all([
+     getDocs(collection(db,"users",client.uid,"weeklyCheckins")),
+     getDocs(collection(db,"users",client.uid,"weights")),
+     getDocs(collection(db,"users",client.uid,"trainingSessions")),
+     getDoc(doc(db,"users",client.uid,"nutrition","targets")),
+     getDoc(doc(db,"users",client.uid,"profile","details"))
+    ]);
+    const checks=checksSnap.docs.map(d=>({id:d.id,...d.data()})).filter(x=>dateBetween(x.weekEnding||x.id)).sort((a,b)=>(b.weekEnding||b.id).localeCompare(a.weekEnding||a.id));
+    const weights=weightsSnap.docs.map(d=>({date:d.data().date||d.id,kg:Number(d.data().weightKg??d.data().weight)})).filter(x=>dateBetween(x.date)&&x.kg>0).sort((a,b)=>a.date.localeCompare(b.date));
+    const sessions=sessionsSnap.docs.map(d=>({id:d.id,...d.data()})).filter(x=>dateBetween(x.date||x.id.slice(0,10))).sort((a,b)=>(a.date||a.id).localeCompare(b.date||b.id));
+    const days=[];const from=new Date(start+"T12:00:00"),to=new Date(end+"T12:00:00");
+    for(let d=new Date(from);d<=to;d.setDate(d.getDate()+1)){
+     const day=key(d);
+     try{const snap=await getDocs(collection(db,"users",client.uid,"foodLogs",day,"entries"));if(snap.size){const totals=snap.docs.reduce((sum,docSnap)=>{const x=docSnap.data();sum.calories+=Number(x.calories)||0;sum.protein+=Number(x.proteinG)||0;return sum;},{calories:0,protein:0});days.push({date:day,...totals});}}catch(error){}
+    }
+    const avgCalories=days.length?days.reduce((sum,x)=>sum+x.calories,0)/days.length:null;
+    const avgProtein=days.length?days.reduce((sum,x)=>sum+x.protein,0)/days.length:null;
+    const first=weights[0],last=weights[weights.length-1],weightChange=weights.length>1?last.kg-first.kg:null;
+    const latestCheck=checks[0]||null,details=detailsSnap.exists()?detailsSnap.data():{};
+    const report={uid:client.uid,name:client.displayName||client.email||"Client",email:client.email||"",checks,checkCount:checks.length,latestAdherence:latestCheck?.adherence||"",weights,weightChange,latestWeight:last||null,sessionCount:sessions.length,sessions,diaryDays:days.length,avgCalories,avgProtein,details,coachNote:""};
+    const noteSnap=await getDoc(doc(db,"users",currentUser.uid,"weeklyCoachReports",client.uid+"_"+start+"_"+end));
+    if(noteSnap.exists())report.coachNote=noteSnap.data().coachNote||"";
+    return report;
+   }catch(error){return {uid:client.uid,name:client.displayName||client.email||"Client",error:error.message,checks:[],weights:[],sessions:[],diaryDays:0,sessionCount:0,coachNote:""};}
+  }));
+  latestWeeklyCoachReport=rows;
+  host.replaceChildren();
+  const summary=document.createElement("div");summary.className="grid";summary.style.cssText="grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:12px";
+  const tiles=[["CLIENTS",rows.length],["CHECK-INS",rows.reduce((n,x)=>n+x.checkCount,0)],["WORKOUTS",rows.reduce((n,x)=>n+x.sessionCount,0)],["CLIENTS LOGGING",rows.filter(x=>x.diaryDays>0).length]];
+  tiles.forEach(([label,value])=>{const tile=document.createElement("div");tile.className="tile";tile.style.minHeight="0";const strong=document.createElement("strong");strong.textContent=String(value);const caption=document.createElement("span");caption.textContent=label;tile.append(strong,caption);summary.append(tile);});host.append(summary);
+  if(!rows.length){host.textContent="No active clients found for this report.";status.textContent="Report generated.";return;}
+  rows.forEach(row=>{
+   const card=document.createElement("div");card.className="tile";card.style.cssText="min-height:0;margin:9px 0;padding:13px";
+   const title=document.createElement("strong");title.style.fontSize="16px";title.textContent=row.name;card.append(title);
+   if(row.error){const error=document.createElement("div");error.className="muted";error.textContent="Some report data could not be loaded: "+row.error;card.append(error);}
+   else{
+    const grid=document.createElement("div");grid.style.cssText="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:7px;margin-top:10px";
+    const weight=row.weights.length?(row.weightChange===null?row.latestWeight.kg.toFixed(1)+" kg":row.weightChange.toFixed(1)+" kg"):"No weigh-ins";
+    const metrics=[["CHECK-INS",row.checkCount+(row.latestAdherence?" · "+row.latestAdherence:"")],["WEIGHT",weight],["TRAINING",row.sessionCount+" sessions"],["NUTRITION",row.diaryDays+" logged days"],["AVG CALORIES",row.avgCalories===null?"No diary data":Math.round(row.avgCalories).toLocaleString()+" kcal"],["AVG PROTEIN",row.avgProtein===null?"—":Math.round(row.avgProtein)+" g"]];
+    metrics.forEach(([label,value])=>{const item=document.createElement("div");item.style.cssText="border:1px solid var(--line);border-radius:8px;padding:8px";const l=document.createElement("div");l.className="eyebrow";l.textContent=label;const v=document.createElement("strong");v.style.cssText="display:block;font-size:13px;margin-top:5px";v.textContent=value;item.append(l,v);grid.append(item);});card.append(grid);
+    const noteLabel=document.createElement("label");noteLabel.textContent="PRIVATE COACHING NOTES";noteLabel.style.cssText="display:block;margin-top:12px;font-size:11px;font-weight:900";
+    const note=document.createElement("textarea");note.rows=2;note.value=row.coachNote;note.placeholder="What changed, why, and what to review next week?";note.style.cssText="display:block;width:100%;box-sizing:border-box;margin-top:5px;padding:10px;border:1px solid #4b5540;border-radius:9px;background:#090c07;color:var(--white);font:inherit;resize:vertical";
+    const save=document.createElement("button");save.className="secondary";save.textContent="SAVE COACH NOTES";save.style.cssText="width:100%;margin-top:7px";
+    save.onclick=async()=>{save.disabled=true;save.textContent="SAVING…";try{await setDoc(doc(db,"users",currentUser.uid,"weeklyCoachReports",row.uid+"_"+start+"_"+end),{clientUid:row.uid,clientName:row.name,startDate:start,endDate:end,coachNote:note.value.trim(),updatedAt:serverTimestamp(),updatedBy:currentUser.uid},{merge:true});row.coachNote=note.value.trim();save.textContent="SAVED ✓";}catch(error){save.textContent="SAVE FAILED";save.title=error.message;}finally{save.disabled=false;}};
+    card.append(noteLabel,note,save);
+   }
+   host.append(card);
+  });
+  status.textContent="Report generated for "+rows.length+" active clients · "+start+" to "+end+".";
+ }catch(error){status.textContent="Could not generate report: "+error.message;host.textContent="Please try again.";}
+}
+function printLatestWeeklyCoachReport(){
+ if(!latestWeeklyCoachReport.length){$("weeklyCoachReportStatus").textContent="Generate a report before printing.";return;}
+ const start=$("weeklyReportStart").value,end=$("weeklyReportEnd").value;
+ const escape=value=>String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+ const cards=latestWeeklyCoachReport.map(row=>{
+  const weight=row.weights?.length?(row.weightChange===null?row.latestWeight.kg.toFixed(1)+" kg":(row.weightChange>0?"+":"")+row.weightChange.toFixed(1)+" kg"):"No weigh-ins";
+  return '<section><h2>'+escape(row.name)+'</h2>'+(row.error?'<p>Some records could not be loaded.</p>':'<table><tr><th>Check-ins</th><th>Weight change</th><th>Training</th><th>Nutrition days</th><th>Avg calories</th><th>Avg protein</th></tr><tr><td>'+row.checkCount+'</td><td>'+escape(weight)+'</td><td>'+row.sessionCount+'</td><td>'+row.diaryDays+'</td><td>'+(row.avgCalories===null?'—':Math.round(row.avgCalories)+' kcal')+'</td><td>'+(row.avgProtein===null?'—':Math.round(row.avgProtein)+' g')+'</td></tr></table>')+'<h3>Coach notes</h3><p class="notes">'+escape(row.coachNote||"No notes added.").replace(/\n/g,"<br>")+'</p></section>';
+ }).join("");
+ const popup=window.open("","_blank");if(!popup){$("weeklyCoachReportStatus").textContent="Your browser blocked the print window. Allow pop-ups for B.COACHED and try again.";return;}
+ popup.document.write('<!doctype html><html><head><title>B.COACHED Weekly Coach Report</title><style>body{font:14px Arial,sans-serif;color:#172015;margin:28px}h1{font-size:24px}h2{font-size:18px;margin-bottom:8px}section{page-break-inside:avoid;border-bottom:1px solid #ccd2c4;padding:12px 0}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccd2c4;padding:8px;text-align:left}th{background:#edf0e8}.notes{white-space:normal;background:#f5f7f1;padding:10px;min-height:22px}@media print{button{display:none}}</style></head><body><h1>B.COACHED · Weekly Coach Report</h1><p>'+escape(start)+' to '+escape(end)+'</p>'+cards+'</body></html>');
+ popup.document.close();popup.focus();setTimeout(()=>popup.print(),400);
+}
+
 async function loadClients(){
  const list=$("clientList");list.textContent="Loading clients…";
  try{
@@ -2240,6 +2335,7 @@ async function loadClients(){
   await loadNutritionComplianceDashboard(clients);
   await loadCoachIntelligenceCentre(clients);
   await loadWeeklyClientScorecard(clients);
+  initialiseWeeklyCoachReport(clients);
   list.replaceChildren();
   if(!clients.length){list.textContent="No client accounts yet.";return;}
   clients.forEach(c=>{
