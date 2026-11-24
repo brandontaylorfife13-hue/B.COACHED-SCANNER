@@ -134,6 +134,9 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 #coachMealPlanEditor .food-row button{grid-column:1/-1;margin:0!important}
 #coachMealPlanEditor .meal-actions{margin-top:10px}
 @media(max-width:560px){#foodDiaryView{padding:15px}#foodDiaryView>.grid{gap:8px}#foodDiaryView>.grid .tile{padding:12px;min-height:94px}#foodDiaryView>.grid .tile strong{font-size:21px}#foodDiaryView .section-title{margin-top:18px!important}#coachMealPlanEditor .meal-actions button{min-width:100%;margin:3px 0!important}}
+
+/* Goal centre and app-wide interface polish */
+.goal-centre{margin:18px 0 24px;padding:18px;background:linear-gradient(145deg,#171e10,#10140d);border-color:#465438}.goal-centre-top,.goal-progress-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.goal-progress-summary{margin:10px 0 12px}.goal-progress-track{height:12px;border-radius:99px;background:#30372a;overflow:hidden}.goal-progress-fill{height:100%;width:0;background:linear-gradient(90deg,#91bd00,var(--lime));border-radius:99px;transition:width .25s ease}.goal-progress-meta{font-size:12px;color:var(--muted);margin-top:8px}.goal-progress-meta span:first-child{font-weight:850;color:var(--lime);font-size:15px}.goal-milestone-form{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:10px;align-items:end;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}.goal-milestone-form label{margin-top:0}.goal-milestone-form button{white-space:nowrap;padding:12px}.goal-milestone-list{display:grid;gap:8px}.goal-milestone-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border:1px solid var(--line);border-radius:11px;background:#0b0f08}.goal-milestone-row .milestone-copy{min-width:0}.goal-milestone-row .milestone-copy strong{display:block;color:var(--white);font-size:13px;overflow-wrap:anywhere}.goal-milestone-row .milestone-copy small{display:block;color:var(--muted);font-size:11px;margin-top:4px}.goal-milestone-row button{padding:8px 10px;font-size:10px;flex:0 0 auto}.goal-milestone-row.done{opacity:.72}.goal-milestone-row.done strong{text-decoration:line-through;color:var(--muted)}input,select,textarea{max-width:100%}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--lime);outline-offset:2px}button{transition:filter .15s ease,transform .15s ease}button:hover:not(:disabled){filter:brightness(1.08)}button:active:not(:disabled){transform:translateY(1px)}.card,.tile{overflow-wrap:anywhere}.section-title{line-height:1.3}.muted{overflow-wrap:anywhere}nav{scrollbar-width:thin;scrollbar-color:#586344 transparent}nav button{flex:0 0 auto}@media(max-width:650px){main{padding:12px 12px 34px}.card{padding:16px;border-radius:15px}.grid{gap:9px}.tile{padding:13px;min-height:0}.goal-milestone-form{grid-template-columns:1fr 1fr}.goal-milestone-form button{grid-column:1/-1;width:100%}.goal-centre{padding:14px}.top{align-items:flex-start}.top #logoutBtn{padding:10px 12px}}@media(max-width:390px){.goal-milestone-form{grid-template-columns:1fr}.goal-milestone-form button{grid-column:auto}.actions{gap:7px}.actions button{min-width:100%}}
 </style>
 </head>
 <body><main>
@@ -436,6 +439,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <label for="detailNotes">Coaching notes</label><textarea id="detailNotes" rows="4" style="width:100%;padding:14px;border:1px solid #4b5540;border-radius:11px;background:#090c07;color:var(--white);font:inherit;resize:vertical" placeholder="Training background, preferences, important coaching notes…"></textarea>
   <button id="saveClientDetails" style="width:100%;margin-top:14px">SAVE CLIENT DETAILS</button>
   <div id="clientDetailsStatus" class="status" role="status"></div>
+  <div class="goal-centre card" id="clientGoalCentre"><div class="goal-centre-top"><div><div class="eyebrow">CLIENT GOALS</div><div class="section-title" style="margin:5px 0">Goal progress & milestones</div></div><span class="pill" id="goalProgressStatus">Set a goal</span></div><div id="goalProgressSummary" class="goal-progress-summary muted">Add a starting weight and goal weight to see progress here.</div><div class="goal-progress-track"><div id="goalProgressFill" class="goal-progress-fill"></div></div><div class="goal-progress-meta"><span id="goalProgressPercent">—</span><span id="goalProgressRemaining">Add a goal weight</span></div><div class="goal-milestone-form"><div><label for="newGoalMilestone">Add a milestone</label><input id="newGoalMilestone" placeholder="e.g. Complete 4 consistent weeks"></div><div><label for="newGoalMilestoneDate">Target date (optional)</label><input id="newGoalMilestoneDate" type="date"></div><button id="addGoalMilestone" type="button">ADD MILESTONE</button></div><div class="section-title" style="margin-top:18px">Milestone checklist</div><div id="clientGoalMilestoneList" class="goal-milestone-list muted">Loading milestones…</div></div>
   <div class="section-title profile-anchor" id="profile-nutrition-targets" style="margin-top:26px">Nutrition targets</div>
   <p class="muted">Set separate targets for higher-calorie and lower-calorie days.</p>
   <div class="tile" style="margin-bottom:12px">
@@ -2453,6 +2457,7 @@ async function showClientProfile(client){
   }
   $("clientDetailsStatus").textContent="";
   await loadWeightHistory();
+  await loadClientGoalMilestones();
   await loadNutritionTargets(true);
   await loadCoachClientNutritionAnalytics();
   await loadCoachDailyLogs();
@@ -2470,6 +2475,20 @@ async function showClientProfile(client){
   await loadPedRecords(client.uid,"coach");
  }catch(e){$("clientDetailsStatus").textContent="Could not load saved details: "+e.message;}
 }
+async function loadClientGoalMilestones(){
+ const host=$("clientGoalMilestoneList");if(!host||!selectedClient?.uid)return;
+ host.textContent="Loading milestones…";
+ const vals=["detailStartWeight","detailCurrentWeight","detailGoalWeight"].map(id=>$(id).value);
+ const [start,current,goal]=vals.map(Number),has=vals.every(v=>v!=="")&&[start,current,goal].every(Number.isFinite)&&start!==goal;
+ const status=$("goalProgressStatus"),summary=$("goalProgressSummary"),fill=$("goalProgressFill"),percent=$("goalProgressPercent"),remaining=$("goalProgressRemaining");
+ if(has){const ratio=(current-start)/(goal-start),pct=Math.max(0,Math.min(100,ratio*100));fill.style.width=pct.toFixed(1)+"%";percent.textContent=Math.round(pct)+"% complete";remaining.textContent=Math.abs(goal-current).toFixed(1)+" kg to goal";summary.textContent=(current===goal?"Goal weight reached.":"Current weight: "+current.toFixed(1)+" kg · Starting weight: "+start.toFixed(1)+" kg · Target: "+goal.toFixed(1)+" kg")+(ratio<0?" · Moving away from target based on the weights entered.":"");status.textContent=$("detailGoalStatus").value||"In progress";}
+ else{fill.style.width="0%";percent.textContent="—";remaining.textContent="Add start, current and goal weights";summary.textContent="Add a starting weight, current weight and goal weight to calculate progress.";status.textContent="Set a goal";}
+ try{const snap=await getDocs(collection(db,"users",selectedClient.uid,"goalMilestones"));const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.completed===b.completed?String(a.targetDate||"").localeCompare(String(b.targetDate||"")):a.completed?1:-1));host.replaceChildren();if(!rows.length){host.textContent="No milestones added yet. Add small, measurable steps to keep the client focused between check-ins.";return;}
+ rows.forEach(row=>{const item=document.createElement("div");item.className="goal-milestone-row"+(row.completed?" done":"");const copy=document.createElement("div");copy.className="milestone-copy";const title=document.createElement("strong");title.textContent=row.title||"Milestone";const date=document.createElement("small");date.textContent=row.completed?"Completed"+(row.completedAt?.toDate?" · "+row.completedAt.toDate().toLocaleDateString():""):(row.targetDate?"Target: "+new Date(row.targetDate+"T12:00:00").toLocaleDateString():"No target date");copy.append(title,date);const toggle=document.createElement("button");toggle.className="secondary";toggle.textContent=row.completed?"REOPEN":"COMPLETE";toggle.onclick=async()=>{toggle.disabled=true;try{await setDoc(doc(db,"users",selectedClient.uid,"goalMilestones",row.id),{completed:!row.completed,completedAt:!row.completed?serverTimestamp():null,updatedAt:serverTimestamp(),updatedBy:currentUser.uid},{merge:true});await loadClientGoalMilestones();}catch(e){toggle.disabled=false;alert("Could not update milestone: "+e.message);}};item.append(copy,toggle);host.append(item);});
+ }catch(error){host.textContent="Could not load milestones. Check the client's Firestore permissions.";console.warn(error);}
+}
+$("addGoalMilestone")?.addEventListener("click",async()=>{if(!selectedClient?.uid)return;const title=$("newGoalMilestone").value.trim();if(!title){$("newGoalMilestone").focus();return;}const button=$("addGoalMilestone");button.disabled=true;try{await setDoc(doc(collection(db,"users",selectedClient.uid,"goalMilestones")),{title,targetDate:$("newGoalMilestoneDate").value||"",completed:false,createdAt:serverTimestamp(),createdBy:currentUser.uid});$("newGoalMilestone").value="";$("newGoalMilestoneDate").value="";await loadClientGoalMilestones();}catch(error){alert("Could not add milestone: "+error.message);}finally{button.disabled=false;}});
+["detailStartWeight","detailCurrentWeight","detailGoalWeight","detailGoalStatus"].forEach(id=>$(id)?.addEventListener("input",()=>{if(selectedClient?.uid)loadClientGoalMilestones();}));
 async function loadCoachPedClientOptions(){
  const select=$("pedClientSelect");if(!select)return;
  const empty=$("coachPedEmpty");
@@ -4826,38 +4845,14 @@ $("addWeightBtn").addEventListener("click",async()=>{
 $("saveClientDetails").addEventListener("click",async()=>{
  if(!selectedClient?.uid){$("clientDetailsStatus").textContent="No client selected.";return;}
  const numericFields=["detailHeight","detailStartWeight","detailCurrentWeight","detailGoalWeight"];
- for(const id of numericFields){
-  const value=$(id).value.trim();
-  if(value!==""&&(!Number.isFinite(Number(value))||Number(value)<0)){
-   $("clientDetailsStatus").textContent="Please enter valid positive numbers for height and weights.";return;
-  }
- }
- $("saveClientDetails").disabled=true;
- $("clientDetailsStatus").textContent="Saving…";
- try{
-  await setDoc(doc(db,"users",selectedClient.uid,"profile","details"),{
-   dateOfBirth:$("detailDob").value||"",
-   heightCm:$("detailHeight").value===""?null:Number($("detailHeight").value),
-   startingWeightKg:$("detailStartWeight").value===""?null:Number($("detailStartWeight").value),
-   currentWeightKg:$("detailCurrentWeight").value===""?null:Number($("detailCurrentWeight").value),
-   goalWeightKg:$("detailGoalWeight").value===""?null:Number($("detailGoalWeight").value),
-   primaryGoal:$("detailGoal").value.trim(),
-   trainingDaysPerWeek:$("detailTrainingDays").value,
-   trainingExperience:$("detailTrainingExperience").value,
-   dailyActivity:$("detailActivity").value,
-   foodPreferences:$("detailFoodPreferences").value.trim(),
-   dietaryRequirements:$("detailDietaryRequirements").value.trim(),
-   goalTargetDate:$("detailGoalDate").value||"",
-   goalStatus:$("detailGoalStatus").value,
-   nextMilestone:$("detailMilestone").value.trim(),
-   milestoneTargetDate:$("detailMilestoneDate").value||"",
-   coachingNotes:$("detailNotes").value.trim(),
-   updatedAt:serverTimestamp(),
-   updatedBy:currentUser.uid
-  },{merge:true});
-  $("clientDetailsStatus").textContent="Client details saved successfully.";
- }catch(e){$("clientDetailsStatus").textContent="Could not save details: "+e.message;}
- finally{$("saveClientDetails").disabled=false;}
+ for(const id of numericFields){const value=$(id).value.trim();if(value!==""&&(!Number.isFinite(Number(value))||Number(value)<0)){$("clientDetailsStatus").textContent="Please enter valid positive numbers for height and weights.";return;}}
+ $("saveClientDetails").disabled=true;$("clientDetailsStatus").textContent="Saving…";
+ try{const detailsRef=doc(db,"users",selectedClient.uid,"profile","details");const previous=await getDoc(detailsRef);const before=previous.exists()?previous.data():{};
+ const after={dateOfBirth:$("detailDob").value||"",heightCm:$("detailHeight").value===""?null:Number($("detailHeight").value),startingWeightKg:$("detailStartWeight").value===""?null:Number($("detailStartWeight").value),currentWeightKg:$("detailCurrentWeight").value===""?null:Number($("detailCurrentWeight").value),goalWeightKg:$("detailGoalWeight").value===""?null:Number($("detailGoalWeight").value),primaryGoal:$("detailGoal").value.trim(),trainingDaysPerWeek:$("detailTrainingDays").value,trainingExperience:$("detailTrainingExperience").value,dailyActivity:$("detailActivity").value,foodPreferences:$("detailFoodPreferences").value.trim(),dietaryRequirements:$("detailDietaryRequirements").value.trim(),goalTargetDate:$("detailGoalDate").value||"",goalStatus:$("detailGoalStatus").value,nextMilestone:$("detailMilestone").value.trim(),milestoneTargetDate:$("detailMilestoneDate").value||"",coachingNotes:$("detailNotes").value.trim(),updatedAt:serverTimestamp(),updatedBy:currentUser.uid};
+ await setDoc(detailsRef,after,{merge:true});const pick=d=>({primaryGoal:d.primaryGoal||"",startingWeightKg:d.startingWeightKg??null,currentWeightKg:d.currentWeightKg??null,goalWeightKg:d.goalWeightKg??null,goalTargetDate:d.goalTargetDate||"",goalStatus:d.goalStatus||"",nextMilestone:d.nextMilestone||"",milestoneTargetDate:d.milestoneTargetDate||""});
+ await recordClientPlanChange(selectedClient.uid,"goal_milestone","Client goal and milestone details",pick(before),pick(after),"Goal, target weight, status or next milestone details updated.");
+ $("clientDetailsStatus").textContent="Client details saved successfully.";await loadClientGoalMilestones();await loadClientPlanChangeHistory();
+ }catch(e){$("clientDetailsStatus").textContent="Could not save details: "+e.message;}finally{$("saveClientDetails").disabled=false;}
 });
 $("backToClients").addEventListener("click",()=>{
  $("clientProfileView").classList.add("hidden");
