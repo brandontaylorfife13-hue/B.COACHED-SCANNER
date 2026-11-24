@@ -498,6 +498,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <div class="section-title" style="margin-top:24px">Training Performance Centre</div>
   <p class="muted">Track strength progression through heavier loads, extra reps at the same load and estimated strength changes, alongside weekly volume and effort.</p>
   <div id="coachClientTrainingAnalytics" class="muted">Loading training performance…</div>
+  <div class="section-title" style="margin-top:26px">Plan Change History</div><p class="muted">A dated audit trail of nutrition target, meal plan and training programme changes, including what changed and why.</p><div id="clientPlanChangeHistory" class="muted">Loading plan change history…</div>
   <div class="section-title" style="margin-top:24px">Workout reviews</div><p class="muted">Review completed sessions, check the client's logged sets and leave coaching feedback.</p><div id="coachWorkoutReviews" class="muted">Loading workout history…</div>
   <div class="section-title" style="margin-top:26px">Progress photo comparison</div><p class="muted">Review the client's private progress photos and compare two dates side by side.</p><div id="coachProgressPhotoStatus" class="muted">Loading progress photos…</div><div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-top:12px"><div><label for="coachPhotoCompareA">Earlier photo</label><select id="coachPhotoCompareA" class="training-select"><option value="">Choose photo</option></select></div><div><label for="coachPhotoCompareB">Later photo</label><select id="coachPhotoCompareB" class="training-select"><option value="">Choose photo</option></select></div></div><button id="compareCoachPhotos" class="secondary" style="width:100%;margin-top:10px">COMPARE PHOTOS</button><div id="coachPhotoComparison" style="margin-top:12px"></div><div class="section-title" style="margin-top:18px">All progress photos</div><div id="coachProgressPhotoGallery" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr))"></div>
   <div class="section-title" style="margin-top:24px">Client meal choices</div><p class="muted">Review the options selected by this client for a chosen date.</p>
@@ -2464,6 +2465,7 @@ async function showClientProfile(client){
   await loadCoachTrainingProgram();
   await loadCoachWorkoutReviews();
   await loadCoachClientTrainingAnalytics();
+  await loadClientPlanChangeHistory();
   await loadCoachProgressPhotos();
   await loadPedRecords(client.uid,"coach");
  }catch(e){$("clientDetailsStatus").textContent="Could not load saved details: "+e.message;}
@@ -2793,12 +2795,18 @@ async function saveCoachMealPlan(){
  host.querySelectorAll("[data-food-field]").forEach(el=>{const [m,o,fi,key]=el.dataset.foodField.split(":");const food=coachMealPlan[coachPlanType]?.[Number(m)]?.options?.[Number(o)]?.foods?.[Number(fi)];if(food)food[key]=key==="name"?el.value:(el.value===""?0:Number(el.value));});
  $("saveMealPlan").disabled=true;$("mealPlanCoachStatus").textContent="Saving meal plan…";
  try{
+  const mealRef=doc(db,"users",selectedClient.uid,"nutrition","mealPlan");
+  const previousMealSnap=await getDoc(mealRef);
+  const previousMealPlan=previousMealSnap.exists()?{highDay:previousMealSnap.data().highDay||[],lowDay:previousMealSnap.data().lowDay||[]}:null;
   const payload={highDay:coachMealPlan.highDay,lowDay:coachMealPlan.lowDay,updatedAt:serverTimestamp(),updatedBy:currentUser.uid};
-  await setDoc(doc(db,"users",selectedClient.uid,"nutrition","mealPlan"),payload);
+  await setDoc(mealRef,payload);
   const check=await getDoc(doc(db,"users",selectedClient.uid,"nutrition","mealPlan"));
   if(!check.exists())throw new Error("The saved meal plan could not be verified.");
   const saved=check.data();
   coachMealPlan={highDay:Array.isArray(saved.highDay)?saved.highDay:[],lowDay:Array.isArray(saved.lowDay)?saved.lowDay:[]};
+  const mealCount=day=>(day||[]).reduce((n,m)=>n+(m.options||[]).reduce((sum,o)=>sum+(o.foods||[]).length,0),0);
+  await recordClientPlanChange(selectedClient.uid,"meal_plan","Tailored meal plan updated",previousMealPlan,{highDay:saved.highDay||[],lowDay:saved.lowDay||[]},"High day: "+(saved.highDay||[]).length+" meals · "+mealCount(saved.highDay)+" foods\nLow day: "+(saved.lowDay||[]).length+" meals · "+mealCount(saved.lowDay)+" foods");
+  await loadClientPlanChangeHistory();
   await createClientNotification(selectedClient.uid,"meal_plan","Your meal plan has been updated","Your coach has updated your tailored high- and low-day meal plans. Open Food Diary to view the latest version.");
   $("mealPlanCoachStatus").textContent="Meal plan saved and verified. The client will see the correct high- or low-day plan in Food Diary.";
   renderCoachMealPlan();refreshCoachPlanInputs();
@@ -3417,7 +3425,11 @@ $("saveNutritionTargets").addEventListener("click",async()=>{
    fatsG:$(ids[3]).value.trim()===""?null:Number($(ids[3]).value)
   });
   const selectedHighDays=Array.from(document.querySelectorAll(".highDayCheckbox:checked")).map(cb=>cb.value);
-  await setDoc(doc(db,"users",selectedClient.uid,"nutrition","targets"),{
+  const targetRef=doc(db,"users",selectedClient.uid,"nutrition","targets");
+  const previousTargetSnap=await getDoc(targetRef);
+  const previousTargets=previousTargetSnap.exists()?previousTargetSnap.data():null;
+  const nextTargets={highDay:readGroup(groups[0]),lowDay:readGroup(groups[1]),highDays:selectedHighDays,notes:$("nutritionCoachNotes").value.trim()};
+  await setDoc(targetRef,{
    highDay:readGroup(groups[0]),
    lowDay:readGroup(groups[1]),
    highDays:selectedHighDays,
@@ -3426,6 +3438,10 @@ $("saveNutritionTargets").addEventListener("click",async()=>{
   },{merge:true});
   const verifyTargets=await getDoc(doc(db,"users",selectedClient.uid,"nutrition","targets"));
   const savedHighDays=verifyTargets.exists()&&Array.isArray(verifyTargets.data().highDays)?verifyTargets.data().highDays:[];
+  const savedTargets=verifyTargets.exists()?verifyTargets.data():nextTargets;
+  const macroSummary=group=>["calories","proteinG","carbsG","fatsG"].map(k=>(k==="proteinG"?"Protein":k==="carbsG"?"Carbs":k==="fatsG"?"Fats":"Calories")+": "+(group?.[k]??"—")).join(" · ");
+  await recordClientPlanChange(selectedClient.uid,"nutrition_targets","Nutrition targets updated",previousTargets?{highDay:previousTargets.highDay,lowDay:previousTargets.lowDay,highDays:previousTargets.highDays}:{}, {highDay:savedTargets.highDay,lowDay:savedTargets.lowDay,highDays:savedTargets.highDays},"High days: "+(savedHighDays.join(", ")||"None")+"\nHigh day — "+macroSummary(savedTargets.highDay)+"\nLow day — "+macroSummary(savedTargets.lowDay));
+  await loadClientPlanChangeHistory();
   await createClientNotification(selectedClient.uid,"nutrition_targets","Your nutrition targets have been updated","Your coach has updated your calorie and macro targets. Open Nutrition to review your latest targets.");
   document.querySelectorAll(".highDayCheckbox").forEach(cb=>cb.checked=savedHighDays.includes(cb.value));
   $("nutritionTargetStatus").textContent="Saved and verified for "+(selectedClient?.displayName||"client")+" · High days: "+(savedHighDays.length?savedHighDays.join(", "):"none selected; all days are low days.")+" · ID "+selectedClient.uid;
@@ -3579,6 +3595,42 @@ $("compareCoachPhotos").addEventListener("click",()=>{
  range.addEventListener("input",()=>{coachPhotoSliderValue=Number(range.value);update();});
  panel.append(stage,labels,range,hint);host.append(panel);update();
 });
+async function recordClientPlanChange(uid,category,title,before,after,summary){
+ try{
+  const clean=value=>JSON.parse(JSON.stringify(value??null));
+  const oldValue=clean(before),newValue=clean(after);
+  if(JSON.stringify(oldValue)===JSON.stringify(newValue))return false;
+  const ref=doc(collection(db,"users",uid,"planChangeHistory"));
+  await setDoc(ref,{category,title,summary,before:oldValue,after:newValue,createdAt:serverTimestamp(),createdBy:currentUser.uid,createdByName:currentUser.displayName||"Coach"});
+  return true;
+ }catch(error){console.warn("Plan change saved, but its history entry could not be written:",error);return false;}
+}
+async function loadClientPlanChangeHistory(){
+ const host=$("clientPlanChangeHistory");if(!host||!selectedClient?.uid)return;
+ host.textContent="Loading plan change history…";
+ try{
+  const snap=await getDocs(collection(db,"users",selectedClient.uid,"planChangeHistory"));
+  const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>{
+   const at=a.createdAt?.toMillis?a.createdAt.toMillis():0,bt=b.createdAt?.toMillis?b.createdAt.toMillis():0;return bt-at;
+  });
+  host.replaceChildren();
+  if(!rows.length){host.textContent="No plan changes recorded yet. Future nutrition target, meal plan and training programme saves will appear here.";return;}
+  const summary=document.createElement("div");summary.className="muted";summary.style.marginBottom="8px";summary.textContent=rows.length+" recorded change"+(rows.length===1?"":"s");host.append(summary);
+  rows.forEach(row=>{
+   const details=document.createElement("details");details.style.cssText="margin:8px 0;border:1px solid var(--line);border-radius:10px;overflow:hidden";
+   const head=document.createElement("summary");head.style.cssText="cursor:pointer;list-style:none;padding:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap";
+   const title=document.createElement("strong");title.textContent=row.title||row.category||"Plan updated";
+   const date=document.createElement("span");date.className="muted";const stamp=row.createdAt?.toDate?row.createdAt.toDate():null;date.textContent=stamp?stamp.toLocaleString():"Date unavailable";
+   head.append(title,date);details.append(head);
+   const body=document.createElement("div");body.style.cssText="padding:10px 12px;border-top:1px solid var(--line)";
+   const category=document.createElement("div");category.className="eyebrow";category.textContent=(row.category||"PLAN").replace(/_/g," ").toUpperCase();body.append(category);
+   const summaryText=document.createElement("p");summaryText.style.cssText="margin:7px 0;white-space:pre-wrap";summaryText.textContent=row.summary||"Plan details updated.";body.append(summaryText);
+   const who=document.createElement("div");who.className="muted";who.textContent="Updated by "+(row.createdByName||"Coach");body.append(who);
+   details.append(body);host.append(details);
+  });
+ }catch(error){host.textContent="Could not load plan change history: "+error.message;}
+}
+
 async function loadCoachWorkoutReviews(){
  const host=$("coachWorkoutReviews");
  if(!selectedClient?.uid)return;
@@ -3734,7 +3786,7 @@ $("saveTrainingProgram").addEventListener("click",async()=>{
  if(!selectedClient?.uid||!coachTrainingProgram.workouts.length){$("coachTrainingStatus").textContent="Add at least one workout day before saving.";return;}
  syncCoachWorkoutNames();
  $("saveTrainingProgram").disabled=true;$("coachTrainingStatus").textContent="Saving training programme…";
- try{await setDoc(doc(db,"users",selectedClient.uid,"training","program"),{workouts:coachTrainingProgram.workouts,scheduleNote:coachTrainingProgram.scheduleNote||"",progressionNote:coachTrainingProgram.progressionNote||"",updatedAt:serverTimestamp(),updatedBy:currentUser.uid});const check=await getDoc(doc(db,"users",selectedClient.uid,"training","program"));if(!check.exists())throw new Error("Could not verify the saved programme.");coachTrainingProgram={workouts:check.data().workouts||[]};renderCoachTrainingProgram();await createClientNotification(selectedClient.uid,"training_program","Your training programme has been updated","Your coach has updated your training programme. Open Training to see your latest workouts and exercise targets.");$("coachTrainingStatus").textContent="Training programme saved and verified for "+(selectedClient.displayName||"this client")+".";
+ try{const trainingRef=doc(db,"users",selectedClient.uid,"training","program");const previousTrainingSnap=await getDoc(trainingRef);const previousTraining=previousTrainingSnap.exists()?{workouts:previousTrainingSnap.data().workouts||[],scheduleNote:previousTrainingSnap.data().scheduleNote||"",progressionNote:previousTrainingSnap.data().progressionNote||""}:null;await setDoc(trainingRef,{workouts:coachTrainingProgram.workouts,scheduleNote:coachTrainingProgram.scheduleNote||"",progressionNote:coachTrainingProgram.progressionNote||"",updatedAt:serverTimestamp(),updatedBy:currentUser.uid});const check=await getDoc(trainingRef);if(!check.exists())throw new Error("Could not verify the saved programme.");coachTrainingProgram={workouts:check.data().workouts||[]};renderCoachTrainingProgram();const savedTraining={workouts:check.data().workouts||[],scheduleNote:check.data().scheduleNote||"",progressionNote:check.data().progressionNote||""};const workoutCount=savedTraining.workouts.length,exerciseCount=savedTraining.workouts.reduce((n,w)=>n+(w.exercises||[]).length,0);await recordClientPlanChange(selectedClient.uid,"training_program","Training programme updated",previousTraining,savedTraining,workoutCount+" workout days · "+exerciseCount+" prescribed exercises\n"+(savedTraining.scheduleNote||"No schedule note.")+"\nProgression: "+(savedTraining.progressionNote||"No progression note."));await loadClientPlanChangeHistory();await createClientNotification(selectedClient.uid,"training_program","Your training programme has been updated","Your coach has updated your training programme. Open Training to see your latest workouts and exercise targets.");$("coachTrainingStatus").textContent="Training programme saved and verified for "+(selectedClient.displayName||"this client")+".";
  }catch(e){$("coachTrainingStatus").textContent="Could not save training programme: "+e.message;}finally{$("saveTrainingProgram").disabled=false;}
 });
 const personalTorsoLimbProgram={
