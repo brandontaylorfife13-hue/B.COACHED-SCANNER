@@ -424,7 +424,7 @@ export default {
         const contentType = request.headers.get("Content-Type") || "";
         const size = Number(request.headers.get("Content-Length") || 0);
         if (!contentType.startsWith("image/")) return response({ error: "Please upload an image file." }, 415);
-        if (size > 10 * 1024 * 1024) return response({ error: "Photo must be smaller than 10 MB." }, 413);
+        if (size > 50 * 1024 * 1024) return response({ error: "Photo must be 50 MB or smaller." }, 413);
         const date = (request.headers.get("X-Photo-Date") || "").replace(/[^0-9-]/g, "").slice(0, 10);
         const position = (request.headers.get("X-Photo-Position") || "other").toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 20) || "other";
         const name = (request.headers.get("X-Photo-Name") || "photo").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 100);
