@@ -723,7 +723,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 <div class="section-title" style="margin-top:28px">Progress photos</div><p class="muted">Upload front, side and back photos to compare changes over time. Photos are private to your account.</p>
 <label for="progressPhotoDate">Photo date</label><input id="progressPhotoDate" type="date">
 <label for="progressPhotoType">Photo position</label><select id="progressPhotoType" class="training-select"><option value="Front">Front</option><option value="Side">Side</option><option value="Back">Back</option><option value="Other">Other</option></select>
-<label for="progressPhotoFile">Choose photo</label><input id="progressPhotoFile" type="file" accept="image/*">
+<label for="progressPhotoFile">Choose photo (up to 50 MB)</label><input id="progressPhotoFile" type="file" accept="image/*">
 <button id="uploadProgressPhoto" style="width:100%;margin-top:14px">UPLOAD PROGRESS PHOTO</button><div id="progressPhotoStatus" class="status" role="status"></div>
 <div class="section-title" style="margin-top:22px">Your photo history</div><div id="progressPhotoHistory" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(145px,1fr))"></div>
 </section>
@@ -4789,7 +4789,7 @@ $("uploadProgressPhoto").addEventListener("click",async()=>{
  const file=$("progressPhotoFile").files[0],date=$("progressPhotoDate").value,position=$("progressPhotoType").value;
  if(!file||!date){$("progressPhotoStatus").textContent="Choose a photo and date first.";return;}
  if(!file.type.startsWith("image/")){$("progressPhotoStatus").textContent="Please choose an image file.";return;}
- if(file.size>10*1024*1024){$("progressPhotoStatus").textContent="Please choose an image smaller than 10 MB.";return;}
+ if(file.size>50*1024*1024){$("progressPhotoStatus").textContent="Please choose an image 50 MB or smaller.";return;}
  const button=$("uploadProgressPhoto"),statusBox=$("progressPhotoStatus");
  button.disabled=true;button.textContent="UPLOADING…";statusBox.textContent="Preparing photo upload… 0%";
  try{
