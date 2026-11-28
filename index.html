@@ -124,6 +124,17 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
 .diary-food-row .actions button{padding:9px 10px;font-size:11px}
 #foodTargetSummary{padding:14px!important;min-height:0}
 #foodDate{margin-bottom:4px}
+.food-search-wrap{position:relative;width:100%;z-index:30}
+.food-search-wrap #foodName{width:100%;padding-right:42px}
+.food-search-results{position:absolute;left:0;right:0;top:calc(100% + 6px);max-height:min(48vh,360px);overflow-y:auto;overscroll-behavior:contain;background:#151a11;border:1px solid #68794d;border-radius:15px;box-shadow:0 16px 38px rgba(0,0,0,.6);z-index:1000;padding:6px}
+.food-search-results.hidden{display:none}
+.food-search-result{display:flex;flex-direction:column;align-items:flex-start;text-align:left;width:100%;border:0;border-bottom:1px solid #343b2c;border-radius:9px;background:transparent;color:var(--text);padding:12px 11px;min-height:0;gap:4px}
+.food-search-result:last-child{border-bottom:0}
+.food-search-result:active{background:#27331a}
+.food-search-result-title{font-size:14px;font-weight:750;line-height:1.35;white-space:normal}
+.food-search-result small{font-size:11px;color:var(--muted);line-height:1.35}
+.food-search-result .food-search-result-macros{color:var(--lime);font-size:11px;font-weight:650}
+
 #clientMealPlan .meal-plan-block{padding:13px;margin:10px 0}
 #clientMealPlan .meal-plan-block h3{margin:0 0 12px;font-size:18px}
 #clientMealPlan .client-meal-check-row{display:flex;align-items:center;gap:9px;padding:10px 12px;margin:0 0 12px;border:1px solid #414b35;border-radius:11px;background:#11170e;cursor:pointer}
@@ -668,7 +679,7 @@ footer{text-align:center;color:#69705f;font-size:10px;letter-spacing:2px;margin-
   <button id="lookupBarcode" class="secondary" style="width:100%;margin-top:10px">LOOK UP BARCODE</button>
   <div id="barcodeStatus" class="status" role="status"></div></div></details>
   <details class="nutrition-accordion"><summary><span><strong>Add food manually</strong><small>Search the food database and enter your portion</small></span><span class="accordion-mark">+</span></summary><div class="nutrition-accordion-body"><div class="section-title" style="margin-top:20px">Add food</div>
-  <label for="foodName">Search food database</label><input id="foodName" list="foodSearchOptions" placeholder="Start typing chicken, oats, rice..."><datalist id="foodSearchOptions"></datalist><p class="muted">Search results are grouped by source: CoFID reference foods, ALDI products first, then other branded foods. Type at least 2 letters and choose a clearly labelled result. Nutrition is per 100g and your portion is calculated automatically.</p><label for="foodGrams">Portion size (g)</label><input id="foodGrams" type="number" min="1" step="1" value="100">
+  <label for="foodName">Find a food</label><div id="foodSearchWrap" class="food-search-wrap"><input id="foodName" autocomplete="off" autocapitalize="off" placeholder="Search chicken, oats, rice…"><div id="foodSearchResults" class="food-search-results hidden" role="listbox" aria-label="Food search results"></div></div><p class="muted">Search by food name or product. Choose a result to fill the nutrition values, then set your portion size. Results show the source and nutrition is calculated for your grams.</p><label for="foodGrams">Portion size (g)</label><input id="foodGrams" type="number" min="1" step="1" value="100">
   <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">
    <div><label for="foodCalories">Calories (kcal)</label><input id="foodCalories" type="number" min="0" step="1" placeholder="0"></div>
    <div><label for="foodProtein">Protein (g)</label><input id="foodProtein" type="number" min="0" step="0.1" placeholder="0"></div>
@@ -2711,9 +2722,31 @@ function addFoodOption(list,item,label){
  foodLookupCache.set(opt.value.toLowerCase(),item);
  foodLookupCache.set(item.name.toLowerCase(),item);
 }
+let foodSearchRequestId=0;
+function hideFoodSearchResults(){const box=$("foodSearchResults");if(box)box.classList.add("hidden");}
+function showFoodSearchResults(){
+ const list=$("foodSearchOptions"),box=$("foodSearchResults"),input=$("foodName");if(!list||!box||!input)return;
+ box.replaceChildren();
+ if(!list.options.length){hideFoodSearchResults();return;}
+ Array.from(list.options).slice(0,30).forEach(opt=>{
+  const item=foodLookupCache.get(opt.value.toLowerCase());if(!item)return;
+  const button=document.createElement("button");button.type="button";button.className="food-search-result";button.setAttribute("role","option");
+  const title=document.createElement("span");title.className="food-search-result-title";title.textContent=item.name;
+  const source=document.createElement("small");source.textContent=(item.source||"Food database")+" · per 100g";
+  const macros=document.createElement("small");macros.className="food-search-result-macros";macros.textContent=Math.round(item.calories)+" kcal · P "+Number(item.protein).toFixed(1)+"g · C "+Number(item.carbs).toFixed(1)+"g · F "+Number(item.fats).toFixed(1)+"g";
+  button.append(title,source,macros);
+  button.addEventListener("mousedown",e=>e.preventDefault());
+  button.addEventListener("click",()=>{
+   input.value=opt.value;applyFoodLookup(input);hideFoodSearchResults();input.blur();
+   $("foodStatus").textContent="Food selected. Set your portion and add it to your meal.";
+  });
+  box.append(button);
+ });
+ if(box.childElementCount)box.classList.remove("hidden");else hideFoodSearchResults();
+}
 async function searchFoodDatabase(term){
  const list=$("foodSearchOptions");if(!list)return;
- const q=term.trim().toLowerCase();if(q.length<2){list.replaceChildren();return;}
+ const q=term.trim().toLowerCase(),requestId=++foodSearchRequestId;if(q.length<2){list.replaceChildren();hideFoodSearchResults();return;}
  list.replaceChildren();foodLookupCache.clear();
  const add=(item,label)=>{
   const key=(label||item.name).toLowerCase();
@@ -2756,7 +2789,9 @@ async function searchFoodDatabase(term){
  try{
   await fetchProducts(base+"20&sort_by=unique_scans_n&fields=product_name,product_name_en,brands,nutriments","Open Food Facts",15,false);
  }catch(e){console.warn("Branded food search:",e);}
+ if(requestId!==foodSearchRequestId)return;
  if(!list.options.length){const opt=document.createElement("option");opt.value="No matching food found — try another search";list.append(opt);}
+ showFoodSearchResults();
 }
 function applyFoodLookup(input){
  const item=foodLookupCache.get(input.value.trim().toLowerCase());
@@ -2779,11 +2814,17 @@ function applyFoodLookup(input){
 document.addEventListener("input",e=>{
  const el=e.target;
  if(el.id==="foodName"||el.matches("[data-food-search]")){
+  if(el.id==="foodName"){
+   const box=$("foodSearchResults");if(box)box.classList.remove("hidden");
+  }
   const cached=foodLookupCache.get(el.value.trim().toLowerCase());
   if(cached){applyFoodLookup(el);return;}
   clearTimeout(foodSearchTimer);foodSearchTimer=setTimeout(()=>searchFoodDatabase(el.value),300);
  }
 });
+$("foodName")?.addEventListener("focus",()=>{if($("foodName").value.trim().length>=2)showFoodSearchResults();});
+$("foodName")?.addEventListener("keydown",e=>{if(e.key==="Escape")hideFoodSearchResults();});
+document.addEventListener("click",e=>{if(!$("foodSearchWrap")?.contains(e.target))hideFoodSearchResults();});
 document.addEventListener("change",e=>{
  const el=e.target;
  if(el.id==="foodName"||el.matches("[data-food-search]"))applyFoodLookup(el);
